@@ -10,7 +10,7 @@ import { tick } from './sim/world.js';
 import { createRenderer, updateStatus, buildRenderEntities } from './ui/renderer.js';
 import { renderLog } from './ui/log.js';
 import { initThoughtSystem, stopThoughtSystem, getThoughtStatus } from './ai/thoughts.js';
-import { initSpeechBubbles, showThought, showSpeech, updateBubblePositions, injectBubbleStyles } from './ui/speechBubble.js';
+import { initSpeechBubbles, showSpeech, updateBubblePositions, injectBubbleStyles, initSidebarThoughts, updateSidebarThoughts } from './ui/speechBubble.js';
 import { checkConnection } from './ai/llmClient.js';
 
 // Map configuration
@@ -126,6 +126,7 @@ function regenerateWorld() {
   initThoughtSystem(state, {
     onThought: handleDwarfThought,
     onSpeech: handleDwarfSpeech,
+    onSidebarUpdate: updateSidebarThoughts,
   });
 }
 
@@ -144,15 +145,11 @@ function isWalkableTile(type) {
 
 /**
  * Handle dwarf thought event (from LLM system)
+ * Thoughts go to sidebar panel only - speech bubbles reserved for spoken words
  */
 function handleDwarfThought(dwarf, thought) {
-  // Show thought bubble
-  showThought(dwarf, thought);
-
-  // Log significant thoughts
-  if (thought.length > 30) {
-    addLog(state, `${dwarf.name} ponders: "${thought.slice(0, 40)}..."`);
-  }
+  // Thoughts only appear in sidebar panel (handled by onSidebarUpdate callback)
+  // No floating thought bubbles on map - keeps focus on spoken interactions
 }
 
 /**
@@ -189,6 +186,9 @@ async function init() {
 
   // Initialize speech bubbles
   initSpeechBubbles(mapContainer, renderer.el);
+
+  // Initialize sidebar thought panel
+  initSidebarThoughts();
 
   // Check LLM connection
   llmConnected = await checkConnection();

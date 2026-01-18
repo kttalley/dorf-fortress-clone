@@ -1,6 +1,7 @@
 /**
  * Core simulation loop for v0.1
  * Order: hunger → decision → action → death → spawn
+ * Emits events for the thought system
  */
 
 import { addLog } from '../state/store.js';
@@ -9,6 +10,7 @@ import { getTileDef } from '../map/tiles.js';
 import { isCritical, createFoodSource } from './entities.js';
 import { decide as aiDecide } from '../ai/dwarfAI.js';
 import { applyHunger, processDeath, processEat, maybeSpawnFood } from './rules.js';
+import { emit, EVENTS } from '../events/eventBus.js';
 
 /**
  * Run one simulation tick
@@ -16,8 +18,30 @@ import { applyHunger, processDeath, processEat, maybeSpawnFood } from './rules.j
 export function tick(state) {
   state.tick++;
 
+  // Track previous hunger for threshold detection
+  const previousHungers = new Map();
+  const previousMoods = new Map();
+  for (const dwarf of state.dwarves) {
+    previousHungers.set(dwarf.id, dwarf.hunger);
+    previousMoods.set(dwarf.id, dwarf.mood || 50);
+  }
+
   // 1. Apply hunger pressure
   applyHunger(state);
+
+  // Emit hunger threshold events
+  for (const dwarf of state.dwarves) {
+    const prev = previousHungers.get(dwarf.id);
+    const current = dwarf.hunger;
+    if (prev !== current) {
+      emit(EVENTS.HUNGER_THRESHOLD, {
+        dwarf,
+        previousHunger: prev,
+        newHunger: current,
+        worldState: state,
+      });
+    }
+  }
 
   // 2. Each dwarf decides what to do
   for (const dwarf of state.dwarves) {
@@ -34,6 +58,25 @@ export function tick(state) {
 
   // 5. Maybe spawn new food (stochastic pressure)
   maybeSpawnFood(state, createFoodSource);
+
+  // Check for mood shifts after all actions
+  for (const dwarf of state.dwarves) {
+    const prevMood = previousMoods.get(dwarf.id);
+    const currentMood = dwarf.mood || 50;
+    const moodDelta = Math.abs(currentMood - prevMood);
+    if (moodDelta >= 15) {
+      emit(EVENTS.MOOD_SHIFT, {
+        dwarf,
+        previousMood: prevMood,
+        newMood: currentMood,
+        reason: moodDelta > 0 ? 'improved' : 'declined',
+        worldState: state,
+      });
+    }
+  }
+
+  // Emit tick event for proximity detection and other systems
+  emit(EVENTS.TICK, { worldState: state, tick: state.tick });
 }
 
 /**
@@ -102,8 +145,24 @@ function eat(dwarf, state) {
   );
 
   if (food) {
+    // Emit food found event before eating
+    emit(EVENTS.FOOD_FOUND, {
+      dwarf,
+      food,
+      worldState: state,
+    });
+
     processEat(dwarf, food, state);
     dwarf.state = 'eating';
+
+    // Check if food depleted
+    if (food.amount <= 0) {
+      emit(EVENTS.FOOD_DEPLETED, {
+        dwarf,
+        food,
+        worldState: state,
+      });
+    }
   }
 
   // Done eating, reset

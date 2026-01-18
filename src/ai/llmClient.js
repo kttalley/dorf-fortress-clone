@@ -6,6 +6,7 @@
 
 const OLLAMA_URL = 'https://llm.kristiantalley.com';
 const MODEL = 'gemma3:latest';
+const REQUEST_TIMEOUT = 5000;
 
 // Request queue to prevent overwhelming the server
 const requestQueue = [];
@@ -94,6 +95,322 @@ async function processQueue() {
     processQueue();
   }
 }
+
+// ============================================================
+// PROMPT TEMPLATES - Focused on emergent social interactions
+// ============================================================
+
+/**
+ * Prompt templates for different event-triggered thoughts
+ */
+export const PROMPT_TEMPLATES = {
+  // Meeting another dwarf
+  THOUGHT_MEETING: (dwarf, other, relationship) => {
+    const traits = formatTraits(dwarf.personality);
+    const mood = describeMood(dwarf.mood);
+    const rel = describeRelationshipDetailed(dwarf, other, relationship);
+    const memory = formatRecentMemory(dwarf);
+
+    return `You are ${dwarf.name}, a dwarf. Traits: ${traits}. Mood: ${mood}.
+
+You just noticed ${other.name} nearby. ${rel}
+${memory}
+
+Express a brief internal thought (1-2 sentences, first person) about seeing ${other.name}. Show personality:`;
+  },
+
+  // Finding food
+  THOUGHT_FOOD_FOUND: (dwarf, context) => {
+    const traits = formatTraits(dwarf.personality);
+    const hunger = describeHunger(dwarf.hunger);
+    const nearby = context.nearbyDwarves?.length > 0
+      ? `${context.nearbyDwarves.map(d => d.name).join(', ')} ${context.nearbyDwarves.length === 1 ? 'is' : 'are'} nearby.`
+      : 'You are alone.';
+
+    return `You are ${dwarf.name}, a dwarf. Traits: ${traits}. You are ${hunger}.
+
+You just found food. ${nearby}
+
+Brief thought (1-2 sentences, first person) - consider sharing or keeping for yourself:`;
+  },
+
+  // Getting hungry
+  THOUGHT_HUNGER: (dwarf, context) => {
+    const traits = formatTraits(dwarf.personality);
+    const hunger = describeHunger(dwarf.hunger);
+    const nearby = context.nearbyDwarves?.length > 0
+      ? `${context.nearbyDwarves.map(d => d.name).join(' and ')} ${context.nearbyDwarves.length === 1 ? 'is' : 'are'} nearby.`
+      : '';
+
+    return `You are ${dwarf.name}. Traits: ${traits}. You are ${hunger}. ${nearby}
+
+Brief thought about your hunger (1-2 sentences, first person):`;
+  },
+
+  // General observation
+  THOUGHT_OBSERVATION: (dwarf, context) => {
+    const traits = formatTraits(dwarf.personality);
+    const mood = describeMood(dwarf.mood);
+    const location = context.tileName || 'somewhere';
+    const nearby = context.nearbyDwarves?.length > 0
+      ? `You can see: ${context.nearbyDwarves.map(d => `${d.name} (${d.state})`).join(', ')}.`
+      : 'You are alone.';
+    const memory = formatRecentMemory(dwarf);
+
+    return `You are ${dwarf.name}. Traits: ${traits}. Mood: ${mood}. Location: ${location}.
+
+${nearby}
+${memory}
+
+Brief observation or thought (1-2 sentences, first person):`;
+  },
+
+  // Starting a conversation
+  SPEECH_INITIATE: (speaker, listener, speakerThought, relationship) => {
+    const traits = formatTraits(speaker.personality);
+    const rel = describeRelationshipDetailed(speaker, listener, relationship);
+    const history = formatConversationHistory(relationship);
+
+    return `${speaker.name} (${traits}) is thinking: "${speakerThought}"
+
+${speaker.name} wants to start a conversation with ${listener.name}. ${rel}
+${history}
+
+Write what ${speaker.name} says (1 short sentence, casual, no quotes):`;
+  },
+
+  // Responding in conversation
+  SPEECH_RESPOND: (responder, speaker, lastSaid, responderThought, relationship) => {
+    const traits = formatTraits(responder.personality);
+    const rel = describeRelationshipDetailed(responder, speaker, relationship);
+
+    return `${speaker.name} just said: "${lastSaid}"
+
+${responder.name} (${traits}) is thinking: "${responderThought}"
+${rel}
+
+Write ${responder.name}'s brief reply (1 short sentence, casual, no quotes):`;
+  },
+};
+
+// ============================================================
+// ENHANCED GENERATION FUNCTIONS
+// ============================================================
+
+/**
+ * Generate thought based on specific event type
+ * @param {object} dwarf - Dwarf entity
+ * @param {string} eventType - 'meeting' | 'food_found' | 'hunger' | 'observation'
+ * @param {object} context - Event-specific context
+ * @returns {Promise<string>}
+ */
+export async function generateEventThought(dwarf, eventType, context = {}) {
+  let prompt;
+
+  switch (eventType) {
+    case 'meeting':
+      prompt = PROMPT_TEMPLATES.THOUGHT_MEETING(
+        dwarf,
+        context.otherDwarf,
+        dwarf.relationships?.[context.otherDwarf?.id]
+      );
+      break;
+    case 'food_found':
+      prompt = PROMPT_TEMPLATES.THOUGHT_FOOD_FOUND(dwarf, context);
+      break;
+    case 'hunger':
+      prompt = PROMPT_TEMPLATES.THOUGHT_HUNGER(dwarf, context);
+      break;
+    case 'observation':
+    default:
+      prompt = PROMPT_TEMPLATES.THOUGHT_OBSERVATION(dwarf, context);
+      break;
+  }
+
+  const thought = await queueGeneration(prompt, {
+    maxTokens: 80,
+    temperature: 0.9,
+    stop: ['\n\n', 'Human:', 'User:', 'You are'],
+  });
+
+  return cleanResponse(thought) || getContextualFallback(dwarf, eventType);
+}
+
+/**
+ * Generate conversation speech with context
+ * @param {object} speaker
+ * @param {object} listener
+ * @param {string} speakerThought
+ * @param {object} context - { isResponse, lastSaid }
+ * @returns {Promise<string>}
+ */
+export async function generateConversationSpeech(speaker, listener, speakerThought, context = {}) {
+  const relationship = speaker.relationships?.[listener.id];
+
+  let prompt;
+  if (context.isResponse && context.lastSaid) {
+    prompt = PROMPT_TEMPLATES.SPEECH_RESPOND(
+      speaker, listener, context.lastSaid, speakerThought, relationship
+    );
+  } else {
+    prompt = PROMPT_TEMPLATES.SPEECH_INITIATE(
+      speaker, listener, speakerThought, relationship
+    );
+  }
+
+  const speech = await queueGeneration(prompt, {
+    maxTokens: 50,
+    temperature: 0.85,
+    stop: ['\n', '"', '*', '(', 'They', 'The dwarf'],
+  });
+
+  return cleanResponse(speech) || getPersonalitySpeech(speaker);
+}
+
+// ============================================================
+// HELPER FUNCTIONS FOR PROMPTS
+// ============================================================
+
+function formatTraits(personality = {}) {
+  const dominant = [];
+  for (const [trait, value] of Object.entries(personality)) {
+    if (value > 0.7) dominant.push(trait);
+    else if (value < 0.3) dominant.push(`not ${trait}`);
+  }
+  return dominant.length > 0 ? dominant.slice(0, 3).join(', ') : 'ordinary';
+}
+
+function describeHunger(hunger = 0) {
+  if (hunger > 80) return 'desperately hungry';
+  if (hunger > 60) return 'very hungry';
+  if (hunger > 40) return 'getting hungry';
+  if (hunger > 20) return 'slightly peckish';
+  return 'well-fed';
+}
+
+function describeRelationshipDetailed(dwarf, other, relationship = null) {
+  if (!relationship || relationship.interactions === 0) {
+    return `You don't know ${other.name} well yet.`;
+  }
+
+  const affinity = relationship.affinity || 0;
+  const interactions = relationship.interactions || 0;
+
+  let desc = '';
+  if (affinity > 50) desc = `${other.name} is a good friend.`;
+  else if (affinity > 20) desc = `You like ${other.name}.`;
+  else if (affinity > -20) desc = `${other.name} is an acquaintance.`;
+  else if (affinity > -50) desc = `You find ${other.name} a bit annoying.`;
+  else desc = `You dislike ${other.name}.`;
+
+  desc += ` You've talked ${interactions} time${interactions !== 1 ? 's' : ''}.`;
+
+  return desc;
+}
+
+function formatRecentMemory(dwarf) {
+  const parts = [];
+
+  if (dwarf.memory?.recentThoughts?.length > 0) {
+    const last = dwarf.memory.recentThoughts[dwarf.memory.recentThoughts.length - 1];
+    if (last?.content) {
+      parts.push(`Recent thought: "${last.content}"`);
+    }
+  }
+
+  if (dwarf.memory?.significantEvents?.length > 0) {
+    const events = dwarf.memory.significantEvents.slice(-2).map(e => e.content).filter(Boolean);
+    if (events.length > 0) {
+      parts.push(`Recent events: ${events.join('; ')}`);
+    }
+  }
+
+  return parts.length > 0 ? parts.join('\n') : '';
+}
+
+function formatConversationHistory(relationship) {
+  if (!relationship?.conversationLog?.length) {
+    return '(First conversation)';
+  }
+
+  return 'Previous exchanges:\n' + relationship.conversationLog
+    .slice(-3)
+    .map(c => `- ${c.speaker}: "${c.text}"`)
+    .join('\n');
+}
+
+function cleanResponse(text) {
+  if (!text) return null;
+
+  let cleaned = text.trim();
+  // Remove quotes
+  cleaned = cleaned.replace(/^["']|["']$/g, '');
+  // Remove "Name:" prefix
+  cleaned = cleaned.replace(/^\w+:\s*/i, '');
+  // Remove *actions*
+  cleaned = cleaned.replace(/\*[^*]+\*/g, '');
+  // Remove extra whitespace
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+// ============================================================
+// CONTEXT-AWARE FALLBACKS
+// ============================================================
+
+function getContextualFallback(dwarf, eventType) {
+  const fallbacks = {
+    meeting: [
+      'Oh, someone else is here.',
+      'I wonder what they want.',
+      'Company at last.',
+      'Should I say hello?',
+      'Interesting timing.',
+    ],
+    food_found: [
+      'Finally, something to eat!',
+      'This looks edible.',
+      'I should remember this spot.',
+      'Food at last.',
+    ],
+    hunger: [
+      'My stomach is growling...',
+      'I need to find food soon.',
+      'Getting hungry here.',
+      'When did I last eat?',
+    ],
+    observation: [
+      'Interesting place.',
+      'I wonder what today will bring.',
+      'Just another moment.',
+      'The air feels different here.',
+    ],
+  };
+
+  const options = fallbacks[eventType] || fallbacks.observation;
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+function getPersonalitySpeech(speaker) {
+  // Personality-influenced fallback speech
+  if (speaker.personality?.friendliness > 0.7) {
+    return ['Great to see you!', 'Hello, friend!', 'How are you?'][Math.floor(Math.random() * 3)];
+  }
+  if (speaker.personality?.humor > 0.7) {
+    return ['So, come here often?', 'Nice weather for exploring.', 'Fancy meeting you here.'][Math.floor(Math.random() * 3)];
+  }
+  if (speaker.personality?.melancholy > 0.7) {
+    return ['Oh. Hello.', 'I suppose we meet again.', 'Hmm.'][Math.floor(Math.random() * 3)];
+  }
+
+  const generic = ['Hey there.', 'How goes it?', 'Hello.', 'Hmm.', 'What do you think of this place?'];
+  return generic[Math.floor(Math.random() * generic.length)];
+}
+
+// ============================================================
+// LEGACY FUNCTIONS (kept for backwards compatibility)
+// ============================================================
 
 /**
  * Generate a dwarf thought based on their state

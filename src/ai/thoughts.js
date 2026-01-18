@@ -1,379 +1,662 @@
 /**
- * Dwarf Thoughts System
+ * Event-Driven Dwarf Thoughts System
  * Manages internal thoughts, triggers social interactions
  * Runs asynchronously outside the main tick loop
+ * Responds to game events rather than random timers
  */
 
-import { generateThought, generateSpeech, checkConnection, getQueueStatus } from './llmClient.js';
-import { distance } from '../sim/entities.js';
+import { generateEventThought, generateConversationSpeech, checkConnection, getQueueStatus } from './llmClient.js';
+import { distance, addMemory, satisfyFulfillment } from '../sim/entities.js';
+import { on, emit, EVENTS } from '../events/eventBus.js';
 
-// Thought update interval (ms) - stagger to avoid overwhelming LLM
-const THOUGHT_INTERVAL = 3000;
-const INTERACTION_CHANCE = 0.15;  // Chance of initiating conversation when near another dwarf
-const INTERACTION_DISTANCE = 3;   // Tiles
+// ============================================================
+// CONFIGURATION
+// ============================================================
 
-// Active thoughts and conversations
-const activeThoughts = new Map();  // dwarfId -> { thought, timestamp }
-const activeConversations = new Map();  // conversationId -> { participants, messages, startTick }
-const thoughtHistory = new Map();  // dwarfId -> [recent thoughts]
+const CONFIG = {
+  THOUGHT_COOLDOWN: 6000,        // Min ms between thoughts for same dwarf
+  MEETING_COOLDOWN: 15000,       // Min ms between meeting thoughts for same pair (reduced for more social)
+  INTERACTION_DISTANCE: 4,       // Tiles to be "near" another dwarf (increased for easier meetings)
+  CONVERSATION_CHANCE: 0.7,      // Chance meeting triggers conversation (high - dwarves love to chat)
+  MAX_CONVERSATION_TURNS: 6,     // Max back-and-forth exchanges (longer conversations)
+  BACKGROUND_THOUGHT_INTERVAL: 10000,  // Random observation thoughts
+};
 
-let llmAvailable = false;
-let thoughtLoopId = null;
-let worldState = null;
-let onThoughtCallback = null;
-let onSpeechCallback = null;
+// ============================================================
+// STATE
+// ============================================================
+
+const state = {
+  llmAvailable: false,
+  worldState: null,
+  onThoughtCallback: null,
+  onSpeechCallback: null,
+  onSidebarUpdate: null,
+
+  activeThoughts: new Map(),      // dwarfId -> { thought, type, timestamp }
+  activeConversations: new Map(), // convId -> { participants, messages, turns, startTime }
+  thoughtCooldowns: new Map(),    // dwarfId -> timestamp
+  meetingCooldowns: new Map(),    // "id1-id2" -> timestamp
+  proximityState: new Map(),      // dwarfId -> Set of nearby dwarf ids
+  lastTerrainType: new Map(),     // dwarfId -> tile type
+
+  eventUnsubscribers: [],
+  backgroundLoopId: null,
+};
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
 
 /**
- * Initialize the thoughts system
- * @param {object} state - World state reference
- * @param {object} callbacks - Event callbacks
+ * Initialize the event-driven thought system
+ * @param {object} worldState - Reference to world state
+ * @param {object} callbacks - { onThought, onSpeech, onSidebarUpdate }
  */
-export function initThoughtSystem(state, callbacks = {}) {
-  worldState = state;
-  onThoughtCallback = callbacks.onThought || (() => {});
-  onSpeechCallback = callbacks.onSpeech || (() => {});
+export function initThoughtSystem(worldState, callbacks = {}) {
+  state.worldState = worldState;
+  state.onThoughtCallback = callbacks.onThought || (() => {});
+  state.onSpeechCallback = callbacks.onSpeech || (() => {});
+  state.onSidebarUpdate = callbacks.onSidebarUpdate || (() => {});
 
   // Check LLM availability
   checkConnection().then(available => {
-    llmAvailable = available;
-    console.log(`[Thoughts] LLM ${available ? 'connected' : 'unavailable, using fallbacks'}`);
+    state.llmAvailable = available;
+    console.log(`[Thoughts] LLM ${available ? 'connected' : 'offline, using fallbacks'}`);
   });
 
-  // Start thought loop
-  startThoughtLoop();
+  // Subscribe to events
+  subscribeToEvents();
+
+  // Start background observation loop
+  startBackgroundLoop();
 }
 
 /**
- * Stop the thoughts system
+ * Stop and clean up the thought system
  */
 export function stopThoughtSystem() {
-  if (thoughtLoopId) {
-    clearTimeout(thoughtLoopId);
-    thoughtLoopId = null;
+  // Unsubscribe from all events
+  for (const unsub of state.eventUnsubscribers) {
+    unsub();
+  }
+  state.eventUnsubscribers = [];
+
+  // Clear background loop
+  if (state.backgroundLoopId) {
+    clearTimeout(state.backgroundLoopId);
+    state.backgroundLoopId = null;
+  }
+
+  // Clear state
+  state.activeThoughts.clear();
+  state.activeConversations.clear();
+  state.thoughtCooldowns.clear();
+  state.meetingCooldowns.clear();
+  state.proximityState.clear();
+  state.lastTerrainType.clear();
+}
+
+/**
+ * Subscribe to game events that trigger thoughts
+ */
+function subscribeToEvents() {
+  // World tick - for proximity detection
+  state.eventUnsubscribers.push(
+    on(EVENTS.TICK, handleTick)
+  );
+
+  // Food discovery
+  state.eventUnsubscribers.push(
+    on(EVENTS.FOOD_FOUND, handleFoodFound)
+  );
+
+  // Hunger threshold crossed
+  state.eventUnsubscribers.push(
+    on(EVENTS.HUNGER_THRESHOLD, handleHungerThreshold)
+  );
+
+  // Mood shift
+  state.eventUnsubscribers.push(
+    on(EVENTS.MOOD_SHIFT, handleMoodShift)
+  );
+
+  // New terrain
+  state.eventUnsubscribers.push(
+    on(EVENTS.NEW_TERRAIN, handleNewTerrain)
+  );
+}
+
+// ============================================================
+// EVENT HANDLERS
+// ============================================================
+
+/**
+ * Handle tick event - detect proximity changes and terrain changes
+ */
+function handleTick({ worldState }) {
+  if (!worldState?.dwarves) return;
+
+  const dwarves = worldState.dwarves;
+
+  for (const dwarf of dwarves) {
+    // Track nearby dwarves for meeting detection
+    const currentNearby = new Set();
+
+    for (const other of dwarves) {
+      if (other.id === dwarf.id) continue;
+      if (distance(dwarf, other) <= CONFIG.INTERACTION_DISTANCE) {
+        currentNearby.add(other.id);
+      }
+    }
+
+    // Check for new encounters
+    const previousNearby = state.proximityState.get(dwarf.id) || new Set();
+
+    for (const otherId of currentNearby) {
+      if (!previousNearby.has(otherId)) {
+        // New meeting!
+        const other = dwarves.find(d => d.id === otherId);
+        if (other && !isOnMeetingCooldown(dwarf.id, otherId)) {
+          handleDwarfMeeting({ dwarf, other, worldState });
+        }
+      }
+    }
+
+    state.proximityState.set(dwarf.id, currentNearby);
+
+    // Check for terrain change
+    const currentTerrain = getTileType(dwarf.x, dwarf.y, worldState);
+    const lastTerrain = state.lastTerrainType.get(dwarf.id);
+
+    if (lastTerrain && currentTerrain !== lastTerrain) {
+      emit(EVENTS.NEW_TERRAIN, { dwarf, previousTerrain: lastTerrain, newTerrain: currentTerrain, worldState });
+    }
+
+    state.lastTerrainType.set(dwarf.id, currentTerrain);
   }
 }
 
 /**
- * Main thought loop - runs async, outside tick
+ * Handle dwarf meeting event
  */
-function startThoughtLoop() {
+async function handleDwarfMeeting({ dwarf, other, worldState }) {
+  // Set cooldown for this pair
+  setMeetingCooldown(dwarf.id, other.id);
+
+  // Check if on thought cooldown
+  if (isOnThoughtCooldown(dwarf.id)) return;
+
+  // Generate thought about meeting
+  const context = {
+    otherDwarf: other,
+    nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
+    tileName: getTileDescription(dwarf.x, dwarf.y),
+  };
+
+  const thought = await generateEventThought(dwarf, 'meeting', context);
+
+  if (thought) {
+    recordThought(dwarf, thought, 'meeting');
+
+    // Maybe start conversation
+    if (Math.random() < CONFIG.CONVERSATION_CHANCE) {
+      setTimeout(() => startConversation(dwarf, other, thought), 1500 + Math.random() * 1000);
+    }
+  }
+}
+
+/**
+ * Handle food found event
+ */
+async function handleFoodFound({ dwarf, food, worldState }) {
+  if (isOnThoughtCooldown(dwarf.id)) return;
+
+  const context = {
+    food,
+    nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
+    tileName: getTileDescription(dwarf.x, dwarf.y),
+  };
+
+  const thought = await generateEventThought(dwarf, 'food_found', context);
+
+  if (thought) {
+    recordThought(dwarf, thought, 'food_found');
+    addMemory(dwarf, 'event', 'Found food', state.worldState?.tick || 0);
+  }
+}
+
+/**
+ * Handle hunger threshold event
+ */
+async function handleHungerThreshold({ dwarf, previousHunger, newHunger }) {
+  if (isOnThoughtCooldown(dwarf.id)) return;
+
+  // Only trigger on significant threshold crossings (40, 60, 80)
+  const thresholds = [40, 60, 80];
+  const crossedThreshold = thresholds.find(t =>
+    previousHunger < t && newHunger >= t
+  );
+
+  if (!crossedThreshold) return;
+
+  const context = {
+    nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
+    hungerLevel: crossedThreshold,
+    tileName: getTileDescription(dwarf.x, dwarf.y),
+  };
+
+  const thought = await generateEventThought(dwarf, 'hunger', context);
+
+  if (thought) {
+    recordThought(dwarf, thought, 'hunger');
+  }
+}
+
+/**
+ * Handle mood shift event
+ */
+async function handleMoodShift({ dwarf, previousMood, newMood, reason }) {
+  if (isOnThoughtCooldown(dwarf.id)) return;
+
+  const moodDelta = newMood - previousMood;
+  if (Math.abs(moodDelta) < 15) return; // Only significant shifts
+
+  const context = {
+    nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
+    tileName: getTileDescription(dwarf.x, dwarf.y),
+    moodImproving: moodDelta > 0,
+  };
+
+  const thought = await generateEventThought(dwarf, 'observation', context);
+
+  if (thought) {
+    recordThought(dwarf, thought, 'mood');
+  }
+}
+
+/**
+ * Handle new terrain event
+ */
+async function handleNewTerrain({ dwarf, previousTerrain, newTerrain, worldState }) {
+  // Only generate thought occasionally for terrain changes
+  if (Math.random() > 0.15) return;
+  if (isOnThoughtCooldown(dwarf.id)) return;
+
+  const context = {
+    nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
+    tileName: getTileDescription(dwarf.x, dwarf.y),
+    previousTerrain,
+  };
+
+  const thought = await generateEventThought(dwarf, 'observation', context);
+
+  if (thought) {
+    recordThought(dwarf, thought, 'terrain');
+  }
+}
+
+// ============================================================
+// CONVERSATION SYSTEM
+// ============================================================
+
+/**
+ * Start a conversation between two dwarves
+ */
+async function startConversation(initiator, target, initiatorThought) {
+  const convId = getConversationId(initiator.id, target.id);
+
+  // Don't start if already in conversation
+  if (state.activeConversations.has(convId)) return;
+
+  // Check if they're still close enough
+  if (distance(initiator, target) > CONFIG.INTERACTION_DISTANCE + 2) return;
+
+  // Generate opening speech
+  const speech = await generateConversationSpeech(initiator, target, initiatorThought, {
+    isResponse: false,
+  });
+
+  if (!speech) return;
+
+  // Create conversation record
+  const conversation = {
+    id: convId,
+    participants: [initiator.id, target.id],
+    messages: [{
+      speakerId: initiator.id,
+      speakerName: initiator.name,
+      text: speech,
+      timestamp: Date.now(),
+    }],
+    turns: 1,
+    startTime: Date.now(),
+  };
+
+  state.activeConversations.set(convId, conversation);
+
+  // Update relationships
+  updateRelationship(initiator, target, 'spoke', speech);
+
+  // Notify callbacks
+  state.onSpeechCallback(initiator, target, speech);
+
+  // Add to conversation log
+  addToConversationLog(initiator, target, initiator.name, speech);
+
+  // Schedule response
+  const responseDelay = 2000 + Math.random() * 2000;
+  setTimeout(() => continueConversation(convId, target, initiator), responseDelay);
+}
+
+/**
+ * Continue an existing conversation
+ */
+async function continueConversation(convId, responder, previousSpeaker) {
+  const conversation = state.activeConversations.get(convId);
+  if (!conversation) return;
+
+  // Check if conversation should end
+  if (conversation.turns >= CONFIG.MAX_CONVERSATION_TURNS) {
+    endConversation(convId);
+    return;
+  }
+
+  // Check if dwarves are still close enough
+  if (distance(responder, previousSpeaker) > CONFIG.INTERACTION_DISTANCE + 2) {
+    endConversation(convId);
+    return;
+  }
+
+  const lastMessage = conversation.messages[conversation.messages.length - 1];
+  const responderThought = state.activeThoughts.get(responder.id)?.thought || 'hmm';
+
+  const response = await generateConversationSpeech(responder, previousSpeaker, responderThought, {
+    isResponse: true,
+    lastSaid: lastMessage.text,
+  });
+
+  if (!response) {
+    endConversation(convId);
+    return;
+  }
+
+  // Add to conversation
+  conversation.messages.push({
+    speakerId: responder.id,
+    speakerName: responder.name,
+    text: response,
+    timestamp: Date.now(),
+  });
+  conversation.turns++;
+
+  // Update relationships
+  updateRelationship(responder, previousSpeaker, 'responded', response);
+
+  // Notify callbacks
+  state.onSpeechCallback(responder, previousSpeaker, response);
+
+  // Add to conversation log
+  addToConversationLog(responder, previousSpeaker, responder.name, response);
+
+  // Maybe continue (50% chance for another exchange)
+  if (Math.random() < 0.5 && conversation.turns < CONFIG.MAX_CONVERSATION_TURNS) {
+    const delay = 2000 + Math.random() * 2000;
+    setTimeout(() => continueConversation(convId, previousSpeaker, responder), delay);
+  } else {
+    setTimeout(() => endConversation(convId), 3000);
+  }
+}
+
+/**
+ * End a conversation
+ */
+function endConversation(convId) {
+  const conversation = state.activeConversations.get(convId);
+  if (!conversation) return;
+
+  // Record significant conversation as memory
+  if (conversation.turns >= 2) {
+    const dwarves = state.worldState?.dwarves || [];
+    for (const participantId of conversation.participants) {
+      const dwarf = dwarves.find(d => d.id === participantId);
+      if (dwarf) {
+        const otherName = conversation.messages.find(m => m.speakerId !== participantId)?.speakerName || 'someone';
+        addMemory(dwarf, 'conversation', `Talked with ${otherName}`, state.worldState?.tick || 0);
+      }
+    }
+  }
+
+  state.activeConversations.delete(convId);
+}
+
+// ============================================================
+// BACKGROUND THOUGHT LOOP
+// ============================================================
+
+/**
+ * Background loop for occasional observation thoughts
+ */
+function startBackgroundLoop() {
   async function loop() {
-    if (!worldState || !worldState.dwarves) {
-      thoughtLoopId = setTimeout(loop, THOUGHT_INTERVAL);
+    if (!state.worldState?.dwarves?.length) {
+      state.backgroundLoopId = setTimeout(loop, CONFIG.BACKGROUND_THOUGHT_INTERVAL);
       return;
     }
 
-    const dwarves = worldState.dwarves;
-    if (dwarves.length === 0) {
-      thoughtLoopId = setTimeout(loop, THOUGHT_INTERVAL);
-      return;
+    // Pick a random dwarf who isn't on cooldown
+    const candidates = state.worldState.dwarves.filter(d => !isOnThoughtCooldown(d.id));
+
+    if (candidates.length > 0 && Math.random() < 0.4) {
+      const dwarf = candidates[Math.floor(Math.random() * candidates.length)];
+
+      const context = {
+        nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
+        tileName: getTileDescription(dwarf.x, dwarf.y),
+      };
+
+      const thought = await generateEventThought(dwarf, 'observation', context);
+
+      if (thought) {
+        recordThought(dwarf, thought, 'observation');
+      }
     }
 
-    // Pick a random dwarf to update thought
-    const dwarf = dwarves[Math.floor(Math.random() * dwarves.length)];
-
-    // Generate new thought
-    await updateDwarfThought(dwarf);
-
-    // Check for social interactions
-    await checkSocialInteractions(dwarf);
-
-    // Schedule next iteration
-    thoughtLoopId = setTimeout(loop, THOUGHT_INTERVAL);
+    state.backgroundLoopId = setTimeout(loop, CONFIG.BACKGROUND_THOUGHT_INTERVAL);
   }
 
   loop();
 }
 
-/**
- * Update a dwarf's internal thought
- * @param {object} dwarf
- */
-async function updateDwarfThought(dwarf) {
-  const context = buildThoughtContext(dwarf);
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
 
-  const thought = await generateThought(dwarf, context);
-
-  if (thought) {
-    // Store thought
-    activeThoughts.set(dwarf.id, {
-      thought,
-      timestamp: Date.now(),
-    });
-
-    // Add to history
-    if (!thoughtHistory.has(dwarf.id)) {
-      thoughtHistory.set(dwarf.id, []);
-    }
-    const history = thoughtHistory.get(dwarf.id);
-    history.push({ thought, tick: worldState.tick });
-    if (history.length > 10) history.shift();
-
-    // Update dwarf's current thought
-    dwarf.currentThought = thought;
-
-    // Notify callback
-    onThoughtCallback(dwarf, thought);
-  }
-}
-
-/**
- * Build context for thought generation
- * @param {object} dwarf
- * @returns {object}
- */
-function buildThoughtContext(dwarf) {
-  const nearbyDwarves = findNearbyDwarves(dwarf, INTERACTION_DISTANCE * 2);
-  const currentTile = getTileDescription(dwarf.x, dwarf.y);
-  const recentEvents = getRecentEventsFor(dwarf);
-
-  return {
-    nearbyDwarves,
-    currentTile,
-    recentEvents,
-  };
-}
-
-/**
- * Find dwarves near a given dwarf
- * @param {object} dwarf
- * @param {number} range
- * @returns {Array}
- */
-function findNearbyDwarves(dwarf, range) {
-  if (!worldState?.dwarves) return [];
-
-  return worldState.dwarves.filter(other => {
-    if (other.id === dwarf.id) return false;
-    return distance(dwarf, other) <= range;
-  });
-}
-
-/**
- * Get tile description for context
- * @param {number} x
- * @param {number} y
- * @returns {string}
- */
-function getTileDescription(x, y) {
-  if (!worldState?.map) return 'unknown area';
-
-  // Simple tile type to description
-  const tile = worldState.map.tiles[y * worldState.map.width + x];
-  if (!tile) return 'unknown area';
-
-  const descriptions = {
-    'grass': 'a grassy meadow',
-    'forest_floor': 'a shaded forest',
-    'cave_floor': 'a dim cavern',
-    'river_bank': 'near a flowing river',
-    'mountain_slope': 'a rocky mountainside',
-    'marsh': 'a murky marsh',
-    'sand': 'sandy ground',
-  };
-
-  return descriptions[tile.type] || 'an open area';
-}
-
-/**
- * Get recent events relevant to a dwarf
- * @param {object} dwarf
- * @returns {Array<string>}
- */
-function getRecentEventsFor(dwarf) {
-  if (!worldState?.log) return [];
-
-  return worldState.log
-    .filter(entry => entry.message.includes(dwarf.name))
-    .slice(-3)
-    .map(entry => entry.message);
-}
-
-/**
- * Check for and initiate social interactions
- * @param {object} dwarf
- */
-async function checkSocialInteractions(dwarf) {
-  const nearbyDwarves = findNearbyDwarves(dwarf, INTERACTION_DISTANCE);
-
-  if (nearbyDwarves.length === 0) return;
-
-  // Random chance to initiate conversation
-  if (Math.random() > INTERACTION_CHANCE) return;
-
-  // Pick someone nearby
-  const target = nearbyDwarves[Math.floor(Math.random() * nearbyDwarves.length)];
-
-  // Check if either is already in conversation
-  const conversationId = getConversationId(dwarf.id, target.id);
-  if (activeConversations.has(conversationId)) return;
-
-  // Start conversation
-  await startConversation(dwarf, target);
-}
-
-/**
- * Start a conversation between two dwarves
- * @param {object} initiator
- * @param {object} target
- */
-async function startConversation(initiator, target) {
-  const conversationId = getConversationId(initiator.id, target.id);
-
-  // Get initiator's current thought
-  const initiatorThought = activeThoughts.get(initiator.id)?.thought || 'something on my mind';
-
-  // Generate speech based on thought
-  const speech = await generateSpeech(initiator, target, initiatorThought, {
-    relationshipHistory: getRelationshipHistory(initiator, target),
+function recordThought(dwarf, thought, type) {
+  state.activeThoughts.set(dwarf.id, {
+    thought,
+    type,
+    timestamp: Date.now(),
   });
 
-  if (speech) {
-    // Create conversation record
-    activeConversations.set(conversationId, {
-      participants: [initiator.id, target.id],
-      messages: [{
-        speaker: initiator.id,
-        text: speech,
-        tick: worldState.tick,
-      }],
-      startTick: worldState.tick,
-    });
+  state.thoughtCooldowns.set(dwarf.id, Date.now());
 
-    // Update relationship
-    updateRelationship(initiator, target, 'spoke');
+  // Update dwarf's current thought
+  dwarf.currentThought = thought;
+  dwarf.lastThoughtTick = state.worldState?.tick || 0;
 
-    // Notify callback
-    onSpeechCallback(initiator, target, speech);
+  // Add to memory
+  addMemory(dwarf, 'thought', thought, state.worldState?.tick || 0);
 
-    // Schedule response
-    setTimeout(() => respondToConversation(conversationId, target, initiator), 2000 + Math.random() * 2000);
-  }
+  // Notify callbacks
+  state.onThoughtCallback(dwarf, thought);
+  state.onSidebarUpdate(getAllThoughts());
 }
 
-/**
- * Generate a response in a conversation
- * @param {string} conversationId
- * @param {object} responder
- * @param {object} originalSpeaker
- */
-async function respondToConversation(conversationId, responder, originalSpeaker) {
-  const conversation = activeConversations.get(conversationId);
-  if (!conversation) return;
-
-  // Get responder's thought
-  const responderThought = activeThoughts.get(responder.id)?.thought || 'hmm';
-
-  // Generate response
-  const response = await generateSpeech(responder, originalSpeaker, responderThought, {
-    relationshipHistory: getRelationshipHistory(responder, originalSpeaker),
-    topic: conversation.messages[0]?.text,
-  });
-
-  if (response) {
-    conversation.messages.push({
-      speaker: responder.id,
-      text: response,
-      tick: worldState.tick,
-    });
-
-    // Update relationship
-    updateRelationship(responder, originalSpeaker, 'responded');
-
-    // Notify callback
-    onSpeechCallback(responder, originalSpeaker, response);
-  }
-
-  // End conversation after response
-  setTimeout(() => {
-    activeConversations.delete(conversationId);
-  }, 3000);
+function isOnThoughtCooldown(dwarfId) {
+  const lastThought = state.thoughtCooldowns.get(dwarfId);
+  if (!lastThought) return false;
+  return Date.now() - lastThought < CONFIG.THOUGHT_COOLDOWN;
 }
 
-/**
- * Get unique conversation ID for two dwarves
- */
+function isOnMeetingCooldown(id1, id2) {
+  const key = id1 < id2 ? `${id1}-${id2}` : `${id2}-${id1}`;
+  const lastMeeting = state.meetingCooldowns.get(key);
+  if (!lastMeeting) return false;
+  return Date.now() - lastMeeting < CONFIG.MEETING_COOLDOWN;
+}
+
+function setMeetingCooldown(id1, id2) {
+  const key = id1 < id2 ? `${id1}-${id2}` : `${id2}-${id1}`;
+  state.meetingCooldowns.set(key, Date.now());
+}
+
 function getConversationId(id1, id2) {
   return id1 < id2 ? `${id1}-${id2}` : `${id2}-${id1}`;
 }
 
-/**
- * Get relationship history between two dwarves
- */
-function getRelationshipHistory(dwarf1, dwarf2) {
-  // Placeholder - would be populated from dwarf.relationships
-  return [];
+function findNearbyDwarves(dwarf, range) {
+  if (!state.worldState?.dwarves) return [];
+  return state.worldState.dwarves.filter(other =>
+    other.id !== dwarf.id && distance(dwarf, other) <= range
+  );
 }
 
-/**
- * Update relationship between two dwarves
- * @param {object} dwarf1
- * @param {object} dwarf2
- * @param {string} action
- */
-function updateRelationship(dwarf1, dwarf2, action) {
-  // Initialize relationships if needed
+function getTileType(x, y, worldState = state.worldState) {
+  if (!worldState?.map) return null;
+  const tile = worldState.map.tiles[y * worldState.map.width + x];
+  return tile?.type || null;
+}
+
+function getTileDescription(x, y) {
+  const type = getTileType(x, y);
+  if (!type) return 'an unknown area';
+
+  const descriptions = {
+    'grass': 'a grassy meadow',
+    'tall_grass': 'tall grass',
+    'forest_floor': 'the forest floor',
+    'tree_conifer': 'among pine trees',
+    'tree_deciduous': 'under leafy trees',
+    'cave_floor': 'a dim cavern',
+    'cave_wall': 'near cave walls',
+    'river_bank': 'by the river',
+    'river': 'at the water\'s edge',
+    'mountain_slope': 'a rocky slope',
+    'mountain_peak': 'high ground',
+    'marsh': 'marshy ground',
+    'sand': 'sandy terrain',
+    'mushroom': 'a mushroom patch',
+    'moss': 'mossy stone',
+    'crystal': 'near glowing crystals',
+    'berry_bush': 'near berry bushes',
+  };
+
+  return descriptions[type] || 'an open area';
+}
+
+function updateRelationship(dwarf1, dwarf2, action, text = '') {
   if (!dwarf1.relationships) dwarf1.relationships = {};
   if (!dwarf2.relationships) dwarf2.relationships = {};
 
-  // Initialize specific relationship
-  if (!dwarf1.relationships[dwarf2.id]) {
-    dwarf1.relationships[dwarf2.id] = { affinity: 0, interactions: 0 };
-  }
-  if (!dwarf2.relationships[dwarf1.id]) {
-    dwarf2.relationships[dwarf1.id] = { affinity: 0, interactions: 0 };
+  // Initialize if needed
+  for (const [a, b] of [[dwarf1, dwarf2], [dwarf2, dwarf1]]) {
+    if (!a.relationships[b.id]) {
+      a.relationships[b.id] = {
+        affinity: 0,
+        interactions: 0,
+        lastInteraction: 0,
+        conversationLog: [],
+      };
+    }
   }
 
-  // Update based on action
-  const affinityChange = action === 'spoke' ? 2 : action === 'responded' ? 3 : 1;
+  // Calculate affinity change
+  let affinityChange = action === 'spoke' ? 2 : action === 'responded' ? 3 : 1;
 
+  // Personality modifiers
+  if (dwarf1.personality?.friendliness > 0.7) affinityChange += 1;
+  if (dwarf2.personality?.friendliness > 0.7) affinityChange += 1;
+
+  // Update both relationships
   dwarf1.relationships[dwarf2.id].affinity += affinityChange;
   dwarf1.relationships[dwarf2.id].interactions++;
+  dwarf1.relationships[dwarf2.id].lastInteraction = state.worldState?.tick || 0;
 
   dwarf2.relationships[dwarf1.id].affinity += affinityChange;
   dwarf2.relationships[dwarf1.id].interactions++;
+  dwarf2.relationships[dwarf1.id].lastInteraction = state.worldState?.tick || 0;
 
   // Mood boost from social interaction
   dwarf1.mood = Math.min(100, (dwarf1.mood || 50) + 2);
   dwarf2.mood = Math.min(100, (dwarf2.mood || 50) + 2);
 }
 
-/**
- * Get a dwarf's current thought
- * @param {number} dwarfId
- * @returns {string|null}
- */
+function addToConversationLog(speaker, listener, speakerName, text) {
+  const entry = { speaker: speakerName, text, tick: state.worldState?.tick || 0 };
+
+  if (speaker.relationships?.[listener.id]) {
+    const log = speaker.relationships[listener.id].conversationLog || [];
+    log.push(entry);
+    if (log.length > 10) log.shift();
+    speaker.relationships[listener.id].conversationLog = log;
+  }
+
+  if (listener.relationships?.[speaker.id]) {
+    const log = listener.relationships[speaker.id].conversationLog || [];
+    log.push(entry);
+    if (log.length > 10) log.shift();
+    listener.relationships[speaker.id].conversationLog = log;
+  }
+}
+
+// ============================================================
+// EXPORTS
+// ============================================================
+
 export function getCurrentThought(dwarfId) {
-  return activeThoughts.get(dwarfId)?.thought || null;
+  return state.activeThoughts.get(dwarfId)?.thought || null;
 }
 
-/**
- * Get all active conversations
- * @returns {Array}
- */
+export function getAllThoughts() {
+  const thoughts = [];
+  for (const [dwarfId, data] of state.activeThoughts) {
+    const dwarf = state.worldState?.dwarves?.find(d => d.id === dwarfId);
+    if (dwarf) {
+      thoughts.push({
+        dwarfId,
+        dwarfName: dwarf.name,
+        thought: data.thought,
+        type: data.type,
+        age: Date.now() - data.timestamp,
+      });
+    }
+  }
+  return thoughts.sort((a, b) => a.age - b.age);
+}
+
 export function getActiveConversations() {
-  return Array.from(activeConversations.entries()).map(([id, conv]) => ({
-    id,
-    ...conv,
-  }));
+  return Array.from(state.activeConversations.values());
 }
 
-/**
- * Get thought system status
- */
 export function getThoughtStatus() {
   return {
-    llmAvailable,
-    activeThoughts: activeThoughts.size,
-    activeConversations: activeConversations.size,
+    llmAvailable: state.llmAvailable,
+    activeThoughts: state.activeThoughts.size,
+    activeConversations: state.activeConversations.size,
     queueStatus: getQueueStatus(),
   };
 }
 
-/**
- * Force a thought update for a specific dwarf (for debugging)
- */
 export async function forceThought(dwarf) {
-  await updateDwarfThought(dwarf);
-  return getCurrentThought(dwarf.id);
+  const context = {
+    nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
+    tileName: getTileDescription(dwarf.x, dwarf.y),
+  };
+
+  const thought = await generateEventThought(dwarf, 'observation', context);
+  if (thought) {
+    recordThought(dwarf, thought, 'forced');
+  }
+  return thought;
 }

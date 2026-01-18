@@ -9,13 +9,13 @@ import { isStarved, HUNGER_DEATH } from './entities.js';
 // === SIMULATION CONSTANTS ===
 
 export const RULES = {
-  // Hunger
-  HUNGER_PER_TICK: 1,       // Hunger increase per tick
-  HUNGER_RESTORE: 30,       // Hunger restored per food unit
+  // Hunger (minimal survival pressure - dwarves rarely starve)
+  HUNGER_PER_TICK: 0.15,    // Very slow hunger increase - focus is on social, not survival
+  HUNGER_RESTORE: 40,       // Generous hunger restoration per food unit
 
-  // Food
-  FOOD_RESPAWN_CHANCE: 0.02, // Chance per tick for new food to spawn
-  FOOD_INITIAL_AMOUNT: 10,   // Starting units per food source
+  // Food (abundant - survival is easy)
+  FOOD_RESPAWN_CHANCE: 0.04, // Higher chance for new food to spawn
+  FOOD_INITIAL_AMOUNT: 12,   // More servings per food source
 
   // Ticks
   TICKS_PER_SECOND: 4,       // Simulation speed

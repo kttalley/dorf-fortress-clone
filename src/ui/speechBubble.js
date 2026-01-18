@@ -1,15 +1,18 @@
 /**
  * Speech Bubble and Thought Display System
  * Renders dwarf thoughts and conversations as floating UI elements
+ * Includes sidebar panel for thought history
  */
 
 // Active bubbles
 const activeBubbles = new Map();  // id -> { element, dwarf, type, expiry }
 const THOUGHT_DURATION = 4000;
 const SPEECH_DURATION = 5000;
+const MAX_SIDEBAR_THOUGHTS = 6;
 
 let containerEl = null;
 let rendererEl = null;
+let sidebarEl = null;
 let cellWidth = 0;
 let cellHeight = 0;
 
@@ -283,6 +286,211 @@ export function getBubbleStyles() {
  */
 export function injectBubbleStyles() {
   const style = document.createElement('style');
-  style.textContent = getBubbleStyles();
+  style.textContent = getBubbleStyles() + getSidebarStyles();
   document.head.appendChild(style);
+}
+
+// ============================================================
+// SIDEBAR THOUGHT PANEL
+// ============================================================
+
+/**
+ * Initialize the sidebar thought panel
+ * Creates a panel above the event log to show recent dwarf thoughts
+ */
+export function initSidebarThoughts() {
+  const sidebar = document.querySelector('.sidebar') || document.getElementById('sidebar');
+  if (!sidebar) {
+    console.warn('[SpeechBubble] No sidebar found for thought panel');
+    return;
+  }
+
+  // Create thought panel container
+  sidebarEl = document.createElement('div');
+  sidebarEl.id = 'thought-panel';
+  sidebarEl.className = 'thought-panel';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'thought-panel-header';
+  header.textContent = 'Dwarf Thoughts';
+  sidebarEl.appendChild(header);
+
+  // Content area
+  const content = document.createElement('div');
+  content.id = 'thought-panel-content';
+  content.className = 'thought-panel-content';
+  sidebarEl.appendChild(content);
+
+  // Insert before the log section
+  const logSection = document.getElementById('log') || sidebar.querySelector('.log-section');
+  if (logSection) {
+    sidebar.insertBefore(sidebarEl, logSection);
+  } else {
+    sidebar.insertBefore(sidebarEl, sidebar.firstChild);
+  }
+}
+
+/**
+ * Update sidebar with recent thoughts
+ * @param {Array} thoughts - Array of { dwarfId, dwarfName, thought, type, age }
+ */
+export function updateSidebarThoughts(thoughts = []) {
+  const content = document.getElementById('thought-panel-content');
+  if (!content) return;
+
+  // Clear and repopulate
+  content.innerHTML = '';
+
+  if (thoughts.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'thought-entry thought-empty';
+    empty.textContent = 'No recent thoughts...';
+    content.appendChild(empty);
+    return;
+  }
+
+  // Show most recent thoughts (up to max)
+  const recentThoughts = thoughts.slice(0, MAX_SIDEBAR_THOUGHTS);
+
+  for (const thought of recentThoughts) {
+    const entry = document.createElement('div');
+    entry.className = `thought-entry thought-type-${thought.type || 'observation'}`;
+
+    // Name with type indicator
+    const nameEl = document.createElement('div');
+    nameEl.className = 'thought-entry-name';
+    const typeIcon = getThoughtTypeIcon(thought.type);
+    nameEl.innerHTML = `<span class="thought-icon">${typeIcon}</span> ${thought.dwarfName}`;
+    entry.appendChild(nameEl);
+
+    // Thought text
+    const textEl = document.createElement('div');
+    textEl.className = 'thought-entry-text';
+    textEl.textContent = `"${thought.thought}"`;
+    entry.appendChild(textEl);
+
+    // Age indicator
+    const ageEl = document.createElement('div');
+    ageEl.className = 'thought-entry-age';
+    ageEl.textContent = formatAge(thought.age);
+    entry.appendChild(ageEl);
+
+    content.appendChild(entry);
+  }
+}
+
+/**
+ * Get icon for thought type
+ */
+function getThoughtTypeIcon(type) {
+  switch (type) {
+    case 'meeting': return '👋';
+    case 'food_found': return '🍖';
+    case 'hunger': return '😋';
+    case 'terrain': return '🗺';
+    case 'mood': return '💭';
+    default: return '💬';
+  }
+}
+
+/**
+ * Format age in human-readable form
+ */
+function formatAge(ms) {
+  if (ms < 1000) return 'just now';
+  if (ms < 60000) return `${Math.floor(ms / 1000)}s ago`;
+  return `${Math.floor(ms / 60000)}m ago`;
+}
+
+/**
+ * Get CSS for sidebar thought panel
+ */
+function getSidebarStyles() {
+  return `
+    .thought-panel {
+      background: rgba(30, 30, 40, 0.95);
+      border: 1px solid #4a4a5a;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .thought-panel-header {
+      background: rgba(50, 50, 70, 0.8);
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: bold;
+      color: #aabbcc;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid #4a4a5a;
+    }
+
+    .thought-panel-content {
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 4px;
+    }
+
+    .thought-entry {
+      padding: 8px 10px;
+      margin: 4px;
+      background: rgba(40, 40, 55, 0.8);
+      border-radius: 4px;
+      border-left: 3px solid #6688aa;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+    }
+
+    .thought-entry-name {
+      color: #88aacc;
+      font-weight: bold;
+      margin-bottom: 4px;
+      font-size: 10px;
+    }
+
+    .thought-icon {
+      margin-right: 4px;
+    }
+
+    .thought-entry-text {
+      color: #ccccdd;
+      line-height: 1.3;
+      font-style: italic;
+    }
+
+    .thought-entry-age {
+      color: #666677;
+      font-size: 9px;
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    .thought-empty {
+      color: #555566;
+      font-style: italic;
+      text-align: center;
+      border-left-color: #444455;
+    }
+
+    .thought-type-meeting { border-left-color: #66aa88; }
+    .thought-type-food_found { border-left-color: #aaaa66; }
+    .thought-type-hunger { border-left-color: #aa6666; }
+    .thought-type-terrain { border-left-color: #8866aa; }
+    .thought-type-mood { border-left-color: #66aaaa; }
+
+    .thought-panel-content::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .thought-panel-content::-webkit-scrollbar-track {
+      background: rgba(30, 30, 40, 0.5);
+    }
+
+    .thought-panel-content::-webkit-scrollbar-thumb {
+      background: #4a4a5a;
+      border-radius: 3px;
+    }
+  `;
 }

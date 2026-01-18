@@ -11,9 +11,19 @@ export const ENTITY_TYPES = {
 
 // === HUNGER CONSTANTS ===
 // Hunger goes 0 (full) → 100 (death)
-export const HUNGER_SEEK_THRESHOLD = 50;  // Start seeking food
-export const HUNGER_CRITICAL = 75;        // Desperate, bad decisions
+export const HUNGER_SEEK_THRESHOLD = 60;  // Start seeking food (raised - less urgent)
+export const HUNGER_CRITICAL = 85;        // Desperate, bad decisions (raised)
 export const HUNGER_DEATH = 100;          // Death threshold
+
+// === FULFILLMENT SYSTEM ===
+// Dwarves seek fulfillment based on their personality traits
+// Each need decays over time and is satisfied by different activities
+export const FULFILLMENT_NEEDS = {
+  social: { decayRate: 0.3, satisfyAmount: 25 },      // Satisfied by conversations
+  exploration: { decayRate: 0.2, satisfyAmount: 15 }, // Satisfied by visiting new areas
+  creativity: { decayRate: 0.15, satisfyAmount: 20 }, // Satisfied by crafting/building (future)
+  tranquility: { decayRate: 0.1, satisfyAmount: 30 }, // Satisfied by peaceful moments
+};
 
 // Dwarf names pool (deterministic variety)
 const DWARF_NAMES = [
@@ -86,10 +96,24 @@ function generatePersonality() {
 }
 
 /**
- * Create a new dwarf entity with personality, relationships, and memory
+ * Generate initial fulfillment levels based on personality
+ * Higher trait values = higher need for that fulfillment type
+ */
+function generateFulfillment(personality) {
+  return {
+    social: 50 + (personality.friendliness > 0.6 ? 20 : 0),      // Friendly dwarves start needing social
+    exploration: 50 + (personality.curiosity > 0.6 ? 20 : 0),    // Curious dwarves want to explore
+    creativity: 50 + (personality.creativity > 0.6 ? 20 : 0),    // Creative dwarves need outlet
+    tranquility: 50 + (personality.melancholy > 0.5 ? 20 : 0),   // Melancholic need peace
+  };
+}
+
+/**
+ * Create a new dwarf entity with personality, relationships, memory, and fulfillment
  */
 export function createDwarf(x, y, name = null) {
   const id = nextId();
+  const personality = generatePersonality();
 
   return {
     type: ENTITY_TYPES.DWARF,
@@ -103,12 +127,16 @@ export function createDwarf(x, y, name = null) {
     mood: 70 + Math.floor(Math.random() * 30),  // 0-100, starts happy
     energy: 100,         // For future use
 
+    // Fulfillment needs (0 = unfulfilled, 100 = fully satisfied)
+    // Dwarves seek activities that fulfill their personality-driven needs
+    fulfillment: generateFulfillment(personality),
+
     // Behavioral state
-    state: 'idle',       // 'idle' | 'wandering' | 'seeking_food' | 'eating' | 'socializing'
+    state: 'idle',       // 'idle' | 'wandering' | 'seeking_food' | 'eating' | 'socializing' | 'exploring'
     target: null,        // {x, y} movement target
 
     // Personality (permanent traits, 0.0-1.0)
-    personality: generatePersonality(),
+    personality,
 
     // Relationships with other dwarves
     // { [dwarfId]: { affinity: -100 to 100, interactions: count, lastInteraction: tick } }
@@ -119,6 +147,7 @@ export function createDwarf(x, y, name = null) {
       recentThoughts: [],     // Last 5 thoughts
       recentConversations: [], // Last 3 conversations
       significantEvents: [],   // Important life events
+      visitedAreas: new Set(), // Track explored terrain types
     },
 
     // Current mental state (updated by thought system)
@@ -241,4 +270,98 @@ export function isCritical(dwarf) {
  */
 export function isStarved(dwarf) {
   return dwarf.hunger >= HUNGER_DEATH;
+}
+
+// === FULFILLMENT SYSTEM FUNCTIONS ===
+
+/**
+ * Apply fulfillment decay based on personality
+ * Called each tick - fulfillment slowly decreases
+ */
+export function applyFulfillmentDecay(dwarf) {
+  if (!dwarf.fulfillment) return;
+
+  const p = dwarf.personality || {};
+
+  // Decay rates modified by personality
+  dwarf.fulfillment.social = Math.max(0, dwarf.fulfillment.social -
+    FULFILLMENT_NEEDS.social.decayRate * (p.friendliness > 0.6 ? 1.5 : 1));
+
+  dwarf.fulfillment.exploration = Math.max(0, dwarf.fulfillment.exploration -
+    FULFILLMENT_NEEDS.exploration.decayRate * (p.curiosity > 0.6 ? 1.5 : 1));
+
+  dwarf.fulfillment.creativity = Math.max(0, dwarf.fulfillment.creativity -
+    FULFILLMENT_NEEDS.creativity.decayRate * (p.creativity > 0.6 ? 1.5 : 1));
+
+  dwarf.fulfillment.tranquility = Math.max(0, dwarf.fulfillment.tranquility -
+    FULFILLMENT_NEEDS.tranquility.decayRate * (p.melancholy > 0.5 ? 1.5 : 1));
+}
+
+/**
+ * Satisfy a fulfillment need
+ * @param {object} dwarf
+ * @param {string} needType - 'social' | 'exploration' | 'creativity' | 'tranquility'
+ * @param {number} multiplier - Optional multiplier for satisfaction amount
+ */
+export function satisfyFulfillment(dwarf, needType, multiplier = 1) {
+  if (!dwarf.fulfillment || !FULFILLMENT_NEEDS[needType]) return;
+
+  const amount = FULFILLMENT_NEEDS[needType].satisfyAmount * multiplier;
+  dwarf.fulfillment[needType] = Math.min(100, dwarf.fulfillment[needType] + amount);
+
+  // Fulfillment boosts mood
+  adjustMood(dwarf, Math.floor(amount * 0.3), `fulfilled ${needType}`);
+}
+
+/**
+ * Get the dwarf's most pressing unfulfilled need
+ * Returns the need type with lowest fulfillment, weighted by personality
+ * @param {object} dwarf
+ * @returns {{ type: string, urgency: number } | null}
+ */
+export function getMostPressingNeed(dwarf) {
+  if (!dwarf.fulfillment || !dwarf.personality) return null;
+
+  const p = dwarf.personality;
+  const f = dwarf.fulfillment;
+
+  // Calculate urgency for each need (lower fulfillment + higher trait = more urgent)
+  const needs = [
+    { type: 'social', urgency: (100 - f.social) * (0.5 + p.friendliness) },
+    { type: 'exploration', urgency: (100 - f.exploration) * (0.5 + p.curiosity) },
+    { type: 'creativity', urgency: (100 - f.creativity) * (0.5 + p.creativity) },
+    { type: 'tranquility', urgency: (100 - f.tranquility) * (0.5 + (p.melancholy || 0.3)) },
+  ];
+
+  // Sort by urgency, return highest
+  needs.sort((a, b) => b.urgency - a.urgency);
+
+  // Only return if urgency is significant
+  if (needs[0].urgency > 30) {
+    return needs[0];
+  }
+
+  return null;
+}
+
+/**
+ * Check if dwarf needs social interaction
+ * @param {object} dwarf
+ * @returns {boolean}
+ */
+export function needsSocial(dwarf) {
+  if (!dwarf.fulfillment) return false;
+  const threshold = dwarf.personality?.friendliness > 0.6 ? 50 : 35;
+  return dwarf.fulfillment.social < threshold;
+}
+
+/**
+ * Check if dwarf wants to explore
+ * @param {object} dwarf
+ * @returns {boolean}
+ */
+export function needsExploration(dwarf) {
+  if (!dwarf.fulfillment) return false;
+  const threshold = dwarf.personality?.curiosity > 0.6 ? 50 : 35;
+  return dwarf.fulfillment.exploration < threshold;
 }
