@@ -9,6 +9,8 @@ import { generateBiomeMap, generateMixedMap, generateCaveMap, findWalkablePositi
 import { tick } from './sim/world.js';
 import { createRenderer, updateStatus, buildRenderEntities } from './ui/renderer.js';
 import { renderLog } from './ui/log.js';
+import { createCursor } from './ui/cursor.js';
+import { createStatPanel } from './ui/statPanel.js';
 import { initThoughtSystem, stopThoughtSystem, getThoughtStatus } from './ai/thoughts.js';
 import { initSpeechBubbles, showSpeech, updateBubblePositions, injectBubbleStyles, initSidebarThoughts, updateSidebarThoughts } from './ui/speechBubble.js';
 import { checkConnection } from './ai/llmClient.js';
@@ -29,6 +31,8 @@ let speedIndex = 0;
 let running = true;
 let loopId = null;
 let renderer = null;
+let cursor = null;
+let statPanel = null;
 let llmConnected = false;
 
 // Create world state
@@ -184,6 +188,40 @@ async function init() {
   // Create renderer
   renderer = createRenderer(mapContainer, MAP_WIDTH, MAP_HEIGHT);
 
+  // Create stat panel (for detailed entity inspection)
+  statPanel = createStatPanel(mapContainer);
+
+  // Create cursor system (grid-snapping highlight + tooltip)
+  cursor = createCursor(
+    renderer.el,
+    MAP_WIDTH,
+    MAP_HEIGHT,
+    // onHover callback
+    (x, y, inspection) => {
+      // Could add hover preview logic here
+    },
+    // onClick callback
+    (x, y, inspection) => {
+      if (inspection.hasDwarf || inspection.hasFood || inspection.tile) {
+        // Toggle stat panel
+        if (statPanel.isVisible()) {
+          const current = statPanel.getEntity();
+          const clicked = inspection.entities[0]?.entity;
+          // If clicking same entity, close panel; otherwise show new
+          if (current && clicked && current.id === clicked.id) {
+            statPanel.hide();
+          } else {
+            statPanel.show(inspection);
+          }
+        } else {
+          statPanel.show(inspection);
+        }
+      } else {
+        statPanel.hide();
+      }
+    }
+  );
+
   // Initialize speech bubbles
   initSpeechBubbles(mapContainer, renderer.el);
 
@@ -217,6 +255,10 @@ function renderFrame(renderer, logContainer) {
   updateStatus(state);
   updateBubblePositions();
   renderLog(state.log, logContainer);
+
+  // Update cursor and stat panel with current state
+  if (cursor) cursor.update(state);
+  if (statPanel && statPanel.isVisible()) statPanel.update(state);
 }
 
 function gameLoop(renderer, logContainer) {

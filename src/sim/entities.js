@@ -1,12 +1,15 @@
 /**
- * Entity utilities for v0.1
- * Dwarves and food sources
+ * Entity utilities
+ * Dwarves with personality, skills, aspirations, and fulfillment needs
  */
+
+import { generateSkills, generateAspiration } from './tasks.js';
 
 // === ENTITY TYPES ===
 export const ENTITY_TYPES = {
   DWARF: 'dwarf',
   FOOD: 'food',
+  RESOURCE: 'resource',
 };
 
 // === HUNGER CONSTANTS ===
@@ -109,7 +112,7 @@ function generateFulfillment(personality) {
 }
 
 /**
- * Create a new dwarf entity with personality, relationships, memory, and fulfillment
+ * Create a new dwarf entity with personality, skills, aspirations, and fulfillment
  */
 export function createDwarf(x, y, name = null) {
   const id = nextId();
@@ -128,35 +131,52 @@ export function createDwarf(x, y, name = null) {
     energy: 100,         // For future use
 
     // Fulfillment needs (0 = unfulfilled, 100 = fully satisfied)
-    // Dwarves seek activities that fulfill their personality-driven needs
     fulfillment: generateFulfillment(personality),
 
+    // Skills (0.0-1.0, improve with practice)
+    skills: generateSkills(personality),
+
+    // Long-term aspiration (drives behavior)
+    aspiration: generateAspiration(personality),
+
+    // Current task
+    currentTask: null,
+    taskQueue: [],
+
+    // Movement state
+    momentum: { dx: 0, dy: 0 },
+
     // Behavioral state
-    state: 'idle',       // 'idle' | 'wandering' | 'seeking_food' | 'eating' | 'socializing' | 'exploring'
-    target: null,        // {x, y} movement target
+    state: 'idle',
+    target: null,
 
     // Personality (permanent traits, 0.0-1.0)
     personality,
 
     // Relationships with other dwarves
-    // { [dwarfId]: { affinity: -100 to 100, interactions: count, lastInteraction: tick } }
     relationships: {},
 
     // Memory of recent events (for LLM context)
     memory: {
-      recentThoughts: [],     // Last 5 thoughts
-      recentConversations: [], // Last 3 conversations
-      significantEvents: [],   // Important life events
-      visitedAreas: new Set(), // Track explored terrain types
+      recentThoughts: [],
+      recentConversations: [],
+      significantEvents: [],
+      visitedAreas: new Set(),
+      craftedItems: [],        // Items this dwarf has made
     },
 
-    // Current mental state (updated by thought system)
+    // Current mental state
     currentThought: null,
     lastThoughtTick: 0,
 
     // Social state
-    conversationPartner: null,  // id of dwarf currently talking to
+    conversationPartner: null,
     lastSocialTick: 0,
+
+    // Work stats
+    itemsCrafted: 0,
+    tilesDigged: 0,
+    masterworkCount: 0,
   };
 }
 

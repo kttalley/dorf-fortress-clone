@@ -1,6 +1,6 @@
 /**
- * Core simulation loop for v0.1
- * Order: hunger → decision → action → death → spawn
+ * Core simulation loop
+ * Order: scent → hunger → decision → action → death → spawn
  * Emits events for the thought system
  */
 
@@ -11,12 +11,42 @@ import { isCritical, createFoodSource } from './entities.js';
 import { decide as aiDecide } from '../ai/dwarfAI.js';
 import { applyHunger, processDeath, processEat, maybeSpawnFood } from './rules.js';
 import { emit, EVENTS } from '../events/eventBus.js';
+import { initScentMap, emitScent, decayScents } from './movement.js';
+import { initConstruction } from './construction.js';
+import { initCrafting } from './crafting.js';
+
+let systemsInitialized = false;
+
+/**
+ * Initialize simulation systems
+ */
+export function initSystems(state) {
+  initScentMap(state.map.width, state.map.height);
+  initConstruction();
+  initCrafting();
+  systemsInitialized = true;
+}
 
 /**
  * Run one simulation tick
  */
 export function tick(state) {
+  // Initialize systems on first tick
+  if (!systemsInitialized) {
+    initSystems(state);
+  }
+
   state.tick++;
+
+  // 0. Update scent map
+  decayScents();
+
+  // Emit food scents
+  for (const food of state.foodSources || []) {
+    if (food.amount > 0) {
+      emitScent(food.x, food.y, food.amount * 0.5, 12);
+    }
+  }
 
   // Track previous hunger for threshold detection
   const previousHungers = new Map();
