@@ -22,7 +22,7 @@ const SPEED_LEVELS = [250, 150, 80, 40];  // ms per tick (slower for watching in
 
 // Map generation modes
 const MAP_MODES = ['biome', 'mixed', 'cave'];
-let currentMapMode = 1;
+let currentMapMode = 2;
 
 let tickInterval = SPEED_LEVELS[0];
 let speedIndex = 0;

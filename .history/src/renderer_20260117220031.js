@@ -17,7 +17,7 @@ function resizeCanvas() {
     const ratio = Math.min(innerWidth / WIDTH, innerHeight / HEIGHT);
     canvas.width = WIDTH * ratio;
     canvas.height = HEIGHT * ratio;
-    context.scale(ratio, ratio);
+    context.scale(ratio/10, ratio/10);
 }
 
 // Function to render the map with specific glyphs and colors

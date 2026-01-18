@@ -16,7 +16,7 @@ import { checkConnection } from './ai/llmClient.js';
 // Map configuration
 const MAP_WIDTH = 64;
 const MAP_HEIGHT = 24;
-const INITIAL_DWARVES = 7;
+const INITIAL_DWARVES = 70;
 const INITIAL_FOOD_SOURCES = 15;
 const SPEED_LEVELS = [250, 150, 80, 40];  // ms per tick (slower for watching interactions)
 

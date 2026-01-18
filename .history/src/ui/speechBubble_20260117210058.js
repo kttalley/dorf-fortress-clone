@@ -428,7 +428,7 @@ function getSidebarStyles() {
     }
 
     .thought-panel-content {
-      max-height: 400px;
+      max-height: 200px;
       overflow-y: auto;
       padding: 4px;
     }

@@ -1,8 +1,8 @@
 import { create2DArray } from './utils';
 import { generateMap } from './map_generators/cellular_automata';
 
-const WIDTH = 8;
-const HEIGHT = 4;
+const WIDTH = 80;
+const HEIGHT = 40;
 
 // Initialize the map
 let map = generateMap();

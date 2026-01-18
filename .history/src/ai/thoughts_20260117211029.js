@@ -14,12 +14,12 @@ import { on, emit, EVENTS } from '../events/eventBus.js';
 // ============================================================
 
 const CONFIG = {
-  THOUGHT_COOLDOWN: 12000,        // Min ms between thoughts for same dwarf
+  THOUGHT_COOLDOWN: 6000,        // Min ms between thoughts for same dwarf
   MEETING_COOLDOWN: 15000,       // Min ms between meeting thoughts for same pair (reduced for more social)
   INTERACTION_DISTANCE: 4,       // Tiles to be "near" another dwarf (increased for easier meetings)
   CONVERSATION_CHANCE: 0.7,      // Chance meeting triggers conversation (high - dwarves love to chat)
   MAX_CONVERSATION_TURNS: 6,     // Max back-and-forth exchanges (longer conversations)
-  BACKGROUND_THOUGHT_INTERVAL: 12000,  // Random observation thoughts
+  BACKGROUND_THOUGHT_INTERVAL: 10000,  // Random observation thoughts
 };
 
 // ============================================================
