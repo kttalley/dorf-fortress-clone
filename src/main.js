@@ -188,8 +188,8 @@ async function init() {
   // Create renderer
   renderer = createRenderer(mapContainer, MAP_WIDTH, MAP_HEIGHT);
 
-  // Create stat panel (for detailed entity inspection)
-  statPanel = createStatPanel(mapContainer);
+  // Create stat panel (for detailed entity inspection) - needs grid element for positioning
+  statPanel = createStatPanel(mapContainer, renderer.el, MAP_WIDTH, MAP_HEIGHT);
 
   // Create cursor system (grid-snapping highlight + tooltip)
   cursor = createCursor(

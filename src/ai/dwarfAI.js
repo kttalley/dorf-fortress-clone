@@ -33,7 +33,12 @@ import {
   suggestRoom,
   designateRoom,
   getIncompleteStructures,
-  workOnBuild,
+  getBuildProjects,
+  findNearestBuildProject,
+  findWorkLocation,
+  workOnBuildProject,
+  considerBuilding,
+  STRUCTURE_TYPE,
 } from '../sim/construction.js';
 
 import {
@@ -174,14 +179,30 @@ function findNewTask(dwarf, state) {
     });
   }
 
-  // Check for building tasks
-  const buildTask = findBuildTask(dwarf, state);
-  if (buildTask) {
+  // Check for active building projects
+  const buildProject = findNearestBuildProject(dwarf);
+  if (buildProject) {
+    const buildSkill = Math.max(
+      dwarf.skills?.masonry || 0.3,
+      dwarf.skills?.mining || 0.3
+    );
     candidates.push({
       type: TASK_TYPE.BUILD,
-      priority: 35 + (dwarf.skills?.masonry || 0.3) * 15,
-      target: buildTask,
+      priority: 45 + buildSkill * 20,
+      target: buildProject,
     });
+  }
+
+  // Consider starting a new building project
+  if (!buildProject && Math.random() < 0.05) {
+    const newProject = considerBuilding(dwarf, state);
+    if (newProject) {
+      candidates.push({
+        type: TASK_TYPE.BUILD,
+        priority: 60, // High priority for newly initiated project
+        target: newProject,
+      });
+    }
   }
 
   // Check for crafting tasks
@@ -364,22 +385,28 @@ function workBuild(dwarf, state) {
     return findNewTask(dwarf, state);
   }
 
-  const structure = task.target;
-  const dist = Math.abs(dwarf.x - structure.x) + Math.abs(dwarf.y - structure.y);
+  const project = task.target;
 
-  if (dist <= CONFIG.WORK_RANGE + 1) {
-    const complete = workOnBuild(structure, dwarf);
+  // Find where to work on the project
+  const workLoc = findWorkLocation(project, dwarf);
+  const dist = Math.abs(dwarf.x - workLoc.x) + Math.abs(dwarf.y - workLoc.y);
+
+  if (dist <= CONFIG.WORK_RANGE) {
+    // Do the work
+    const complete = workOnBuildProject(project, dwarf, state);
 
     if (complete) {
-      satisfyFulfillment(dwarf, 'creativity', 0.5);
+      satisfyFulfillment(dwarf, 'creativity', 0.8);
+      dwarf.tilesDigged = (dwarf.tilesDigged || 0) + 1;
       dwarf.currentTask = null;
     }
 
-    return { state: AI_STATE.WORKING_BUILD, target: { x: structure.x, y: structure.y } };
+    return { state: AI_STATE.WORKING_BUILD, target: workLoc };
   }
 
-  executeSmartMovement(dwarf, state, { targetPos: { x: structure.x, y: structure.y } });
-  return { state: AI_STATE.WORKING_BUILD, target: { x: structure.x, y: structure.y } };
+  // Move toward work location
+  executeSmartMovement(dwarf, state, { targetPos: workLoc });
+  return { state: AI_STATE.WORKING_BUILD, target: workLoc };
 }
 
 function workCraft(dwarf, state) {

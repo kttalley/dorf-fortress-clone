@@ -7,6 +7,7 @@
 
 import { getTileDef } from '../map/tiles.js';
 import { getTile } from '../map/map.js';
+import { getDigDesignations, getBuildProjects, getStructures } from '../sim/construction.js';
 
 /**
  * Calculate optimal font size to fill container while maintaining aspect ratio.
@@ -203,6 +204,12 @@ export const EntityGlyph = Object.freeze({
 
   // Items (future)
   ITEM: { char: '?', fg: '#00bfff', zIndex: 4 },
+
+  // Construction
+  DIG_DESIGNATION: { char: 'x', fg: '#886644', zIndex: 2 },
+  BUILD_MARKER: { char: '░', fg: '#777766', zIndex: 3 },
+  RESOURCE_STONE: { char: '∙', fg: '#999988', zIndex: 4 },
+  RESOURCE_WOOD: { char: '≡', fg: '#aa8855', zIndex: 4 },
 });
 
 /**
@@ -226,6 +233,89 @@ export function updateStatus(state) {
  */
 export function buildRenderEntities(state) {
   const entities = [];
+
+  // Dig designations (lowest priority - easily overridden)
+  try {
+    const digDesignations = getDigDesignations();
+    for (const dig of digDesignations) {
+      entities.push({
+        x: dig.x,
+        y: dig.y,
+        char: EntityGlyph.DIG_DESIGNATION.char,
+        fg: EntityGlyph.DIG_DESIGNATION.fg,
+        zIndex: EntityGlyph.DIG_DESIGNATION.zIndex,
+      });
+    }
+  } catch (e) {
+    // Construction system not initialized yet
+  }
+
+  // Build projects in progress
+  try {
+    const buildProjects = getBuildProjects();
+    for (const project of buildProjects) {
+      if (project.phase === 'complete') continue;
+
+      // Show build markers at corners and center to indicate project area
+      const markers = [
+        { x: project.x, y: project.y },
+        { x: project.x + project.width - 1, y: project.y },
+        { x: project.x, y: project.y + project.height - 1 },
+        { x: project.x + project.width - 1, y: project.y + project.height - 1 },
+      ];
+
+      // Progress indicator at center
+      const cx = project.x + Math.floor(project.width / 2);
+      const cy = project.y + Math.floor(project.height / 2);
+      const progress = project.progress / project.workRequired;
+
+      // Color shifts from dark to bright as progress increases
+      const r = Math.floor(100 + progress * 100);
+      const g = Math.floor(100 + progress * 50);
+      const b = Math.floor(80 + progress * 20);
+
+      entities.push({
+        x: cx,
+        y: cy,
+        char: project.phase === 'digging' ? '⌂' : '▓',
+        fg: `rgb(${r},${g},${b})`,
+        zIndex: 3,
+      });
+
+      // Corner markers
+      for (const marker of markers) {
+        entities.push({
+          x: marker.x,
+          y: marker.y,
+          char: EntityGlyph.BUILD_MARKER.char,
+          fg: EntityGlyph.BUILD_MARKER.fg,
+          zIndex: EntityGlyph.BUILD_MARKER.zIndex,
+        });
+      }
+    }
+  } catch (e) {
+    // Construction system not initialized yet
+  }
+
+  // Resources on the ground
+  if (state.resources) {
+    for (const resource of state.resources) {
+      if (resource.amount <= 0) continue;
+
+      let glyph = EntityGlyph.RESOURCE_STONE;
+      if (resource.type === 'wood') {
+        glyph = EntityGlyph.RESOURCE_WOOD;
+      }
+
+      entities.push({
+        x: resource.x,
+        y: resource.y,
+        char: glyph.char,
+        fg: glyph.fg,
+        zIndex: glyph.zIndex,
+      });
+    }
+  }
 
   // Food sources
   for (const food of state.foodSources) {

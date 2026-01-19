@@ -20,26 +20,30 @@ export function createCursor(gridEl, width, height, onHover, onClick) {
   let currentY = null;
   let isActive = false;
 
-  // Highlight element
+  // Highlight element - snaps smoothly between tiles
   const highlightEl = document.createElement('div');
   highlightEl.className = 'cursor-highlight';
   highlightEl.style.cssText = `
     position: absolute;
+    left: 0;
+    top: 0;
     pointer-events: none;
     border: 2px solid rgba(255, 255, 100, 0.8);
     box-shadow: 0 0 8px rgba(255, 255, 100, 0.4), inset 0 0 4px rgba(255, 255, 100, 0.2);
     border-radius: 2px;
-    transition: transform 0.08s ease-out, opacity 0.15s ease;
+    transition: transform 320ms ease-in-out, opacity 150ms ease;
     opacity: 0;
     z-index: 100;
     box-sizing: border-box;
   `;
 
-  // Create tooltip element
+  // Create tooltip element - follows cursor with same smooth motion
   const tooltipEl = document.createElement('div');
   tooltipEl.className = 'cursor-tooltip';
   tooltipEl.style.cssText = `
     position: absolute;
+    left: 0;
+    top: 0;
     pointer-events: none;
     background: rgba(20, 20, 25, 0.95);
     border: 1px solid rgba(255, 255, 100, 0.5);
@@ -51,7 +55,7 @@ export function createCursor(gridEl, width, height, onHover, onClick) {
     white-space: nowrap;
     z-index: 101;
     opacity: 0;
-    transition: opacity 0.15s ease;
+    transition: transform 320ms ease-in-out, opacity 150ms ease;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   `;
 
@@ -101,33 +105,42 @@ export function createCursor(gridEl, width, height, onHover, onClick) {
 
   /**
    * Update tooltip position and content
+   * Positions tooltip to top-right of the cursor cell
    */
   function updateTooltip(x, y, cellWidth, cellHeight, label) {
     tooltipEl.textContent = label;
     tooltipEl.style.opacity = '1';
 
-    // Position tooltip above and to the right of cursor
-    const tooltipX = (x + 1) * cellWidth + 4;
-    const tooltipY = y * cellHeight - 4;
+    // Get grid bounds for edge detection
+    const gridRect = gridEl.getBoundingClientRect();
 
-    // Check if tooltip would overflow right edge
-    const rect = gridEl.getBoundingClientRect();
-    const tooltipRect = tooltipEl.getBoundingClientRect();
+    // Measure tooltip size (use a temp measurement if needed)
+    const tooltipWidth = tooltipEl.offsetWidth || 100;
+    const tooltipHeight = tooltipEl.offsetHeight || 24;
 
-    let finalX = tooltipX;
-    let finalY = tooltipY;
+    // Default position: top-right of the cell
+    // Offset by 6px gap from the cell edge
+    let tooltipX = (x + 1) * cellWidth + 6;
+    let tooltipY = y * cellHeight - tooltipHeight - 6;
 
-    // Adjust if too close to right edge
-    if (tooltipX + tooltipRect.width > rect.width) {
-      finalX = (x - 1) * cellWidth - tooltipRect.width;
+    // Adjust if tooltip would overflow right edge
+    if (tooltipX + tooltipWidth > gridRect.width) {
+      // Position to top-left instead
+      tooltipX = x * cellWidth - tooltipWidth - 6;
     }
 
-    // Adjust if too close to top
+    // Adjust if tooltip would overflow top
     if (tooltipY < 0) {
-      finalY = (y + 1) * cellHeight + 4;
+      // Position below the cell instead
+      tooltipY = (y + 1) * cellHeight + 6;
     }
 
-    tooltipEl.style.transform = `translate(${finalX}px, ${finalY}px)`;
+    // Ensure X doesn't go negative
+    if (tooltipX < 0) {
+      tooltipX = (x + 1) * cellWidth + 6;
+    }
+
+    tooltipEl.style.transform = `translate(${tooltipX}px, ${tooltipY}px)`;
   }
 
   /**
@@ -213,11 +226,15 @@ export function createCursor(gridEl, width, height, onHover, onClick) {
     update(state) {
       worldState = state;
 
-      // Refresh tooltip if cursor is active
+      // Refresh tooltip content if cursor is active
       if (isActive && currentX !== null && currentY !== null) {
         const inspection = inspectPosition(state, currentX, currentY);
         const label = getTooltipLabel(inspection);
-        tooltipEl.textContent = label;
+
+        // Only update text if content changed (avoid layout thrashing)
+        if (tooltipEl.textContent !== label) {
+          tooltipEl.textContent = label;
+        }
       }
     },
 

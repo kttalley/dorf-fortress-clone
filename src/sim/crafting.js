@@ -4,7 +4,7 @@
  */
 
 import { SKILL, TASK_TYPE, createTask, PRIORITY } from './tasks.js';
-import { STRUCTURE, getWorkshops } from './construction.js';
+import { STRUCTURE_TYPE, getWorkshops } from './construction.js';
 
 // === CRAFT CATEGORIES ===
 export const CRAFT_CATEGORY = {
@@ -20,7 +20,7 @@ export const RECIPES = {
   stone_block: {
     name: 'Stone Block',
     category: CRAFT_CATEGORY.STONEWORK,
-    workshop: STRUCTURE.WORKSHOP_MASON,
+    workshop: STRUCTURE_TYPE.WORKSHOP_MASON,
     skill: SKILL.MASONRY,
     materials: [{ type: 'stone', amount: 1 }],
     workAmount: 15,
@@ -29,7 +29,7 @@ export const RECIPES = {
   stone_furniture: {
     name: 'Stone Furniture',
     category: CRAFT_CATEGORY.STONEWORK,
-    workshop: STRUCTURE.WORKSHOP_MASON,
+    workshop: STRUCTURE_TYPE.WORKSHOP_MASON,
     skill: SKILL.MASONRY,
     materials: [{ type: 'stone', amount: 2 }],
     workAmount: 25,
@@ -38,7 +38,7 @@ export const RECIPES = {
   stone_crafts: {
     name: 'Stone Crafts',
     category: CRAFT_CATEGORY.STONEWORK,
-    workshop: STRUCTURE.WORKSHOP_MASON,
+    workshop: STRUCTURE_TYPE.WORKSHOP_MASON,
     skill: SKILL.MASONRY,
     materials: [{ type: 'stone', amount: 1 }],
     workAmount: 20,
@@ -49,7 +49,7 @@ export const RECIPES = {
   wooden_furniture: {
     name: 'Wooden Furniture',
     category: CRAFT_CATEGORY.WOODWORK,
-    workshop: STRUCTURE.WORKSHOP_CARPENTER,
+    workshop: STRUCTURE_TYPE.WORKSHOP_CARPENTER,
     skill: SKILL.CARPENTRY,
     materials: [{ type: 'wood', amount: 2 }],
     workAmount: 20,
@@ -58,7 +58,7 @@ export const RECIPES = {
   wooden_crafts: {
     name: 'Wooden Crafts',
     category: CRAFT_CATEGORY.WOODWORK,
-    workshop: STRUCTURE.WORKSHOP_CARPENTER,
+    workshop: STRUCTURE_TYPE.WORKSHOP_CARPENTER,
     skill: SKILL.CARPENTRY,
     materials: [{ type: 'wood', amount: 1 }],
     workAmount: 15,
@@ -69,7 +69,7 @@ export const RECIPES = {
   trinkets: {
     name: 'Trinkets',
     category: CRAFT_CATEGORY.GOODS,
-    workshop: STRUCTURE.WORKSHOP_CRAFTSDWARF,
+    workshop: STRUCTURE_TYPE.WORKSHOP_CRAFTSDWARF,
     skill: SKILL.CRAFTING,
     materials: [{ type: 'stone', amount: 1 }],
     workAmount: 12,
@@ -78,7 +78,7 @@ export const RECIPES = {
   figurine: {
     name: 'Figurine',
     category: CRAFT_CATEGORY.GOODS,
-    workshop: STRUCTURE.WORKSHOP_CRAFTSDWARF,
+    workshop: STRUCTURE_TYPE.WORKSHOP_CRAFTSDWARF,
     skill: SKILL.CRAFTING,
     materials: [{ type: 'stone', amount: 1 }],
     workAmount: 25,
@@ -90,7 +90,7 @@ export const RECIPES = {
   prepared_meal: {
     name: 'Prepared Meal',
     category: CRAFT_CATEGORY.FOOD,
-    workshop: STRUCTURE.WORKSHOP_KITCHEN,
+    workshop: STRUCTURE_TYPE.WORKSHOP_KITCHEN,
     skill: SKILL.COOKING,
     materials: [{ type: 'food', amount: 2 }],
     workAmount: 10,

@@ -411,5 +411,22 @@ export function createTile(type) {
  * @returns {object} Tile definition
  */
 export function getTileDef(tile) {
-  return TILE_DEFS[tile.type];
+  // If tile already has definition properties (from construction), use it directly
+  if (tile && typeof tile.walkable === 'boolean') {
+    return tile;
+  }
+
+  // Look up in standard definitions
+  const def = TILE_DEFS[tile?.type];
+  if (def) return def;
+
+  // Fallback for unknown types
+  return {
+    char: '?',
+    fg: '#ff00ff',
+    bg: '#000000',
+    walkable: false,
+    harvestable: false,
+    moveCost: Infinity,
+  };
 }

@@ -14,21 +14,24 @@ import {
 /**
  * Create a stat panel component
  * @param {HTMLElement} containerEl - Container to attach panel to
+ * @param {HTMLElement} gridEl - The ASCII grid element for position calculations
+ * @param {number} mapWidth - Map width in cells
+ * @param {number} mapHeight - Map height in cells
  * @returns {object} Panel controller with show(), hide(), update()
  */
-export function createStatPanel(containerEl) {
-  // Create panel element
+export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
+  // Create panel element - positioned relative to cursor
   const panelEl = document.createElement('div');
   panelEl.className = 'stat-panel';
   panelEl.style.cssText = `
     position: absolute;
-    right: 8px;
-    top: 8px;
-    width: 280px;
-    max-height: 90vh;
+    left: 0;
+    top: 0;
+    width: 260px;
+    max-height: 400px;
     overflow-y: auto;
     background: rgba(15, 15, 20, 0.95);
-    border: 1px solid rgba(100, 100, 120, 0.5);
+    border: 1px solid rgba(255, 255, 100, 0.4);
     border-radius: 4px;
     font-family: 'Courier New', monospace;
     font-size: 12px;
@@ -36,16 +39,64 @@ export function createStatPanel(containerEl) {
     z-index: 200;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease;
+    transition: transform 320ms ease-in-out, opacity 200ms ease;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   `;
 
   containerEl.appendChild(panelEl);
 
-  // Current displayed entity
+  // Current displayed entity and position
   let currentEntity = null;
   let currentType = null;
+  let currentGridX = 0;
+  let currentGridY = 0;
   let worldState = null;
+
+  /**
+   * Calculate and set panel position near a grid cell
+   */
+  function positionPanel(gridX, gridY) {
+    if (!gridEl) return;
+
+    const gridRect = gridEl.getBoundingClientRect();
+    const containerRect = containerEl.getBoundingClientRect();
+
+    const cellWidth = gridRect.width / mapWidth;
+    const cellHeight = gridRect.height / mapHeight;
+
+    // Calculate cell position relative to container
+    const cellLeft = (gridRect.left - containerRect.left) + (gridX * cellWidth);
+    const cellTop = (gridRect.top - containerRect.top) + (gridY * cellHeight);
+
+    const panelWidth = 260;
+    const panelHeight = panelEl.offsetHeight || 300;
+
+    // Default: position to the right of the cell
+    let panelX = cellLeft + cellWidth + 12;
+    let panelY = cellTop;
+
+    // If panel would overflow right, position to the left
+    if (panelX + panelWidth > containerRect.width) {
+      panelX = cellLeft - panelWidth - 12;
+    }
+
+    // If panel would overflow left, center it
+    if (panelX < 0) {
+      panelX = Math.max(8, (containerRect.width - panelWidth) / 2);
+    }
+
+    // If panel would overflow bottom, shift up
+    if (panelY + panelHeight > containerRect.height) {
+      panelY = Math.max(8, containerRect.height - panelHeight - 8);
+    }
+
+    // If panel would overflow top, shift down
+    if (panelY < 0) {
+      panelY = 8;
+    }
+
+    panelEl.style.transform = `translate(${panelX}px, ${panelY}px)`;
+  }
 
   /**
    * Create a stat bar element
@@ -211,11 +262,17 @@ export function createStatPanel(containerEl) {
    * Render tile info
    */
   function renderTile(tile, x, y) {
-    const def = tile.def;
+    const def = tile.def || {};
+    const tileChar = def.char || '?';
+    const tileFg = def.fg || '#888';
+    const tileBg = def.bg || '#000';
+    const walkable = def.walkable !== undefined ? def.walkable : false;
+    const harvestable = def.harvestable || false;
+
     return `
       <div style="padding: 12px;">
         <div style="display: flex; align-items: center; margin-bottom: 12px;">
-          <span style="font-size: 24px; color: ${def.fg}; background: ${def.bg}; padding: 4px 8px; border-radius: 4px; margin-right: 8px;">${def.char}</span>
+          <span style="font-size: 24px; color: ${tileFg}; background: ${tileBg}; padding: 4px 8px; border-radius: 4px; margin-right: 8px;">${tileChar}</span>
           <div>
             <div style="font-size: 16px; font-weight: bold; color: #fff;">${formatTileName(tile.type)}</div>
             <div style="font-size: 11px; color: #888;">(${x}, ${y})</div>
@@ -223,8 +280,8 @@ export function createStatPanel(containerEl) {
         </div>
 
         <div style="margin: 8px 0; color: #888;">
-          <div>Walkable: ${def.walkable ? '<span style="color: #4aff4a;">Yes</span>' : '<span style="color: #ff4a4a;">No</span>'}</div>
-          ${def.harvestable ? `<div>Harvestable: <span style="color: #4aff9e;">Yes</span></div>` : ''}
+          <div>Walkable: ${walkable ? '<span style="color: #4aff4a;">Yes</span>' : '<span style="color: #ff4a4a;">No</span>'}</div>
+          ${harvestable ? `<div>Harvestable: <span style="color: #4aff9e;">Yes</span></div>` : ''}
           ${tile.resourceAmount > 0 ? `<div>Resources: ${tile.resourceAmount}</div>` : ''}
         </div>
       </div>
@@ -233,11 +290,15 @@ export function createStatPanel(containerEl) {
 
   return {
     /**
-     * Show panel with inspection data
+     * Show panel with inspection data at cursor position
      * @param {object} inspection - From inspectPosition()
      */
     show(inspection) {
       const { x, y, tile, entities } = inspection;
+
+      // Store grid position for repositioning
+      currentGridX = x;
+      currentGridY = y;
 
       // Priority: dwarf > food > tile
       if (entities.length > 0) {
@@ -260,6 +321,9 @@ export function createStatPanel(containerEl) {
       } else {
         return; // Nothing to show
       }
+
+      // Position panel near the clicked cell
+      positionPanel(x, y);
 
       panelEl.style.opacity = '1';
       panelEl.style.pointerEvents = 'auto';
@@ -296,6 +360,13 @@ export function createStatPanel(containerEl) {
       if (!dwarf) {
         this.hide();
         return;
+      }
+
+      // Update position if dwarf moved
+      if (dwarf.x !== currentGridX || dwarf.y !== currentGridY) {
+        currentGridX = dwarf.x;
+        currentGridY = dwarf.y;
+        positionPanel(dwarf.x, dwarf.y);
       }
 
       // Re-render with fresh data
