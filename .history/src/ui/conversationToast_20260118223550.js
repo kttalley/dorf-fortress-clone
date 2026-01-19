@@ -31,7 +31,7 @@ export function initConversationToast(parentElement) {
     font-size: 11px;
     color: #aabbdd;
     z-index: 1000;
-    overflow-y: none;
+    overflow-y: auto;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
     animation: fadeIn 0.3s ease-out;
@@ -131,6 +131,7 @@ function toggleMinimize() {
     contentContainer.style.display = 'block';
     minimizeButton.textContent = '−';
     minimizeButton.title = 'Minimize';
+   غا
     conversationContainer.style.height = '200px';
     conversationContainer.style.maxHeight = '200px';
   } else {
@@ -138,6 +139,7 @@ function toggleMinimize() {
     contentContainer.style.display = 'none';
     minimizeButton.textContent = '+';
     minimizeButton.title = 'Maximize';
+    
     conversationContainer.style.height = '30px';
     conversationContainer.style.maxHeight = '30px';
   }
@@ -163,66 +165,47 @@ export function addConversationMessage(message, type = 'speech', dwarf = null) {
   
   // Format message based on type
   let formattedMessage = '';
+  const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   
   switch (type) {
     case 'speech':
-      // Split the message into header and content
-      const parts = message.split(': ');
-      if (parts.length > 1) {
-        const header = parts[0];
-        const content = parts.slice(1).join(': ');
-        formattedMessage = `<strong>${header}</strong><br>${content}`;
-      } else {
-        formattedMessage = message;
-      }
+      formattedMessage = `[${timestamp}] ${dwarf ? dwarf.name + ': ' : ''}${message}`;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
-        border-left: 3px solid #aaaa66;
+        margin: 3px 0;
+        padding: 2px 4px;
+        border-left: 2px solid #aaaa66;
         color: #ddddaa;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
       `;
       break;
     case 'thought':
-      formattedMessage = `<em>(${message})</em>`;
+      formattedMessage = `[${timestamp}] ${dwarf ? dwarf.name + ' thinks: ' : ''}${message}`;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
-        border-left: 3px solid #6688aa;
+        margin: 3px 0;
+        padding: 2px 4px;
+        border-left: 2px solid #6688aa;
         color: #aabbdd;
         font-style: italic;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
       `;
       break;
     case 'system':
-      formattedMessage = `> ${message}`;
+      formattedMessage = `[${timestamp}] ${message}`;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
-        border-left: 3px solid #88aa66;
+        margin: 3px 0;
+        padding: 2px 4px;
+        border-left: 2px solid #88aa66;
         color: #88aa66;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
       `;
       break;
     default:
-      formattedMessage = message;
+      formattedMessage = `[${timestamp}] ${message}`;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
+        margin: 3px 0;
+        padding: 2px 4px;
         color: #ddddaa;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
       `;
   }
   
-  messageEl.innerHTML = formattedMessage;
+  messageEl.textContent = formattedMessage;
   
   // Add to container
   contentContainer.appendChild(messageEl);
@@ -257,7 +240,7 @@ export function addSpeechMessage(speaker, listener, text) {
   
   let message = '';
   if (listener) {
-    message = `${speaker.name} -> ${listener.name}: ${text}`;
+    message = `${speaker.name} speaks to ${listener.name}: ${text}`;
   } else {
     message = `${speaker.name}: ${text}`;
   }

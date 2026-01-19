@@ -31,7 +31,7 @@ export function initConversationToast(parentElement) {
     font-size: 11px;
     color: #aabbdd;
     z-index: 1000;
-    overflow-y: none;
+    overflow-y: auto;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
     animation: fadeIn 0.3s ease-out;
@@ -166,63 +166,52 @@ export function addConversationMessage(message, type = 'speech', dwarf = null) {
   
   switch (type) {
     case 'speech':
-      // Split the message into header and content
-      const parts = message.split(': ');
-      if (parts.length > 1) {
-        const header = parts[0];
-        const content = parts.slice(1).join(': ');
-        formattedMessage = `<strong>${header}</strong><br>${content}`;
-      } else {
-        formattedMessage = message;
-      }
+      formattedMessage = message;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
+        margin: 4px 0;
+        padding: 6px 8px;
         border-left: 3px solid #aaaa66;
         color: #ddddaa;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
+        background: rgba(30, 30, 40, 0.7);
+        border-radius: 4px;
+澪
       `;
       break;
     case 'thought':
-      formattedMessage = `<em>(${message})</em>`;
+      formattedMessage = `(${message})`;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
+        margin: 4px 0;
+        padding: 6px 8px;
         border-left: 3px solid #6688aa;
         color: #aabbdd;
         font-style: italic;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
+        background: rgba(30, 30, 40, 0.7);
+        border-radius: 4px;
       `;
       break;
     case 'system':
       formattedMessage = `> ${message}`;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
+        margin: 4px 0;
+        padding: 6px 8px;
         border-left: 3px solid #88aa66;
         color: #88aa66;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
+        background: rgba(30, 30, 40, 0.7);
+        border-radius: 4px;
       `;
       break;
     default:
       formattedMessage = message;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
+        margin: 4px 0;
+        padding: 6px 8px;
         color: #ddddaa;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
+        background: rgba(30, 30, 40, 0.7);
+        border-radius: 4px;
       `;
   }
   
-  messageEl.innerHTML = formattedMessage;
+  messageEl.textContent = formattedMessage;
   
   // Add to container
   contentContainer.appendChild(messageEl);

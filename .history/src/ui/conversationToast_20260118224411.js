@@ -31,7 +31,7 @@ export function initConversationToast(parentElement) {
     font-size: 11px;
     color: #aabbdd;
     z-index: 1000;
-    overflow-y: none;
+    overflow-y: auto;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
     animation: fadeIn 0.3s ease-out;
