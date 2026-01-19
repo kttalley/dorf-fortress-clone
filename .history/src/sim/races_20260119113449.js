@@ -19,7 +19,7 @@ export const VISITOR_ROLE = Object.freeze({
 
 export const RACE_CONFIG = Object.freeze({
   [RACE.HUMAN]: {
-    char: '🧙‍♂️',
+    char: 'H',
     fg: '#ddcc88',
     baseHP: 20,
     baseDamage: 3,
@@ -40,7 +40,7 @@ export const RACE_CONFIG = Object.freeze({
     groupSize: { min: 3, max: 6 },
   },
   [RACE.ELF]: {
-    char: '🧝🏻‍♀️',
+    char: 'E',
     fg: '#aaddff',
     baseHP: 15,
     baseDamage: 2,

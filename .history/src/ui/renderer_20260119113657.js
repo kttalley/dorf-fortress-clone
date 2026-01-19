@@ -202,8 +202,8 @@ export const EntityGlyph = Object.freeze({
   DWARF_WOUNDED: { char: '🧌', fg: '#ff6666', zIndex: 10 },
 
   // Visitors - external races
-  HUMAN: { char: '🧙‍♂️', fg: '#ddcc88', zIndex: 10 },
-  HUMAN_HOSTILE: { char: '🧙‍♂️', fg: '#cc8844', zIndex: 10 },
+  HUMAN: { char: '@', fg: '#ddcc88', zIndex: 10 },
+  HUMAN_HOSTILE: { char: '@', fg: '#cc8844', zIndex: 10 },
   GOBLIN: { char: 'g', fg: '#88cc44', zIndex: 10 },
   GOBLIN_HOSTILE: { char: 'g', fg: '#cc4444', zIndex: 10 },
   ELF: { char: 'e', fg: '#aaddff', zIndex: 10 },

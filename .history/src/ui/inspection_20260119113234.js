@@ -214,12 +214,6 @@ export function getTooltipLabel(inspection) {
     if (first.type === 'human') {
       return first.entity.generatedName;
     }
-    if (first.type === 'elf') {
-      return first.entity.generatedName;
-    }
-    if (first.type === 'gobilin') {
-      return first.entity.generatedName;
-    }
     if (first.type === 'food') {
       return `Food (${first.entity.amount})`;
     }

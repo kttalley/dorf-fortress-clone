@@ -10,8 +10,8 @@ import { getSpawnWeightModifier, getDwarfRelation } from './history.js';
 import { emit, EVENTS } from '../events/eventBus.js';
 
 export const SPAWN_CONFIG = Object.freeze({
-  BASE_INTERVAL: 50,       // Ticks between spawn checks
-  BASE_CHANCE: 0.75,        // Base spawn chance per check
+  BASE_INTERVAL: 500,       // Ticks between spawn checks
+  BASE_CHANCE: 0.15,        // Base spawn chance per check
   MAX_VISITORS: 12,         // Maximum simultaneous visitors on map
   MIN_TICK: 200,            // Don't spawn before this tick (let dwarves settle)
   COOLDOWN_AFTER_SPAWN: 300, // Minimum ticks between spawns
