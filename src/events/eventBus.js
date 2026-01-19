@@ -30,6 +30,25 @@ export const EVENTS = Object.freeze({
   // Name generation events (LLM pipeline)
   DWARF_NAME_PENDING: 'dwarf:name_pending',     // Name generation started
   DWARF_NAME_GENERATED: 'dwarf:name_generated', // Name generation complete
+
+  // Visitor events (external forces)
+  VISITOR_ARRIVED: 'visitor:arrived',       // Visitor group spawns at map edge
+  VISITOR_LEAVING: 'visitor:leaving',       // Visitor starts leaving
+  VISITOR_LEFT: 'visitor:left',             // Visitor exits map
+  VISITOR_DEATH: 'visitor:death',           // Visitor dies
+
+  // Combat events
+  COMBAT_HIT: 'combat:hit',                 // Attack lands successfully
+  COMBAT_MISS: 'combat:miss',               // Attack misses
+  COMBAT_FLEE: 'combat:flee',               // Entity starts fleeing
+
+  // Trade events
+  TRADE_STARTED: 'trade:started',           // Trade begins with merchant
+  TRADE_COMPLETED: 'trade:completed',       // Trade finishes
+
+  // Diplomacy events
+  DIPLOMACY_MESSAGE: 'diplomacy:message',   // Diplomat delivers message
+  PREACHING_STARTED: 'preaching:started',   // Missionary begins preaching
 });
 
 /**

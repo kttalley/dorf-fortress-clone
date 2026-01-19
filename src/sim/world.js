@@ -8,12 +8,17 @@ import { addLog } from '../state/store.js';
 import { getTile, inBounds } from '../map/map.js';
 import { getTileDef } from '../map/tiles.js';
 import { isCritical, createFoodSource } from './entities.js';
-import { decide as aiDecide } from '../ai/dwarfAI.js';
+import { decide as aiDecide, workFighting } from '../ai/dwarfAI.js';
 import { applyHunger, processDeath, processEat, maybeSpawnFood, updateFoodProduction } from './rules.js';
 import { emit, EVENTS } from '../events/eventBus.js';
 import { initScentMap, emitScent, decayScents } from './movement.js';
 import { initConstruction } from './construction.js';
 import { initCrafting } from './crafting.js';
+
+// External forces imports
+import { processVisitors } from '../ai/visitorAI.js';
+import { maybeSpawnVisitors, resetSpawner } from './visitorSpawner.js';
+import { processCombat, cleanupDeadEntities, tickCooldowns } from './combat.js';
 
 let systemsInitialized = false;
 
@@ -24,6 +29,7 @@ export function initSystems(state) {
   initScentMap(state.map.width, state.map.height);
   initConstruction();
   initCrafting();
+  resetSpawner();  // Reset visitor spawner state
   systemsInitialized = true;
 }
 
@@ -83,14 +89,26 @@ export function tick(state) {
     act(dwarf, state);
   }
 
+  // 3.5 Process visitors (external forces)
+  processVisitors(state);
+
+  // 3.6 Process combat between all entities
+  processCombat(state);
+
   // 4. Check for deaths
   processDeath(state);
+
+  // 4.5 Cleanup dead entities (visitors and dwarves killed in combat)
+  cleanupDeadEntities(state);
 
   // 5. Update food production systems
   updateFoodProduction(state);
 
   // 6. Maybe spawn new food (stochastic pressure)
   maybeSpawnFood(state, createFoodSource);
+
+  // 7. Maybe spawn visitors (external forces)
+  maybeSpawnVisitors(state);
 
   // Check for mood shifts after all actions
   for (const dwarf of state.dwarves) {

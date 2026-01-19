@@ -124,6 +124,9 @@ export function createRenderer(containerEl, width, height) {
   function render(map, entities = []) {
     const entityLookup = buildEntityLookup(entities);
 
+    // Get biome color modifiers if available
+    const biomeColorMod = map.biome?.colorMod || null;
+
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
@@ -131,7 +134,8 @@ export function createRenderer(containerEl, width, height) {
 
         // Get tile data (map uses flat array)
         const tile = getTile(map, x, y);
-        const tileDef = tile ? getTileDef(tile) : null;
+        // Apply biome color modifiers to tile colors
+        const tileDef = tile ? getTileDef(tile, biomeColorMod) : null;
 
         // Check for entity at this position
         const entity = entityLookup.get(`${x},${y}`);
@@ -195,6 +199,14 @@ export const EntityGlyph = Object.freeze({
   DWARF: { char: '@', fg: '#ff0', zIndex: 10 },
   DWARF_HUNGRY: { char: '@', fg: '#ffa500', zIndex: 10 },
   DWARF_STARVING: { char: '@', fg: '#ff4444', zIndex: 10 },
+  DWARF_WOUNDED: { char: '@', fg: '#ff6666', zIndex: 10 },
+
+  // Visitors - external races
+  HUMAN: { char: '@', fg: '#ddcc88', zIndex: 10 },
+  HUMAN_HOSTILE: { char: '@', fg: '#cc8844', zIndex: 10 },
+  GOBLIN: { char: 'g', fg: '#88cc44', zIndex: 10 },
+  GOBLIN_HOSTILE: { char: 'g', fg: '#cc4444', zIndex: 10 },
+  ELF: { char: 'e', fg: '#aaddff', zIndex: 10 },
 
   // Food - green percent sign (traditional roguelike food)
   FOOD: { char: '%', fg: '#32cd32', zIndex: 5 },
@@ -330,11 +342,14 @@ export function buildRenderEntities(state) {
     }
   }
 
-  // Dwarves - color indicates hunger state
+  // Dwarves - color indicates hunger/health state
   for (const dwarf of state.dwarves) {
     let glyph = EntityGlyph.DWARF;
 
-    if (dwarf.hunger > 75) {
+    // Health takes priority for coloring
+    if (dwarf.hp < dwarf.maxHp * 0.5) {
+      glyph = EntityGlyph.DWARF_WOUNDED;
+    } else if (dwarf.hunger > 75) {
       glyph = EntityGlyph.DWARF_STARVING;
     } else if (dwarf.hunger > 50) {
       glyph = EntityGlyph.DWARF_HUNGRY;
@@ -349,5 +364,66 @@ export function buildRenderEntities(state) {
     });
   }
 
+  // Visitors - external forces
+  if (state.visitors) {
+    for (const visitor of state.visitors) {
+      if (visitor.state === 'dead') continue;
+
+      let char, fg;
+
+      // Determine glyph based on race
+      switch (visitor.race) {
+        case 'human':
+          char = EntityGlyph.HUMAN.char;
+          fg = visitor.disposition < -20 ? EntityGlyph.HUMAN_HOSTILE.fg : EntityGlyph.HUMAN.fg;
+          break;
+        case 'goblin':
+          char = EntityGlyph.GOBLIN.char;
+          fg = visitor.disposition < -20 ? EntityGlyph.GOBLIN_HOSTILE.fg : EntityGlyph.GOBLIN.fg;
+          break;
+        case 'elf':
+          char = EntityGlyph.ELF.char;
+          fg = EntityGlyph.ELF.fg;
+          break;
+        default:
+          char = '?';
+          fg = '#ffffff';
+      }
+
+      // Tint wounded visitors redder
+      if (visitor.hp < visitor.maxHp * 0.5) {
+        fg = blendColor(fg, '#ff4444', 0.4);
+      }
+
+      entities.push({
+        x: visitor.x,
+        y: visitor.y,
+        char,
+        fg,
+        zIndex: 10,
+        name: visitor.name,
+      });
+    }
+  }
+
   return entities;
+}
+
+/**
+ * Blend two hex colors
+ */
+function blendColor(color1, color2, ratio) {
+  const hex = (c) => parseInt(c.slice(1), 16);
+  const r = (c) => (c >> 16) & 255;
+  const g = (c) => (c >> 8) & 255;
+  const b = (c) => c & 255;
+
+  const c1 = hex(color1);
+  const c2 = hex(color2);
+
+  const rr = Math.round(r(c1) * (1 - ratio) + r(c2) * ratio);
+  const gg = Math.round(g(c1) * (1 - ratio) + g(c2) * ratio);
+  const bb = Math.round(b(c1) * (1 - ratio) + b(c2) * ratio);
+
+  return `#${((rr << 16) | (gg << 8) | bb).toString(16).padStart(6, '0')}`;
 }

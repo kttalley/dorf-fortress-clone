@@ -133,6 +133,14 @@ export function createDwarf(x, y, name = null) {
     mood: 70 + Math.floor(Math.random() * 30),  // 0-100, starts happy
     energy: 100,         // For future use
 
+    // Combat stats
+    hp: 25,
+    maxHp: 25,
+    combatSkill: 0.3 + Math.random() * 0.3,
+    damage: 3,
+    attackCooldown: 0,
+    fleeThreshold: 0.25,  // Dwarves are brave, flee at 25% HP
+
     // Fulfillment needs (0 = unfulfilled, 100 = fully satisfied)
     fulfillment: generateFulfillment(personality),
 

@@ -47,6 +47,14 @@ import {
   getPendingCraftingJobs,
 } from '../sim/crafting.js';
 
+import {
+  findNearestThreat,
+  findSafePosition,
+  shouldFlee,
+  attemptAttack,
+  inAttackRange,
+} from '../sim/combat.js';
+
 // === AI STATES ===
 export const AI_STATE = {
   IDLE: 'idle',
@@ -60,6 +68,9 @@ export const AI_STATE = {
   WORKING_BUILD: 'building',
   WORKING_CRAFT: 'crafting',
   HAULING: 'hauling',
+  // Combat states
+  FIGHTING: 'fighting',
+  FLEEING_COMBAT: 'fleeing_combat',
 };
 
 // Configuration
@@ -77,7 +88,18 @@ export function decide(dwarf, state) {
   if (!dwarf._lastDecision) dwarf._lastDecision = 0;
   dwarf._lastDecision++;
 
-  // Critical hunger overrides everything
+  // HIGHEST PRIORITY: Combat threats
+  const threat = findNearestThreat(dwarf, state);
+  if (threat) {
+    return decideCombatResponse(dwarf, threat, state);
+  }
+
+  // If fleeing, continue until safe
+  if (dwarf.state === AI_STATE.FLEEING_COMBAT) {
+    return continueFleeing(dwarf, state);
+  }
+
+  // Critical hunger overrides everything except combat
   if (isCritical(dwarf)) {
     return decideCritical(dwarf, state);
   }
@@ -117,6 +139,9 @@ function continueTask(dwarf, state) {
     case TASK_TYPE.FORAGE:
     case TASK_TYPE.EAT:
       return workEat(dwarf, state);
+
+    case 'fighting':
+      return workFighting(dwarf, state);
 
     default:
       // No valid task, find new one
@@ -626,4 +651,120 @@ function getTileAt(x, y, state) {
   if (x < 0 || x >= state.map.width || y < 0 || y >= state.map.height) return null;
   const tile = state.map.tiles[y * state.map.width + x];
   return tile?.type || null;
+}
+
+// === COMBAT FUNCTIONS ===
+
+/**
+ * Decide how to respond to a combat threat
+ */
+function decideCombatResponse(dwarf, threat, state) {
+  const bravery = dwarf.personality?.bravery || 0.5;
+  const hpRatio = dwarf.hp / dwarf.maxHp;
+
+  // Check if we should flee
+  if (shouldFlee(dwarf) || (hpRatio < 0.4 && bravery < 0.4)) {
+    const safePos = findSafePosition(dwarf, state);
+    dwarf.currentTask = null;
+    dwarf.target = safePos;
+    return {
+      state: AI_STATE.FLEEING_COMBAT,
+      target: safePos,
+    };
+  }
+
+  // Decide based on personality
+  // Brave dwarves fight, cowardly flee
+  if (bravery > 0.6 || hpRatio > 0.6) {
+    // Fight!
+    dwarf.currentTask = null;
+    dwarf.target = threat;
+    return {
+      state: AI_STATE.FIGHTING,
+      target: { x: threat.x, y: threat.y, entity: threat },
+    };
+  }
+
+  // Moderate bravery - fight if winning
+  const threatHpRatio = threat.hp / threat.maxHp;
+  if (hpRatio > threatHpRatio) {
+    dwarf.currentTask = null;
+    dwarf.target = threat;
+    return {
+      state: AI_STATE.FIGHTING,
+      target: { x: threat.x, y: threat.y, entity: threat },
+    };
+  }
+
+  // Otherwise flee
+  const safePos = findSafePosition(dwarf, state);
+  dwarf.currentTask = null;
+  return {
+    state: AI_STATE.FLEEING_COMBAT,
+    target: safePos,
+  };
+}
+
+/**
+ * Continue fleeing from combat
+ */
+function continueFleeing(dwarf, state) {
+  // Check if still in danger
+  const threat = findNearestThreat(dwarf, state);
+
+  if (!threat || distance(dwarf, threat) > 10) {
+    // Safe, return to normal
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  // Continue fleeing
+  const safePos = findSafePosition(dwarf, state);
+  if (safePos) {
+    executeSmartMovement(dwarf, state, { targetPos: safePos, avoidSocial: true });
+  }
+
+  return {
+    state: AI_STATE.FLEEING_COMBAT,
+    target: safePos,
+  };
+}
+
+/**
+ * Execute fighting behavior
+ */
+export function workFighting(dwarf, state) {
+  const target = dwarf.target?.entity;
+
+  if (!target || target.hp <= 0 || target.state === 'dead') {
+    // Target gone, return to normal
+    dwarf.currentTask = null;
+    dwarf.target = null;
+    return findNewTask(dwarf, state);
+  }
+
+  const dist = distance(dwarf, target);
+
+  if (inAttackRange(dwarf, target)) {
+    // Attack!
+    const result = attemptAttack(dwarf, target, state);
+
+    // Mood boost for defending home
+    if (result.success) {
+      dwarf.mood = Math.min(100, (dwarf.mood || 50) + 2);
+    }
+
+    return {
+      state: AI_STATE.FIGHTING,
+      target: { x: target.x, y: target.y, entity: target },
+    };
+  }
+
+  // Move toward target
+  executeSmartMovement(dwarf, state, { targetPos: { x: target.x, y: target.y } });
+
+  return {
+    state: AI_STATE.FIGHTING,
+    target: { x: target.x, y: target.y, entity: target },
+  };
 }

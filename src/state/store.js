@@ -22,6 +22,10 @@ export function createWorldState(width = 40, height = 20) {
 
     productionSites: [],  // Food production sites (farms, fishing spots, etc.)
 
+    visitors: [],  // External visitors (humans, goblins, elves)
+
+    history: null,  // World history (generated at world creation)
+
     log: []  // Capped at 50 entries
   };
 }

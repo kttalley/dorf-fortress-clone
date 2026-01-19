@@ -5,7 +5,7 @@
 
 import { createWorldState, addLog } from './state/store.js';
 import { createDwarf, createFoodSource, resetIds, getDominantTraits, getDisplayName } from './sim/entities.js';
-import { generateBiomeMap, generateMixedMap, generateCaveMap, findWalkablePosition } from './map/map.js';
+import { generateBiomeMap, generateMixedMap, generateCaveMap, findWalkablePosition, addBiomeToMap, initBiomeGenerator } from './map/map.js';
 import { tick } from './sim/world.js';
 import { createRenderer, updateStatus, buildRenderEntities } from './ui/renderer.js';
 import { renderLog } from './ui/log.js';
@@ -18,6 +18,10 @@ import { initializeLLM } from './llm/nameGenerator.js';
 import { waitForBatchNameGeneration } from './llm/nameGenerationEvents.js';
 import { on, EVENTS } from './events/eventBus.js';
 import { initConversationToast } from './ui/conversationToast.js';
+
+// External forces imports
+import { generateWorldHistory, getHistorySummary } from './sim/history.js';
+import { resetSpawner } from './sim/visitorSpawner.js';
 
 
 // Map configuration
@@ -65,7 +69,6 @@ async function regenerateWorld() {
         moistureScale: 0.025,
         numRivers: 4,
       });
-      addLog(state, 'A vast wilderness stretches before us.');
       break;
 
     case 'mixed':
@@ -75,7 +78,6 @@ async function regenerateWorld() {
         surfaceChance: 0.35,
         numRivers: 2,
       });
-      addLog(state, 'Caverns open to the sky above.');
       break;
 
     case 'cave':
@@ -87,15 +89,49 @@ async function regenerateWorld() {
         waterPools: 4,
         connectCaves: true,
       });
-      addLog(state, 'Deep underground, a new home awaits.');
       break;
+  }
+
+  // Generate biome name for the map (LLM-based)
+  try {
+    await addBiomeToMap(state.map, { timeout: 8000 });
+    const biomeName = state.map.biome?.name || 'Unknown Region';
+    addLog(state, `Biome: ${biomeName}`);
+  } catch (error) {
+    console.warn('[World] Biome generation failed:', error.message);
+    addLog(state, 'A mysterious wilderness stretches before us.');
   }
 
   // Clear entities
   state.dwarves = [];
   state.foodSources = [];
+  state.visitors = [];  // External forces
   state.log = state.log.slice(-3);
   state.tick = 0;
+
+  // Generate world history
+  const historySeed = mapSeed;
+  state.history = generateWorldHistory(historySeed);
+
+  // Reset visitor spawner
+  resetSpawner();
+
+  // Log notable history
+  if (state.history.events.length > 0) {
+    const recentEvent = state.history.events[state.history.events.length - 1];
+    addLog(state, `History: ${recentEvent.description}`);
+  }
+
+  // Log current race relations summary
+  const dwarfHumanRelation = state.history.raceRelations['dwarf_human'] || 0;
+  const dwarfGoblinRelation = state.history.raceRelations['dwarf_goblin'] || 0;
+  const dwarfElfRelation = state.history.raceRelations['dwarf_elf'] || 0;
+
+  if (dwarfGoblinRelation < -30) {
+    addLog(state, 'Tensions run high with goblin clans...');
+  } else if (dwarfHumanRelation > 30) {
+    addLog(state, 'Human merchants should arrive soon.');
+  }
 
   const centerPos = findWalkablePosition(state.map);
   if (!centerPos) return;
@@ -300,8 +336,9 @@ async function init() {
   // Initialize the conversation toast container
   initConversationToast(document.body);
 
-  // Initialize LLM name generation system
+  // Initialize LLM systems
   await initializeLLM();
+  await initBiomeGenerator();
 
   // Batch generate names for all dwarves in a single LLM call
   console.log('[Init] Batch generating dwarf names...');

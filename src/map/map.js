@@ -5,7 +5,8 @@
 
 import { TileType, createTile, getTileDef } from './tiles.js';
 import { seed, fbm, ridged, warped, noise2D } from './noise.js';
-import { getBiome, getTileForBiome, generateRivers } from './biomes.js';
+import { getBiome, getTileForBiome, generateRivers, calculateMapClimate } from './biomes.js';
+import { generateBiome, initBiomeGenerator } from '../llm/biomeGenerator.js';
 
 /**
  * Creates a new map.
@@ -617,5 +618,64 @@ export function generateMixedMap(width = 80, height = 40, options = {}) {
     }
   }
 
+  // Store elevation/moisture for biome generation
+  map.elevation = elevNoise;
+  map.moisture = moistNoise;
+
   return map;
 }
+
+// ============================================================
+// BIOME NAME GENERATION (LLM-powered)
+// ============================================================
+
+// Underground biome presets for cave maps
+const CAVE_BIOME_PRESETS = [
+  { name: 'Fungal Caverns', colorMod: { hue: 280, saturation: 15, brightness: -5 } },
+  { name: 'Crystal Depths', colorMod: { hue: 200, saturation: 20, brightness: 5 } },
+  { name: 'Ancient Tunnels', colorMod: { hue: 30, saturation: -10, brightness: -10 } },
+  { name: 'Glowing Grottos', colorMod: { hue: 160, saturation: 10, brightness: 0 } },
+  { name: 'Echoing Chambers', colorMod: { hue: 0, saturation: -15, brightness: -5 } },
+  { name: 'Obsidian Depths', colorMod: { hue: 270, saturation: -20, brightness: -15 } },
+];
+
+/**
+ * Add biome metadata to a map based on its terrain characteristics.
+ * Generates an LLM-based biome name and color modifiers.
+ * @param {object} map - Map with elevation and moisture arrays
+ * @param {object} options - { timeout }
+ * @returns {Promise<object>} The map with biome property added
+ */
+export async function addBiomeToMap(map, options = {}) {
+  // For maps without elevation/moisture (pure caves), use underground presets
+  if (!map.elevation || !map.moisture) {
+    console.log('[Map] No terrain data, using underground biome preset');
+    const preset = CAVE_BIOME_PRESETS[Math.floor(Math.random() * CAVE_BIOME_PRESETS.length)];
+    map.biome = {
+      name: preset.name,
+      description: `A deep ${preset.name.toLowerCase()} system.`,
+      colorMod: preset.colorMod,
+      source: 'cave_preset',
+    };
+    console.log(`[Map] Cave biome: "${map.biome.name}"`);
+    return map;
+  }
+
+  // Calculate climate from terrain
+  const climate = calculateMapClimate(map.elevation, map.moisture, map.width, map.height);
+  console.log('[Map] Calculated climate:', climate);
+
+  // Generate biome name
+  const biome = await generateBiome(climate, options);
+  map.biome = biome;
+
+  console.log(`[Map] Biome: "${biome.name}" (source: ${biome.source})`);
+
+  return map;
+}
+
+/**
+ * Initialize biome system (check LLM availability).
+ * Call this at game startup.
+ */
+export { initBiomeGenerator };

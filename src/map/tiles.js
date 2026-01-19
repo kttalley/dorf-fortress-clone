@@ -408,9 +408,10 @@ export function createTile(type) {
 /**
  * Returns the static definition for a tile instance.
  * @param {object} tile - Tile instance
+ * @param {object} biomeColorMod - Optional biome color modifiers
  * @returns {object} Tile definition
  */
-export function getTileDef(tile) {
+export function getTileDef(tile, biomeColorMod = null) {
   // If tile already has definition properties (from construction), use it directly
   if (tile && typeof tile.walkable === 'boolean') {
     return tile;
@@ -418,7 +419,17 @@ export function getTileDef(tile) {
 
   // Look up in standard definitions
   const def = TILE_DEFS[tile?.type];
-  if (def) return def;
+  if (def) {
+    // Apply biome color modifiers if provided
+    if (biomeColorMod) {
+      return {
+        ...def,
+        fg: shiftColor(def.fg, biomeColorMod),
+        bg: shiftColor(def.bg, biomeColorMod),
+      };
+    }
+    return def;
+  }
 
   // Fallback for unknown types
   return {
@@ -429,4 +440,126 @@ export function getTileDef(tile) {
     harvestable: false,
     moveCost: Infinity,
   };
+}
+
+// ============================================================
+// COLOR MANIPULATION UTILITIES
+// ============================================================
+
+/**
+ * Convert hex color to HSL
+ * @param {string} hex - CSS hex color (e.g., '#ff0000')
+ * @returns {object} { h, s, l } where h is 0-360, s and l are 0-100
+ */
+function hexToHSL(hex) {
+  // Remove # if present
+  hex = hex.replace(/^#/, '');
+
+  // Parse hex
+  const r = parseInt(hex.substring(0, 2), 16) / 255;
+  const g = parseInt(hex.substring(2, 4), 16) / 255;
+  const b = parseInt(hex.substring(4, 6), 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h, s;
+  const l = (max + min) / 2;
+
+  if (max === min) {
+    h = s = 0; // achromatic
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100),
+  };
+}
+
+/**
+ * Convert HSL to hex color
+ * @param {number} h - Hue (0-360)
+ * @param {number} s - Saturation (0-100)
+ * @param {number} l - Lightness (0-100)
+ * @returns {string} CSS hex color
+ */
+function hslToHex(h, s, l) {
+  h = h / 360;
+  s = s / 100;
+  l = l / 100;
+
+  let r, g, b;
+
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+
+  const toHex = x => {
+    const hex = Math.round(x * 255).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  };
+
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/**
+ * Apply color modifiers to a hex color
+ * @param {string} hex - Original hex color
+ * @param {object} mod - { hue, saturation, brightness } adjustments (-30 to +30)
+ * @returns {string} Modified hex color
+ */
+export function shiftColor(hex, mod) {
+  if (!hex || !mod) return hex;
+
+  const hsl = hexToHSL(hex);
+
+  // Apply modifications
+  let newH = (hsl.h + (mod.hue || 0) + 360) % 360;
+  let newS = Math.max(0, Math.min(100, hsl.s + (mod.saturation || 0)));
+  let newL = Math.max(0, Math.min(100, hsl.l + (mod.brightness || 0)));
+
+  return hslToHex(newH, newS, newL);
+}
+
+/**
+ * Create a modified tile definitions object with biome color shifts
+ * @param {object} colorMod - { hue, saturation, brightness }
+ * @returns {object} New TILE_DEFS-like object with modified colors
+ */
+export function createBiomeTileDefs(colorMod) {
+  const modified = {};
+
+  for (const [type, def] of Object.entries(TILE_DEFS)) {
+    modified[type] = {
+      ...def,
+      fg: shiftColor(def.fg, colorMod),
+      bg: shiftColor(def.bg, colorMod),
+    };
+  }
+
+  return modified;
 }

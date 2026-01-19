@@ -348,3 +348,41 @@ export function scatterFood(tiles, width, height, density = 0.02) {
 
   return foodPositions;
 }
+
+/**
+ * Calculate overall climate characteristics for a map
+ * Used for LLM-based biome name generation
+ * @param {Float32Array} elevation - Elevation values (0-1)
+ * @param {Float32Array} moisture - Moisture values (0-1)
+ * @param {number} width - Map width
+ * @param {number} height - Map height
+ * @returns {object} { avgElevation, avgMoisture, avgTemperature }
+ */
+export function calculateMapClimate(elevation, moisture, width, height) {
+  const size = width * height;
+  let totalElevation = 0;
+  let totalMoisture = 0;
+
+  for (let i = 0; i < size; i++) {
+    totalElevation += elevation[i];
+    totalMoisture += moisture[i];
+  }
+
+  const avgElevation = totalElevation / size;
+  const avgMoisture = totalMoisture / size;
+
+  // Temperature is inversely related to elevation (higher = colder)
+  // Also add some variation based on moisture (wet = slightly cooler)
+  // Base temp ranges from 0 (cold) to 1 (hot)
+  const baseTemp = 0.5 + (Math.random() - 0.5) * 0.3; // Random base climate
+  const elevationEffect = -avgElevation * 0.4; // Higher = colder
+  const moistureEffect = -avgMoisture * 0.1; // Wetter = slightly cooler
+
+  const avgTemperature = Math.max(0, Math.min(1, baseTemp + elevationEffect + moistureEffect));
+
+  return {
+    avgElevation,
+    avgMoisture,
+    avgTemperature,
+  };
+}
