@@ -272,92 +272,6 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
   }
 
   /**
-   * Render visitor stats (humans, elves, goblins, etc.)
-   */
-  function renderVisitor(stats) {
-    const dispositionColor = 
-      stats.disposition > 50 ? '#4aff4a' : 
-      stats.disposition > 25 ? '#4aff9e' : 
-      stats.disposition > 0 ? '#aaaa66' : 
-      stats.disposition > -25 ? '#ffaa66' : '#ff4a4a';
-
-    const stateColor =
-      stats.state === 'Trading' ? '#4aff9e' :
-      stats.state === 'Raiding' || stats.state === 'In Combat' ? '#ff4a4a' :
-      stats.state === 'Fleeing' ? '#ffff4a' :
-      stats.state === 'Leaving' || stats.state === 'Arriving' ? '#aaaaaa' : '#88aaff';
-
-    // Bio section
-    let bioSection = '';
-    if (stats.bio) {
-      bioSection = `
-        <div style="margin: 8px 0; padding: 8px; background: rgba(40, 35, 30, 0.6); border-left: 2px solid #887755; font-style: italic; color: #aa9977; font-size: 11px;">
-          ${stats.bio}
-        </div>
-      `;
-    }
-
-    return `
-      <div style="padding: 12px;">
-        <!-- Header -->
-        <div style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span style="font-size: 20px; margin-right: 8px;">${getRaceEmoji(stats.race)}</span>
-          <div>
-            <div style="font-size: 15px; font-weight: bold; color: #fff;">${stats.name}</div>
-            <div style="font-size: 10px; color: #666;">${stats.race} ${stats.role} #${stats.id}</div>
-          </div>
-        </div>
-
-        ${bioSection}
-
-        <!-- State & Disposition -->
-        <div style="margin: 8px 0; padding: 6px; background: rgba(40, 40, 50, 0.8); border-radius: 4px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="color: #888;">State:</span>
-            <span style="color: ${stateColor};">${stats.state}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span style="color: #888;">Disposition:</span>
-            <span style="color: ${dispositionColor};">${stats.dispositionLabel}</span>
-          </div>
-        </div>
-
-        <!-- Combat Stats -->
-        <div style="margin-top: 12px;">
-          <div style="color: #aaa; margin-bottom: 6px; font-weight: bold;">Combat</div>
-          ${createStatBar('HP', stats.hp, stats.maxHp, stats.hpPercent > 50 ? '#4aff4a' : stats.hpPercent > 25 ? '#ffff4a' : '#ff4a4a')}
-          <div style="margin: 4px 0; color: #888; font-size: 11px;">Damage: <span style="color: #ffaa66;">${stats.damage}</span></div>
-        </div>
-
-        <!-- Goal Progress -->
-        ${stats.satisfactionThreshold ? `
-          <div style="margin-top: 12px;">
-            <div style="color: #aaa; margin-bottom: 6px; font-weight: bold;">Goal Progress</div>
-            ${createStatBar('Satisfaction', stats.satisfaction, stats.satisfactionThreshold, '#4a9eff')}
-          </div>
-        ` : ''}
-
-        <!-- Close hint -->
-        <div style="margin-top: 12px; text-align: center; color: #666; font-size: 10px;">
-          Click elsewhere to close
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * Get emoji for race display
-   */
-  function getRaceEmoji(race) {
-    const emojis = {
-      'Human': '🧙‍♂️',
-      'Goblin': '👹',
-      'Elf': '🧝🏻‍♀️',
-    };
-    return emojis[race] || '❓';
-  }
-
-  /**
    * Render tile info
    */
   function renderTile(tile, x, y) {
@@ -399,7 +313,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
       currentGridX = x;
       currentGridY = y;
 
-      // Priority: dwarf > visitor > food > tile
+      // Priority: dwarf > food > tile
       if (entities.length > 0) {
         const first = entities[0];
         if (first.type === 'dwarf') {
@@ -407,11 +321,6 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
           currentType = 'dwarf';
           const stats = getDwarfStats(first.entity);
           panelEl.innerHTML = renderDwarf(stats);
-        } else if (first.type === 'visitor') {
-          currentEntity = first.entity;
-          currentType = 'visitor';
-          const stats = getVisitorStats(first.entity);
-          panelEl.innerHTML = renderVisitor(stats);
         } else if (first.type === 'food') {
           currentEntity = first.entity;
           currentType = 'food';
@@ -457,45 +366,26 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     update(state) {
       worldState = state;
 
-      if (currentType === 'dwarf') {
-        // Find the dwarf in current state (might have moved)
-        const dwarf = state.dwarves.find(d => d.id === currentEntity.id);
-        if (!dwarf) {
-          this.hide();
-          return;
-        }
+      if (!currentEntity || currentType !== 'dwarf') return;
 
-        // Update position if dwarf moved
-        if (dwarf.x !== currentGridX || dwarf.y !== currentGridY) {
-          currentGridX = dwarf.x;
-          currentGridY = dwarf.y;
-          positionPanel(dwarf.x, dwarf.y);
-        }
-
-        // Re-render with fresh data
-        currentEntity = dwarf;
-        const stats = getDwarfStats(dwarf);
-        panelEl.innerHTML = renderDwarf(stats);
-      } else if (currentType === 'visitor') {
-        // Find the visitor in current state (might have moved)
-        const visitor = state.visitors?.find(v => v.id === currentEntity.id);
-        if (!visitor || visitor.state === 'dead') {
-          this.hide();
-          return;
-        }
-
-        // Update position if visitor moved
-        if (visitor.x !== currentGridX || visitor.y !== currentGridY) {
-          currentGridX = visitor.x;
-          currentGridY = visitor.y;
-          positionPanel(visitor.x, visitor.y);
-        }
-
-        // Re-render with fresh data
-        currentEntity = visitor;
-        const stats = getVisitorStats(visitor);
-        panelEl.innerHTML = renderVisitor(stats);
+      // Find the dwarf in current state (might have moved)
+      const dwarf = state.dwarves.find(d => d.id === currentEntity.id);
+      if (!dwarf) {
+        this.hide();
+        return;
       }
+
+      // Update position if dwarf moved
+      if (dwarf.x !== currentGridX || dwarf.y !== currentGridY) {
+        currentGridX = dwarf.x;
+        currentGridY = dwarf.y;
+        positionPanel(dwarf.x, dwarf.y);
+      }
+
+      // Re-render with fresh data
+      currentEntity = dwarf;
+      const stats = getDwarfStats(dwarf);
+      panelEl.innerHTML = renderDwarf(stats);
     },
 
     /**

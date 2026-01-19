@@ -366,7 +366,7 @@ export function updateSidebarThoughts(thoughts = []) {
     const nameEl = document.createElement('div');
     nameEl.className = 'thought-entry-name';
     const typeIcon = getThoughtTypeIcon(thought.type);
-    nameEl.innerHTML = `<span class="thought-icon">${typeIcon}</span> ${thought.dwarfName}`;
+    nameEl.innerHTML = `<span class="thought-icon">${typeIcon}</span> ${thought.dwarfId}`;
     entry.appendChild(nameEl);
 
     // Thought text

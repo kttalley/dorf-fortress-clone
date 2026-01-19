@@ -23,12 +23,23 @@ import { initConversationToast } from './ui/conversationToast.js';
 import { generateWorldHistory, getHistorySummary } from './sim/history.js';
 import { resetSpawner } from './sim/visitorSpawner.js';
 
+const STAT_PANEL_BREAKPOINT = 728;
+
+function getLayoutConfig() {
+  const screenWidth = window.innerWidth;
+  const hasStatPanel = screenWidth > STAT_PANEL_BREAKPOINT;
+
+  return {
+    hasStatPanel,
+    canvasWidthRatio: hasStatPanel ? 0.75 : 1
+  };
+}
 
 // Map configuration
 const MAP_WIDTH = 80;
-const MAP_HEIGHT = 32;
+const MAP_HEIGHT = 80;
 const INITIAL_DWARVES = 7;
-const INITIAL_FOOD_SOURCES = 42;
+const INITIAL_FOOD_SOURCES = 15;
 const SPEED_LEVELS = [250, 150, 80, 40];  // ms per tick (slower for watching interactions)
 
 // Map generation modes
@@ -291,10 +302,26 @@ async function init() {
   injectBubbleStyles();
 
   // Create renderer
-  renderer = createRenderer(mapContainer, MAP_WIDTH, MAP_HEIGHT);
+  const { hasStatPanel, canvasWidthRatio } = getLayoutConfig();
 
-  // Create stat panel (for detailed entity inspection) - needs grid element for positioning
-  statPanel = createStatPanel(mapContainer, renderer.el, MAP_WIDTH, MAP_HEIGHT);
+// Size the map container itself
+mapContainer.style.width = `${Math.floor(window.innerWidth * canvasWidthRatio)}px`;
+mapContainer.style.maxWidth = '100vw';
+
+// Create renderer at adjusted width
+renderer = createRenderer(mapContainer, MAP_WIDTH, MAP_HEIGHT);
+
+// Only create stat panel on large screens
+if (hasStatPanel) {
+  statPanel = createStatPanel(
+    mapContainer,
+    renderer.el,
+    MAP_WIDTH,
+    MAP_HEIGHT
+  );
+} else {
+  statPanel = null;
+}
 
   // Create cursor system (grid-snapping highlight + tooltip)
   cursor = createCursor(
@@ -307,7 +334,7 @@ async function init() {
     },
     // onClick callback
     (x, y, inspection) => {
-      if (inspection.hasDwarf || inspection.hasFood || inspection.tile) {
+      if (inspection.hasDwarf || inspection.hasVisitor || inspection.hasFood || inspection.tile) {
         // Toggle stat panel
         if (statPanel.isVisible()) {
           const current = statPanel.getEntity();

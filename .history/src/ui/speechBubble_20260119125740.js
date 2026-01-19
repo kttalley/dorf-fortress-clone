@@ -31,6 +31,7 @@ export function initSpeechBubbles(gameContainer, asciiGrid) {
     position: absolute;
     top: 0;
     left: 0;
+    display: none;
     width: 100%;
     height: 100%;
     pointer-events: none;
@@ -366,7 +367,7 @@ export function updateSidebarThoughts(thoughts = []) {
     const nameEl = document.createElement('div');
     nameEl.className = 'thought-entry-name';
     const typeIcon = getThoughtTypeIcon(thought.type);
-    nameEl.innerHTML = `<span class="thought-icon">${typeIcon}</span> ${thought.dwarfName}`;
+    nameEl.innerHTML = `<span class="thought-icon">${typeIcon}</span> ${thought.dwarfId}`;
     entry.appendChild(nameEl);
 
     // Thought text

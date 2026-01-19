@@ -928,7 +928,7 @@ export function considerBuilding(dwarf, state) {
   if (personalWorkshop && Math.random() < 0.6) {
     const location = findBuildLocation(personalWorkshop, state);
     if (location) {
-      addLog(state, `${getDisplayName(dwarf)} decides to build a ${BLUEPRINTS[personalWorkshop].name}.`);
+      addLog(state, `${dwarf.name} decides to build a ${BLUEPRINTS[personalWorkshop].name}.`);
       return startBuildProject(personalWorkshop, location.x, location.y, state, dwarf);
     }
   }

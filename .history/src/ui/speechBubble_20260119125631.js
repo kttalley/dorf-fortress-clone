@@ -5,6 +5,11 @@
  */
 import { addSpeechMessage } from './conversationToast.js';
 
+const UI_BREAKPOINT = 728;
+
+function isDesktopUI() {
+  return window.innerWidth > UI_BREAKPOINT;
+}
 
 // Active bubbles
 const activeBubbles = new Map();  // id -> { element, dwarf, type, expiry }
@@ -24,6 +29,7 @@ let cellHeight = 0;
  * @param {HTMLElement} asciiGrid - The ASCII renderer grid element
  */
 export function initSpeechBubbles(gameContainer, asciiGrid) {
+  if (!isDesktopUI()) return;
   // Create overlay container for bubbles
   containerEl = document.createElement('div');
   containerEl.id = 'speech-bubbles';

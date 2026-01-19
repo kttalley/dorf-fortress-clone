@@ -28,12 +28,12 @@ import { resetSpawner } from './sim/visitorSpawner.js';
 const MAP_WIDTH = 80;
 const MAP_HEIGHT = 32;
 const INITIAL_DWARVES = 7;
-const INITIAL_FOOD_SOURCES = 42;
+const INITIAL_FOOD_SOURCES = 15;
 const SPEED_LEVELS = [250, 150, 80, 40];  // ms per tick (slower for watching interactions)
 
 // Map generation modes
 const MAP_MODES = ['biome', 'mixed', 'cave'];
-let currentMapMode = 1;
+let currentMapMode = 0;
 
 let tickInterval = SPEED_LEVELS[0];
 let speedIndex = 0;

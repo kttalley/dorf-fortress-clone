@@ -28,7 +28,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     position: absolute;
     left: 0;
     top: 0;
-    width: 260px;
+    width: 60px;
     max-height: 400px;
     overflow-y: auto;
     background: rgba(15, 15, 20, 0.95);

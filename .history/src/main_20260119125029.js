@@ -28,7 +28,7 @@ import { resetSpawner } from './sim/visitorSpawner.js';
 const MAP_WIDTH = 80;
 const MAP_HEIGHT = 32;
 const INITIAL_DWARVES = 7;
-const INITIAL_FOOD_SOURCES = 42;
+const INITIAL_FOOD_SOURCES = 15;
 const SPEED_LEVELS = [250, 150, 80, 40];  // ms per tick (slower for watching interactions)
 
 // Map generation modes
@@ -291,7 +291,7 @@ async function init() {
   injectBubbleStyles();
 
   // Create renderer
-  renderer = createRenderer(mapContainer, MAP_WIDTH, MAP_HEIGHT);
+  renderer = createRenderer(mapContainer, 80%, 80%);
 
   // Create stat panel (for detailed entity inspection) - needs grid element for positioning
   statPanel = createStatPanel(mapContainer, renderer.el, MAP_WIDTH, MAP_HEIGHT);

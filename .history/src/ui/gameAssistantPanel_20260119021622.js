@@ -18,7 +18,7 @@ export function initGameAssistant(containerEl, getWorld) {
   panelEl.className = 'game-assistant-panel';
   panelEl.style.cssText = `
     position: absolute;
-    left: 8px;
+    right: 8px;
     bottom: 8px;
     width: 340px;
     max-height: 480px;

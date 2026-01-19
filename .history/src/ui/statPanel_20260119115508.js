@@ -399,7 +399,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
       currentGridX = x;
       currentGridY = y;
 
-      // Priority: dwarf > visitor > food > tile
+      // Priority: dwarf > food > tile
       if (entities.length > 0) {
         const first = entities[0];
         if (first.type === 'dwarf') {
@@ -407,11 +407,6 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
           currentType = 'dwarf';
           const stats = getDwarfStats(first.entity);
           panelEl.innerHTML = renderDwarf(stats);
-        } else if (first.type === 'visitor') {
-          currentEntity = first.entity;
-          currentType = 'visitor';
-          const stats = getVisitorStats(first.entity);
-          panelEl.innerHTML = renderVisitor(stats);
         } else if (first.type === 'food') {
           currentEntity = first.entity;
           currentType = 'food';
@@ -457,45 +452,26 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     update(state) {
       worldState = state;
 
-      if (currentType === 'dwarf') {
-        // Find the dwarf in current state (might have moved)
-        const dwarf = state.dwarves.find(d => d.id === currentEntity.id);
-        if (!dwarf) {
-          this.hide();
-          return;
-        }
+      if (!currentEntity || currentType !== 'dwarf') return;
 
-        // Update position if dwarf moved
-        if (dwarf.x !== currentGridX || dwarf.y !== currentGridY) {
-          currentGridX = dwarf.x;
-          currentGridY = dwarf.y;
-          positionPanel(dwarf.x, dwarf.y);
-        }
-
-        // Re-render with fresh data
-        currentEntity = dwarf;
-        const stats = getDwarfStats(dwarf);
-        panelEl.innerHTML = renderDwarf(stats);
-      } else if (currentType === 'visitor') {
-        // Find the visitor in current state (might have moved)
-        const visitor = state.visitors?.find(v => v.id === currentEntity.id);
-        if (!visitor || visitor.state === 'dead') {
-          this.hide();
-          return;
-        }
-
-        // Update position if visitor moved
-        if (visitor.x !== currentGridX || visitor.y !== currentGridY) {
-          currentGridX = visitor.x;
-          currentGridY = visitor.y;
-          positionPanel(visitor.x, visitor.y);
-        }
-
-        // Re-render with fresh data
-        currentEntity = visitor;
-        const stats = getVisitorStats(visitor);
-        panelEl.innerHTML = renderVisitor(stats);
+      // Find the dwarf in current state (might have moved)
+      const dwarf = state.dwarves.find(d => d.id === currentEntity.id);
+      if (!dwarf) {
+        this.hide();
+        return;
       }
+
+      // Update position if dwarf moved
+      if (dwarf.x !== currentGridX || dwarf.y !== currentGridY) {
+        currentGridX = dwarf.x;
+        currentGridY = dwarf.y;
+        positionPanel(dwarf.x, dwarf.y);
+      }
+
+      // Re-render with fresh data
+      currentEntity = dwarf;
+      const stats = getDwarfStats(dwarf);
+      panelEl.innerHTML = renderDwarf(stats);
     },
 
     /**

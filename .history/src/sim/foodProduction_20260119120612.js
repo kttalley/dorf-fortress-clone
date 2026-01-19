@@ -94,7 +94,7 @@ export function workOnProduction(site, dwarf, state) {
     if (site.progress >= config.setupTime) {
       site.status = 'active';
       site.progress = 0;
-      addLog(state, `${getDisplayName(dwarf)} established a ${site.type} production site at (${site.x}, ${site.y}).`);
+      addLog(state, `${dwarf.name} established a ${site.type} production site at (${site.x}, ${site.y}).`);
       return true;
     }
   }

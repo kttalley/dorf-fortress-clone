@@ -26,9 +26,9 @@ import { resetSpawner } from './sim/visitorSpawner.js';
 
 // Map configuration
 const MAP_WIDTH = 80;
-const MAP_HEIGHT = 32;
+const MAP_HEIGHT = 30;
 const INITIAL_DWARVES = 7;
-const INITIAL_FOOD_SOURCES = 42;
+const INITIAL_FOOD_SOURCES = 15;
 const SPEED_LEVELS = [250, 150, 80, 40];  // ms per tick (slower for watching interactions)
 
 // Map generation modes

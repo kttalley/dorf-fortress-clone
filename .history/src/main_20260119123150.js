@@ -24,19 +24,27 @@ import { generateWorldHistory, getHistorySummary } from './sim/history.js';
 import { resetSpawner } from './sim/visitorSpawner.js';
 
 
-// Map configuration
-const MAP_WIDTH = 80;
-const MAP_HEIGHT = 32;
-const INITIAL_DWARVES = 7;
-const INITIAL_FOOD_SOURCES = 42;
-const SPEED_LEVELS = [250, 150, 80, 40];  // ms per tick (slower for watching interactions)
+// // Map configuration
+// const MAP_WIDTH = 128;
+// const MAP_HEIGHT = 48;
+// const INITIAL_DWARVES = 7;
+// const INITIAL_FOOD_SOURCES = 15;
+// const SPEED_LEVELS = [250, 150, 80, 40];  // ms per tick (slower for watching interactions)
+
+let MAP_WIDTH;
+let MAP_HEIGHT;
+let INITIAL_DWARVES;
+let INITIAL_FOOD_SOURCES;
+let SPEED_LEVELS;
+let speedIndex = 0;
+let tickInterval;
 
 // Map generation modes
 const MAP_MODES = ['biome', 'mixed', 'cave'];
 let currentMapMode = 1;
 
-let tickInterval = SPEED_LEVELS[0];
-let speedIndex = 0;
+// let tickInterval = SPEED_LEVELS[0];
+// let speedIndex = 0;
 let running = true;
 let loopId = null;
 let renderer = null;
@@ -307,7 +315,7 @@ async function init() {
     },
     // onClick callback
     (x, y, inspection) => {
-      if (inspection.hasDwarf || inspection.hasFood || inspection.tile) {
+      if (inspection.hasDwarf || inspection.hasVisitor || inspection.hasFood || inspection.tile) {
         // Toggle stat panel
         if (statPanel.isVisible()) {
           const current = statPanel.getEntity();
