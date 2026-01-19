@@ -70,7 +70,7 @@ export function processEat(dwarf, food, state) {
 }
 
 /**
- * Spawn initial food from map
+ * Maybe spawn new food (stochastic pressure)
  */
 export function maybeSpawnFood(state, createFoodFn) {
   if (Math.random() < RULES.FOOD_RESPAWN_CHANCE) {
@@ -85,14 +85,7 @@ export function maybeSpawnFood(state, createFoodFn) {
     if (tile !== '#') {
       const food = createFoodFn(x, y, RULES.FOOD_INITIAL_AMOUNT);
       state.foodSources.push(food);
-      addLog(state, `Wild food appeared at (${x}, ${y}).`);
+      addLog(state, `New food appeared at (${x}, ${y}).`);
     }
   }
-}
-
-/**
- * Update all food production systems
- */
-export function updateFoodProduction(state) {
-  updateProduction(state);
 }

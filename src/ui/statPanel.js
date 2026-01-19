@@ -174,6 +174,16 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     const moodColor = stats.mood > 60 ? '#4aff4a' : stats.mood > 30 ? '#ffff4a' : '#ff4a4a';
     const hungerColor = stats.hunger < 30 ? '#4aff4a' : stats.hunger < 60 ? '#ffff4a' : '#ff4a4a';
 
+    // Bio section (from LLM or fallback)
+    let bioSection = '';
+    if (stats.bio) {
+      bioSection = `
+        <div style="margin: 8px 0; padding: 8px; background: rgba(40, 35, 30, 0.6); border-left: 2px solid #887755; font-style: italic; color: #aa9977; font-size: 11px;">
+          ${stats.bio}
+        </div>
+      `;
+    }
+
     let thoughtSection = '';
     if (stats.currentThought) {
       thoughtSection = `
@@ -196,13 +206,15 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     return `
       <div style="padding: 12px;">
         <!-- Header -->
-        <div style="display: flex; align-items: center; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
           <span style="font-size: 24px; color: #ff0; margin-right: 8px;">@</span>
           <div>
-            <div style="font-size: 16px; font-weight: bold; color: #fff;">${stats.name}</div>
-            <div style="font-size: 11px; color: #888;">Dwarf #${stats.id}</div>
+            <div style="font-size: 15px; font-weight: bold; color: #fff;">${stats.name}</div>
+            <div style="font-size: 10px; color: #666;">Dwarf #${stats.id}</div>
           </div>
         </div>
+
+        ${bioSection}
 
         <!-- State -->
         <div style="margin: 8px 0; padding: 6px; background: rgba(40, 40, 50, 0.8); border-radius: 4px;">

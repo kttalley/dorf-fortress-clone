@@ -86,10 +86,7 @@ export function tick(state) {
   // 4. Check for deaths
   processDeath(state);
 
-  // 5. Update food production systems
-  updateFoodProduction(state);
-
-  // 6. Maybe spawn new food (stochastic pressure)
+  // 5. Maybe spawn new food (stochastic pressure)
   maybeSpawnFood(state, createFoodSource);
 
   // Check for mood shifts after all actions

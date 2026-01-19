@@ -233,6 +233,227 @@ function getBio(trait, random) {
   return pick(DEFAULT_BIOS, random);
 }
 
+// ============================================================
+// EVENT NARRATION FALLBACKS
+// Transforms terse log events into dramatic prose locally
+// ============================================================
+
+/**
+ * Expansion rules: [pattern, expand function]
+ * Each expand function receives regex match and returns prose
+ */
+const EVENT_EXPANSION_RULES = [
+  // Death events (highest priority)
+  {
+    pattern: /^(.+?)\s+(?:has\s+)?died\s*(?:from\s+(.+))?[.!]?$/i,
+    expand: (match, random) => {
+      const name = match[1];
+      const cause = match[2] || 'unknown causes';
+      return pick([
+        `Thus fell ${name}, claimed by ${cause}. The mountain remembers.`,
+        `${name} has perished, ${cause} taking its toll. A soul returns to stone.`,
+        `The chronicles record the passing of ${name}, undone by ${cause}.`,
+      ], random);
+    },
+  },
+
+  // Starvation panic
+  {
+    pattern: /^(.+?)\s+panics?\s+from\s+hunger[.!]?$/i,
+    expand: (match, random) => {
+      const name = match[1];
+      return pick([
+        `Hunger gnaws at ${name}'s belly, driving reason from mind.`,
+        `${name} staggers, wild-eyed with want. The flesh demands tribute.`,
+        `Desperate hunger clouds ${name}'s thoughts. Food must be found.`,
+      ], random);
+    },
+  },
+
+  // Eating events
+  {
+    pattern: /^(.+?)\s+(?:ate|eats|consumed|devoured)\s+(.+?)[.!]?$/i,
+    expand: (match, random) => {
+      const name = match[1];
+      const food = match[2];
+      return pick([
+        `${name} partakes of ${food}, quieting the belly's complaints.`,
+        `With grateful hands, ${name} consumes ${food}. Sustenance claimed.`,
+        `${name} breaks fast upon ${food}. Life continues another day.`,
+      ], random);
+    },
+  },
+
+  // Food found
+  {
+    pattern: /^(.+?)\s+(?:found|discovers?|spots?)\s+(?:some\s+)?food[.!]?$/i,
+    expand: (match, random) => {
+      const name = match[1];
+      return pick([
+        `Fortune smiles upon ${name}, who spies sustenance ahead.`,
+        `${name}'s search bears fruit. Provisions await the taking.`,
+        `At last! ${name} discovers that which the belly craves.`,
+      ], random);
+    },
+  },
+
+  // Meeting another dwarf
+  {
+    pattern: /^(.+?)\s+(?:met|meets|encountered|encounters)\s+(.+?)[.!]?$/i,
+    expand: (match, random) => {
+      const name1 = match[1];
+      const name2 = match[2];
+      return pick([
+        `${name1} and ${name2} cross paths. What words shall pass between them?`,
+        `The fates bring ${name1} before ${name2}. Kinship stirs in the deep.`,
+        `${name1} comes upon ${name2}. Two souls amid the stone.`,
+      ], random);
+    },
+  },
+
+  // Speech events
+  {
+    pattern: /^(.+?)\s+(?:said|says|spoke|speaks)\s*(?:to\s+(.+?))?\s*[:"]\s*["']?(.+?)["']?$/i,
+    expand: (match, random) => {
+      const speaker = match[1];
+      const listener = match[2] || 'the air';
+      const words = match[3]?.substring(0, 40) || '...';
+      return pick([
+        `"${words}" speaks ${speaker} unto ${listener}.`,
+        `${speaker}'s words reach ${listener}: "${words}"`,
+        `Thus ${speaker} addresses ${listener}: "${words}"`,
+      ], random);
+    },
+  },
+
+  // Mood improvement
+  {
+    pattern: /^(.+?)'?s?\s+mood\s+(?:improved|rose|lifted)[.!]?$/i,
+    expand: (match, random) => {
+      const name = match[1];
+      return pick([
+        `A lightness touches ${name}'s spirit. The gloom recedes.`,
+        `${name}'s burden eases somewhat. Hope flickers in the dark.`,
+        `The weight upon ${name} lessens. Small mercies abound.`,
+      ], random);
+    },
+  },
+
+  // Mood decline
+  {
+    pattern: /^(.+?)'?s?\s+mood\s+(?:worsened|fell|declined|dropped)[.!]?$/i,
+    expand: (match, random) => {
+      const name = match[1];
+      return pick([
+        `Shadow creeps into ${name}'s heart. The mountain presses close.`,
+        `${name}'s spirits sink lower still. Dark thoughts gather.`,
+        `Melancholy settles upon ${name} like dust in forgotten halls.`,
+      ], random);
+    },
+  },
+
+  // Spawning/arrival
+  {
+    pattern: /^(.+?)\s+(?:arrived|spawned|appeared|joined)[.!]?$/i,
+    expand: (match, random) => {
+      const name = match[1];
+      return pick([
+        `${name} emerges from the unknown, seeking fortune or fate.`,
+        `A new soul joins the fold: ${name} has arrived.`,
+        `The mountain welcomes ${name} into its embrace.`,
+      ], random);
+    },
+  },
+
+  // Building/crafting
+  {
+    pattern: /^(.+?)\s+(?:built|crafted|constructed|made)\s+(?:a\s+)?(.+?)[.!]?$/i,
+    expand: (match, random) => {
+      const name = match[1];
+      const item = match[2];
+      return pick([
+        `By ${name}'s hands, ${item} takes form. Creation from toil.`,
+        `${name} shapes ${item} from raw material. The craft endures.`,
+        `With patience, ${name} completes ${item}.`,
+      ], random);
+    },
+  },
+];
+
+const GENERIC_EVENT_EXPANSIONS = [
+  (raw) => `And so it came to pass: ${raw}`,
+  (raw) => `The chronicles note: ${raw}`,
+  (raw) => `Thus transpired in the deep: ${raw}`,
+  (raw) => `As the mountain witnessed: ${raw}`,
+];
+
+/**
+ * Narrate a single event using local templates (no LLM)
+ * @param {object} event - { raw, tick, type? }
+ * @returns {string} Narrated prose
+ */
+export function narrateEventLocal(event) {
+  const raw = event.raw || event.message || '';
+
+  if (!raw || raw.trim().length === 0) {
+    return 'A moment passes in silence.';
+  }
+
+  // Create seeded random from raw text for determinism
+  let seed = 0;
+  for (let i = 0; i < raw.length; i++) {
+    seed = ((seed << 5) - seed) + raw.charCodeAt(i);
+    seed = seed & seed;
+  }
+  const random = seededRandom(Math.abs(seed));
+
+  // Try each expansion rule
+  for (const rule of EVENT_EXPANSION_RULES) {
+    const match = raw.match(rule.pattern);
+    if (match) {
+      return rule.expand(match, random);
+    }
+  }
+
+  // No pattern matched - use generic expansion
+  const genericFn = pick(GENERIC_EVENT_EXPANSIONS, random);
+  return genericFn(raw);
+}
+
+/**
+ * Narrate multiple events locally (batch fallback)
+ * @param {Array} events - Array of event objects
+ * @returns {Array} Array of { raw, narrated, tick } objects
+ */
+export function narrateEventsLocal(events) {
+  return events.map(event => ({
+    tick: event.tick,
+    raw: event.raw || event.message,
+    narrated: narrateEventLocal(event),
+    wasLLM: false,
+  }));
+}
+
+/**
+ * Check if an event is "interesting" enough to narrate
+ * @param {object} event
+ * @returns {boolean}
+ */
+export function isNoteworthyEvent(event) {
+  const raw = (event.raw || event.message || '').toLowerCase();
+
+  const noteworthyKeywords = [
+    'died', 'death', 'starv', 'panic',
+    'found', 'discover', 'ate', 'eats',
+    'said', 'spoke', 'met', 'encounter',
+    'built', 'craft', 'made', 'construct',
+    'arrived', 'spawn', 'joined',
+    'mood', 'spirit',
+  ];
+
+  return noteworthyKeywords.some(kw => raw.includes(kw));
+}
+
 // === EXPORTS FOR TESTING ===
 
 export const _internal = {
@@ -241,4 +462,5 @@ export const _internal = {
   BIO_TEMPLATES,
   getDominantTrait,
   seededRandom,
+  EVENT_EXPANSION_RULES,
 };

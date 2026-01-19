@@ -14,12 +14,10 @@ export const ENTITY_TYPES = {
 };
 
 // === HUNGER CONSTANTS ===
-// Hunger goes 0 (full) → 95 (capped, never lethal)
-// Dwarves are sustained by food production system
+// Hunger goes 0 (full) → 100 (death)
 export const HUNGER_SEEK_THRESHOLD = 60;  // Start seeking food (raised - less urgent)
 export const HUNGER_CRITICAL = 85;        // Desperate, bad decisions (raised)
-export const HUNGER_DEATH = 100;          // Hard cap - prevents death from hunger
-export const HUNGER_CAP = 95;              // Soft cap - hunger never exceeds this in practice
+export const HUNGER_DEATH = 100;          // Death threshold
 
 // === FULFILLMENT SYSTEM ===
 // Dwarves seek fulfillment based on their personality traits
@@ -325,11 +323,9 @@ export function isCritical(dwarf) {
 
 /**
  * Is dwarf dead from starvation?
- * Dwarves no longer die from hunger - food production keeps them alive
  */
 export function isStarved(dwarf) {
-  // Never true - hunger is capped and non-lethal
-  return false;
+  return dwarf.hunger >= HUNGER_DEATH;
 }
 
 // === FULFILLMENT SYSTEM FUNCTIONS ===

@@ -112,7 +112,8 @@ export function getDwarfStats(dwarf) {
   return {
     // Identity
     id: dwarf.id,
-    name: dwarf.name,
+    name: dwarf.generatedName || dwarf.name,  // Prefer generated name
+    bio: dwarf.generatedBio || null,           // LLM-generated bio
     traits,
 
     // Vitals

@@ -35,19 +35,6 @@ export function createForageJob(foodSource) {
   };
 }
 
-/**
- * Create production job
- */
-export function createProductionJob(type, siteId, priority = 1) {
-  return {
-    id: nextId(),
-    type,
-    siteId,
-    claimedBy: null,
-    priority,
-  };
-}
-
 // === JOB QUEUE ===
 
 /**

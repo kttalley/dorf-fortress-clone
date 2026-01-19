@@ -4,7 +4,7 @@
  */
 
 import { createWorldState, addLog } from './state/store.js';
-import { createDwarf, createFoodSource, resetIds, getDominantTraits } from './sim/entities.js';
+import { createDwarf, createFoodSource, resetIds, getDominantTraits, getDisplayName } from './sim/entities.js';
 import { generateBiomeMap, generateMixedMap, generateCaveMap, findWalkablePosition } from './map/map.js';
 import { tick } from './sim/world.js';
 import { createRenderer, updateStatus, buildRenderEntities } from './ui/renderer.js';
@@ -14,6 +14,8 @@ import { createStatPanel } from './ui/statPanel.js';
 import { initThoughtSystem, stopThoughtSystem, getThoughtStatus } from './ai/thoughts.js';
 import { initSpeechBubbles, showSpeech, updateBubblePositions, injectBubbleStyles, initSidebarThoughts, updateSidebarThoughts } from './ui/speechBubble.js';
 import { checkConnection } from './ai/llmClient.js';
+import { setLLMAvailable } from './llm/nameGenerator.js';
+import { on, EVENTS } from './events/eventBus.js';
 import { initConversationToast } from './ui/conversationToast.js';
 
 
@@ -113,8 +115,8 @@ function regenerateWorld() {
         const dwarf = createDwarf(pos.x, pos.y);
         state.dwarves.push(dwarf);
 
-        const traits = getDominantTraits(dwarf);
-        addLog(state, `${dwarf.name} arrives (${traits.join(', ')}).`);
+        // Use generated name (includes epithet + bio available)
+        addLog(state, `${getDisplayName(dwarf)} arrives.`);
       }
     }
   }
@@ -235,6 +237,8 @@ async function init() {
 
   // Check LLM connection
   llmConnected = await checkConnection();
+  setLLMAvailable(llmConnected);  // Enable LLM name generation if connected
+
   if (llmConnected) {
     addLog(state, 'Connected to thought engine (LLM).');
   } else {
@@ -281,7 +285,7 @@ function gameLoop(renderer, logContainer) {
       if (pos) {
         const dwarf = createDwarf(pos.x, pos.y);
         state.dwarves.push(dwarf);
-        addLog(state, `${dwarf.name} arrives to continue the legacy.`);
+        addLog(state, `${getDisplayName(dwarf)} arrives to continue the legacy.`);
       }
     }
     // Add some food

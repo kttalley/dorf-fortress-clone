@@ -26,6 +26,10 @@ export const EVENTS = Object.freeze({
   DWARF_DEATH: 'dwarf:death',
   DWARF_SPAWN: 'dwarf:spawn',
   TICK: 'world:tick',                       // Emitted every simulation tick
+
+  // Name generation events (LLM pipeline)
+  DWARF_NAME_PENDING: 'dwarf:name_pending',     // Name generation started
+  DWARF_NAME_GENERATED: 'dwarf:name_generated', // Name generation complete
 });
 
 /**

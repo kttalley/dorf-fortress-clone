@@ -177,7 +177,6 @@ async function executeNameBioRequest(entity, worldSnapshot, options) {
  * @private
  */
 async function generateWithLLM(entity, worldSnapshot, options) {
-  const model = options.model || CONFIG.MODEL;
   const timeout = options.timeout || CONFIG.TIMEOUT_MS;
 
   // Build world context string (brief)
@@ -185,27 +184,28 @@ async function generateWithLLM(entity, worldSnapshot, options) {
     ? buildWorldContext(worldSnapshot)
     : null;
 
-  // Format prompt
+  // Format prompt - combine system and user prompt since llmClient doesn't support system prompt
   const userPrompt = formatDwarfNameBioPrompt(entity, { worldContext });
-
-  // Create abort controller for timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const fullPrompt = `${SYSTEM_DWARF_NAME_BIO}\n\n${userPrompt}`;
 
   try {
-    // Call LLM (assumes llmClient.generate exists)
-    const { generate } = await import('../ai/llmClient.js');
+    // Call LLM using the queueGeneration function for rate limiting
+    const { queueGeneration } = await import('../ai/llmClient.js');
 
-    const response = await generate({
-      model,
-      system: SYSTEM_DWARF_NAME_BIO,
-      prompt: userPrompt,
-      maxTokens: CONFIG.MAX_TOKENS,
-      temperature: CONFIG.TEMPERATURE,
-      signal: controller.signal,
+    // Create a timeout promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`LLM request timed out after ${timeout}ms`)), timeout);
     });
 
-    clearTimeout(timeoutId);
+    // Race between LLM call and timeout
+    const response = await Promise.race([
+      queueGeneration(fullPrompt, {
+        maxTokens: CONFIG.MAX_TOKENS,
+        temperature: CONFIG.TEMPERATURE,
+        stop: ['\n\n', 'Human:', 'User:'],
+      }),
+      timeoutPromise,
+    ]);
 
     // Parse response
     const parsed = parseNameBioResponse(response);
@@ -217,16 +217,10 @@ async function generateWithLLM(entity, worldSnapshot, options) {
     return {
       name: parsed.name,
       bio: parsed.bio,
-      _prompt: userPrompt, // For debugging
+      _prompt: fullPrompt, // For debugging
     };
 
   } catch (error) {
-    clearTimeout(timeoutId);
-
-    if (error.name === 'AbortError') {
-      throw new Error(`LLM request timed out after ${timeout}ms`);
-    }
-
     throw error;
   }
 }
