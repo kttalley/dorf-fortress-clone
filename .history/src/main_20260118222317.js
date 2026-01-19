@@ -230,9 +230,6 @@ async function init() {
   // Initialize sidebar thought panel
   initSidebarThoughts();
 
-  // Initialize the conversation toast container
-  initConversationToast(document.body);
-
   // Check LLM connection
   llmConnected = await checkConnection();
   if (llmConnected) {

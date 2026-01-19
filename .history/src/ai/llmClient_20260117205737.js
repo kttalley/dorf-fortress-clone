@@ -5,7 +5,7 @@
  */
 
 const OLLAMA_URL = 'https://llm.kristiantalley.com';
-const MODEL = 'incept5/llama3.1-claude:latest';
+const MODEL = 'gemma3:latest';
 const REQUEST_TIMEOUT = 5000;
 
 // Request queue to prevent overwhelming the server

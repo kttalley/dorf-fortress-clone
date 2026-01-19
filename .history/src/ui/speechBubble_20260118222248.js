@@ -3,8 +3,6 @@
  * Renders dwarf thoughts and conversations as floating UI elements
  * Includes sidebar panel for thought history
  */
-import { addSpeechMessage } from './conversationToast.js';
-
 
 // Active bubbles
 const activeBubbles = new Map();  // id -> { element, dwarf, type, expiry }
