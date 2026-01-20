@@ -19,6 +19,7 @@ import { on, EVENTS } from './events/eventBus.js';
 import { initConversationToast } from './ui/conversationToast.js';
 import { initGameAssistant, createAssistantToggle } from './ui/gameAssistantPanel.js';
 import { initControlsWidget } from './ui/controlsWidget.js';
+import { initBiomeTitle, updateBiomeTitle, initEventLog, updateEventLog } from './ui/biomeWidgets.js';
 
 // External forces imports
 import { generateWorldHistory, getHistorySummary } from './sim/history.js';
@@ -99,10 +100,14 @@ async function regenerateWorld() {
   try {
     await addBiomeToMap(state.map, { timeout: 8000 });
     const biomeName = state.map.biome?.name || 'Unknown Region';
+    const colorMod = state.map.biome?.colorMod || null;
     addLog(state, `Biome: ${biomeName}`);
+    // Update biome title widget with name and color tint
+    updateBiomeTitle(biomeName, colorMod);
   } catch (error) {
     console.warn('[World] Biome generation failed:', error.message);
     addLog(state, 'A mysterious wilderness stretches before us.');
+    updateBiomeTitle('Mysterious Wilderness', null);
   }
 
   // Clear entities
@@ -335,6 +340,15 @@ async function init() {
   // Initialize floating thought panel widget
   initSidebarThoughts();
 
+  // Initialize biome title widget (top center)
+  initBiomeTitle(state.map.biome?.name || 'Generating...');
+  if (state.map.biome) {
+    updateBiomeTitle(state.map.biome.name, state.map.biome.colorMod);
+  }
+
+  // Initialize event log widget (center left)
+  initEventLog();
+
   // Initialize the conversation toast container
   initConversationToast(document.body);
 
@@ -441,6 +455,9 @@ function renderFrame(renderer) {
   if (controlsWidget) controlsWidget.updateStatus(state);
   if (cursor) cursor.update(state);
   if (statPanel && statPanel.isVisible()) statPanel.update(state);
+
+  // Update event log with game log
+  updateEventLog(state);
 }
 
 function gameLoop(renderer) {
