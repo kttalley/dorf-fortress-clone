@@ -18,6 +18,7 @@ import { initializeLLM } from './llm/nameGenerator.js';
 import { waitForBatchNameGeneration } from './llm/nameGenerationEvents.js';
 import { on, EVENTS } from './events/eventBus.js';
 import { initConversationToast } from './ui/conversationToast.js';
+import { initGameAssistant, createAssistantToggle } from './ui/gameAssistantPanel.js';
 
 // External forces imports
 import { generateWorldHistory, getHistorySummary } from './sim/history.js';
@@ -42,6 +43,7 @@ let loopId = null;
 let renderer = null;
 let cursor = null;
 let statPanel = null;
+let gameAssistant = null;
 let llmConnected = false;
 
 // Create world state
@@ -335,6 +337,10 @@ async function init() {
 
   // Initialize the conversation toast container
   initConversationToast(document.body);
+
+  // Initialize Game Assistant ("Ask the Game" panel)
+  gameAssistant = initGameAssistant(mapContainer, () => state);
+  createAssistantToggle(mapContainer, gameAssistant);
 
   // Initialize LLM systems
   await initializeLLM();
