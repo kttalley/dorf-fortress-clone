@@ -40,7 +40,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     font-family: 'Courier New', monospace;
     font-size: 12px;
     color: #ddd;
-    z-index: 999;
+    z-index: 200;
     opacity: 0;
     pointer-events: none;
     transition: transform 320ms ease-in-out, opacity 200ms ease;
@@ -224,8 +224,9 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
         ${bioSection}
 
+        <!-- Chat button -->
+        ${renderChatButton('dwarf')}
         
-
         <!-- State -->
         <div style="margin: 8px 0; padding: 6px; background: rgba(40, 40, 50, 0.8); border-radius: 4px;">
           <span style="color: #888;">Status:</span>
@@ -233,9 +234,6 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         </div>
 
         ${thoughtSection}
-
-        <!-- Chat button -->
-        ${renderChatButton('dwarf')}
 
         <!-- Vitals -->
         <div style="margin-top: 12px;">

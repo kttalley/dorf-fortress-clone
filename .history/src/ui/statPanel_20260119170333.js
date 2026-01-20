@@ -40,7 +40,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     font-family: 'Courier New', monospace;
     font-size: 12px;
     color: #ddd;
-    z-index: 999;
+    z-index: 200;
     opacity: 0;
     pointer-events: none;
     transition: transform 320ms ease-in-out, opacity 200ms ease;
@@ -236,7 +236,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
         <!-- Chat button -->
         ${renderChatButton('dwarf')}
-
+        
         <!-- Vitals -->
         <div style="margin-top: 12px;">
           <div style="color: #aaa; margin-bottom: 6px; font-weight: bold;">Vitals</div>

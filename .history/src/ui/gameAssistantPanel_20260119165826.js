@@ -28,7 +28,7 @@ export function initGameAssistant(containerEl, getWorld) {
     font-family: 'Courier New', monospace;
     font-size: 12px;
     color: #ddd;
-    z-index: 999;
+    z-index: 300;
     display: flex;
     flex-direction: column;
     opacity: 0;

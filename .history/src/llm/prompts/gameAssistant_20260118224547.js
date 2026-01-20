@@ -57,7 +57,9 @@ export function buildUserPrompt(worldSummary, question, chatHistory = []) {
  * Example questions for UI hints
  */
 export const EXAMPLE_QUESTIONS = [
+  "Which dwarf is most likely to starve?",
   "Who has the lowest mood and why?",
+  "Are any dwarves lonely?",
   "What's the food situation?",
   "Who are the social butterflies?",
   "Which dwarves get along best?",
