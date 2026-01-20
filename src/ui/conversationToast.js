@@ -1,5 +1,6 @@
 /**
  * Conversation toast container - displays conversation thread between dwarves
+ * Styled to match event log and thought widgets
  */
 
 // Container for conversation messages
@@ -7,6 +8,7 @@ let conversationContainer = null;
 let conversationMessages = [];
 const MAX_MESSAGES = 50; // Limit messages to prevent memory issues
 let isMinimized = false;
+const MOBILE_BREAKPOINT = 728;
 
 /**
  * Initialize the conversation toast container
@@ -14,107 +16,148 @@ let isMinimized = false;
  */
 export function initConversationToast(parentElement) {
   if (conversationContainer) return; // Already initialized
-  
+
   conversationContainer = document.createElement('div');
   conversationContainer.id = 'conversation-toast';
+  conversationContainer.className = 'floating-widget';
   conversationContainer.style.cssText = `
     position: fixed;
-    top: 10px;
+    top: 50px;
     left: 10px;
-    width: 300px;
-    max-height: 200px;
+    width: 280px;
+    max-height: 280px;
     background: rgba(20, 20, 30, 0.95);
-    border: 1px solid #6688aa;
+    border: 1px solid rgba(100, 100, 120, 0.5);
     border-radius: 8px;
-    padding: 8px;
     font-family: 'Courier New', monospace;
     font-size: 11px;
     color: #aabbdd;
-    z-index: 1000;
-    overflow-y: none;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    z-index: 600;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
-    animation: fadeIn 0.3s ease-out;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    overflow: hidden;
   `;
-  
-  // Add scroll bar styling
-  conversationContainer.style.cssText += `
-    scrollbar-width: thin;
-    scrollbar-color: #6688aa #151520;
-  `;
-  
-  conversationContainer.style.cssText += `
-    &::-webkit-scrollbar {
-      width: 6px;
-    }
-    &::-webkit-scrollbar-track {
-      background: #151520;
-    }
-    &::-webkit-scrollbar-thumb {
-      background-color: #6688aa;
-      border-radius: 3px;
-    }
-  `;
-  
-  // Add title container
-  const titleContainer = document.createElement('div');
-  titleContainer.style.cssText = `
+
+  // Header with minimize button (matching other widgets)
+  const header = document.createElement('div');
+  header.style.cssText = `
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
+    padding: 10px 12px;
+    background: rgba(40, 40, 60, 0.8);
+    border-bottom: 1px solid rgba(100, 100, 120, 0.3);
+    cursor: pointer;
   `;
-  
-  // Add title
+
+  // Title with icon
   const title = document.createElement('div');
-  title.textContent = 'Conversation Log';
   title.style.cssText = `
     font-weight: bold;
     font-size: 12px;
     color: #88aacc;
     text-transform: uppercase;
     letter-spacing: 1px;
-    border-bottom: 1px solid #6688aa;
-    padding-bottom: 2px;
   `;
-  
-  // Add minimize button
+  title.innerHTML = '<span style="margin-right: 6px;">💬</span> Conversations';
+
+  // Minimize button (matching other widgets)
   const minimizeButton = document.createElement('button');
+  minimizeButton.id = 'conversation-minimize-btn';
   minimizeButton.textContent = '−';
   minimizeButton.title = 'Minimize';
   minimizeButton.style.cssText = `
     background: rgba(60, 60, 80, 0.8);
-    border: 1px solid #6688aa;
+    border: 1px solid rgba(100, 100, 120, 0.5);
     border-radius: 4px;
     color: #88aacc;
-    font-size: 12px;
-    width: 20px;
-    height: 20px;
+    font-size: 14px;
+    width: 24px;
+    height: 24px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
+    transition: background 0.15s;
   `;
-  
-  minimizeButton.addEventListener('click', toggleMinimize);
-  
-  titleContainer.appendChild(title);
-  titleContainer.appendChild(minimizeButton);
-  
-  conversationContainer.appendChild(titleContainer);
-  
-  // Add content container
+
+  minimizeButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMinimize();
+  });
+
+  // Allow clicking header to toggle
+  header.addEventListener('click', toggleMinimize);
+
+  header.appendChild(title);
+  header.appendChild(minimizeButton);
+  conversationContainer.appendChild(header);
+
+  // Content container
   const contentContainer = document.createElement('div');
   contentContainer.id = 'conversation-content';
   contentContainer.style.cssText = `
-    max-height: 170px;
+    max-height: 220px;
     overflow-y: auto;
+    padding: 8px;
+    transition: max-height 0.3s ease;
   `;
-  
+
   conversationContainer.appendChild(contentContainer);
-  
   parentElement.appendChild(conversationContainer);
+
+  // Inject scrollbar styles
+  injectConversationStyles();
+
+  // Check for mobile and auto-collapse
+  checkMobileBreakpoint();
+  window.addEventListener('resize', checkMobileBreakpoint);
+}
+
+/**
+ * Inject scrollbar styles for conversation widget
+ */
+function injectConversationStyles() {
+  const style = document.createElement('style');
+  style.textContent = `
+    #conversation-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    #conversation-content::-webkit-scrollbar-track {
+      background: rgba(30, 30, 40, 0.5);
+    }
+    #conversation-content::-webkit-scrollbar-thumb {
+      background: rgba(100, 100, 120, 0.5);
+      border-radius: 3px;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+/**
+ * Check mobile breakpoint and auto-collapse
+ */
+function checkMobileBreakpoint() {
+  if (!conversationContainer) return;
+
+  const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+
+  if (isMobile && !isMinimized) {
+    toggleMinimize();
+  }
+
+  // Adjust width and position on mobile
+  if (isMobile) {
+    conversationContainer.style.width = '220px';
+    conversationContainer.style.left = '8px';
+    conversationContainer.style.top = '45px';
+  } else {
+    conversationContainer.style.width = '280px';
+    conversationContainer.style.left = '10px';
+    conversationContainer.style.top = '50px';
+  }
 }
 
 /**
@@ -122,26 +165,24 @@ export function initConversationToast(parentElement) {
  */
 function toggleMinimize() {
   if (!conversationContainer) return;
-  
+
   const contentContainer = conversationContainer.querySelector('#conversation-content');
-  const minimizeButton = conversationContainer.querySelector('button');
-  
+  const minimizeButton = conversationContainer.querySelector('#conversation-minimize-btn');
+
   if (isMinimized) {
-    // Maximize
+    // Expand
     contentContainer.style.display = 'block';
+    conversationContainer.style.maxHeight = '280px';
     minimizeButton.textContent = '−';
     minimizeButton.title = 'Minimize';
-    conversationContainer.style.height = '200px';
-    conversationContainer.style.maxHeight = '200px';
   } else {
-    // Minimize
+    // Collapse
     contentContainer.style.display = 'none';
+    conversationContainer.style.maxHeight = '44px';
     minimizeButton.textContent = '+';
-    minimizeButton.title = 'Maximize';
-    conversationContainer.style.height = '30px';
-    conversationContainer.style.maxHeight = '30px';
+    minimizeButton.title = 'Expand';
   }
-  
+
   isMinimized = !isMinimized;
 }
 
@@ -171,54 +212,51 @@ export function addConversationMessage(message, type = 'speech', dwarf = null) {
       if (parts.length > 1) {
         const header = parts[0];
         const content = parts.slice(1).join(': ');
-        formattedMessage = `<strong>${header}</strong><br>${content}`;
+        formattedMessage = `<div style="color: #cccc88; font-weight: bold; margin-bottom: 4px; font-size: 10px;">${header}</div><div style="color: #ddddaa;">${content}</div>`;
       } else {
         formattedMessage = message;
       }
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
+        margin: 6px 0;
+        padding: 8px 10px;
         border-left: 3px solid #aaaa66;
-        color: #ddddaa;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
+        background: rgba(40, 40, 55, 0.8);
+        border-radius: 4px;
+        line-height: 1.3;
       `;
       break;
     case 'thought':
-      formattedMessage = `<em>(${message})</em>`;
+      formattedMessage = `<em style="color: #aabbdd;">"${message}"</em>`;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
+        margin: 6px 0;
+        padding: 8px 10px;
         border-left: 3px solid #6688aa;
-        color: #aabbdd;
-        font-style: italic;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
+        background: rgba(40, 40, 55, 0.8);
+        border-radius: 4px;
+        line-height: 1.3;
       `;
       break;
     case 'system':
-      formattedMessage = `> ${message}`;
+      formattedMessage = `<span style="color: #88aa66;">${message}</span>`;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
+        margin: 6px 0;
+        padding: 8px 10px;
         border-left: 3px solid #88aa66;
-        color: #88aa66;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
+        background: rgba(40, 40, 55, 0.8);
+        border-radius: 4px;
+        line-height: 1.3;
       `;
       break;
     default:
       formattedMessage = message;
       messageEl.style.cssText = `
-        margin: 8px 0;
-        padding: 10px 12px;
-        color: #ddddaa;
-        background: rgba(50, 50, 60, 0.8);
-        border-radius: 6px;
-        line-height: 1.4;
+        margin: 6px 0;
+        padding: 8px 10px;
+        border-left: 3px solid #6677aa;
+        color: #ccccdd;
+        background: rgba(40, 40, 55, 0.8);
+        border-radius: 4px;
+        line-height: 1.3;
       `;
   }
   

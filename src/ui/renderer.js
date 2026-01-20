@@ -9,8 +9,12 @@ import { getTileDef } from '../map/tiles.js';
 import { getTile } from '../map/map.js';
 import { getDigDesignations, getBuildProjects, getStructures } from '../sim/construction.js';
 
+// Fixed font size for consistent tile rendering (no scrunching)
+const FIXED_FONT_SIZE = 16;
+
 /**
  * Calculate optimal font size to fill container while maintaining aspect ratio.
+ * On mobile/small screens, returns fixed size to prevent scrunching.
  * @param {HTMLElement} containerEl - Container element
  * @param {number} width - Map width in cells
  * @param {number} height - Map height in cells
@@ -29,8 +33,15 @@ function calculateFontSize(containerEl, width, height) {
   const fontByWidth = availableWidth / (width * charAspect);
   const fontByHeight = availableHeight / (height * lineHeight);
 
-  // Use the smaller to ensure it fits
-  return Math.floor(Math.min(fontByWidth, fontByHeight));
+  const calculatedSize = Math.floor(Math.min(fontByWidth, fontByHeight));
+
+  // On small screens, use fixed size to prevent scrunching (enable scrolling instead)
+  // If calculated size would be less than fixed size, use fixed size
+  if (calculatedSize < FIXED_FONT_SIZE) {
+    return FIXED_FONT_SIZE;
+  }
+
+  return calculatedSize;
 }
 
 /**
@@ -46,21 +57,31 @@ export function createRenderer(containerEl, width, height) {
   let fontSize = calculateFontSize(containerEl, width, height);
   fontSize = Math.max(8, Math.min(fontSize, 24));  // Clamp between 8-24px
 
-  // Create grid container
+  // Calculate grid dimensions based on font size
+  const charAspect = 0.6;
+  const lineHeight = 1.15;
+  const cellWidth = fontSize * charAspect;
+  const cellHeight = fontSize * lineHeight;
+  const gridWidth = width * cellWidth + 8; // +8 for padding
+  const gridHeight = height * cellHeight + 8;
+
+  // Create grid container with fixed dimensions (no scrunching)
   const gridEl = document.createElement('div');
   gridEl.className = 'ascii-grid';
   gridEl.style.cssText = `
     display: grid;
-    grid-template-columns: repeat(${width}, 1fr);
-    grid-template-rows: repeat(${height}, 1fr);
+    grid-template-columns: repeat(${width}, ${cellWidth}px);
+    grid-template-rows: repeat(${height}, ${cellHeight}px);
     font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
     font-size: ${fontSize}px;
     line-height: 1.15;
     background: #0a0a0a;
     padding: 4px;
     user-select: none;
-    width: 100%;
-    height: 100%;
+    width: ${gridWidth}px;
+    min-width: ${gridWidth}px;
+    height: ${gridHeight}px;
+    min-height: ${gridHeight}px;
     box-sizing: border-box;
   `;
 
@@ -89,8 +110,21 @@ export function createRenderer(containerEl, width, height) {
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(() => {
       const newFontSize = calculateFontSize(containerEl, width, height);
-      const clampedSize = Math.max(8, Math.min(newFontSize, 24));
+      const clampedSize = Math.max(FIXED_FONT_SIZE, Math.min(newFontSize, 24));
+
+      // Recalculate grid dimensions
+      const newCellWidth = clampedSize * charAspect;
+      const newCellHeight = clampedSize * lineHeight;
+      const newGridWidth = width * newCellWidth + 8;
+      const newGridHeight = height * newCellHeight + 8;
+
       gridEl.style.fontSize = `${clampedSize}px`;
+      gridEl.style.gridTemplateColumns = `repeat(${width}, ${newCellWidth}px)`;
+      gridEl.style.gridTemplateRows = `repeat(${height}, ${newCellHeight}px)`;
+      gridEl.style.width = `${newGridWidth}px`;
+      gridEl.style.minWidth = `${newGridWidth}px`;
+      gridEl.style.height = `${newGridHeight}px`;
+      gridEl.style.minHeight = `${newGridHeight}px`;
     }, 100);
   }
 
@@ -182,9 +216,49 @@ export function createRenderer(containerEl, width, height) {
     prevState = [];
   }
 
+  /**
+   * Scroll to center on a specific position
+   * @param {number} x - X coordinate
+   * @param {number} y - Y coordinate
+   */
+  function scrollToPosition(x, y) {
+    const currentCellWidth = parseFloat(gridEl.style.gridTemplateColumns.match(/[\d.]+/)?.[0]) || cellWidth;
+    const currentCellHeight = parseFloat(gridEl.style.gridTemplateRows.match(/[\d.]+/)?.[0]) || cellHeight;
+
+    const pixelX = x * currentCellWidth;
+    const pixelY = y * currentCellHeight;
+
+    // Center in the container viewport
+    const containerRect = containerEl.getBoundingClientRect();
+    const scrollX = pixelX - containerRect.width / 2 + currentCellWidth / 2;
+    const scrollY = pixelY - containerRect.height / 2 + currentCellHeight / 2;
+
+    containerEl.scrollTo({
+      left: Math.max(0, scrollX),
+      top: Math.max(0, scrollY),
+      behavior: 'smooth'
+    });
+  }
+
+  /**
+   * Scroll to center on the average position of all dwarves
+   * @param {Array} dwarves - Array of dwarf entities
+   */
+  function scrollToDwarves(dwarves) {
+    if (!dwarves || dwarves.length === 0) return;
+
+    // Calculate average position
+    const avgX = dwarves.reduce((sum, d) => sum + d.x, 0) / dwarves.length;
+    const avgY = dwarves.reduce((sum, d) => sum + d.y, 0) / dwarves.length;
+
+    scrollToPosition(Math.round(avgX), Math.round(avgY));
+  }
+
   return {
     render,
     destroy,
+    scrollToPosition,
+    scrollToDwarves,
     /** Expose grid element for styling */
     el: gridEl,
   };

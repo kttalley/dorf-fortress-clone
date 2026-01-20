@@ -400,6 +400,12 @@ async function init() {
       renderFrame(renderer);
       startLoop(renderer);
     },
+    onZoomToDwarves: () => {
+      // Center view on dwarves (useful on mobile with scrolling)
+      if (renderer && renderer.scrollToDwarves) {
+        renderer.scrollToDwarves(state.dwarves);
+      }
+    },
   });
 
   // Set initial regen button text

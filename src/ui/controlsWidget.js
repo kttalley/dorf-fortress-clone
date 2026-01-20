@@ -11,11 +11,12 @@ let onPause = null;
 let onStep = null;
 let onSpeed = null;
 let onRegen = null;
+let onZoomToDwarves = null;
 
 /**
  * Initialize the floating controls widget
  * @param {HTMLElement} parentElement - Parent to attach widget to
- * @param {object} callbacks - { onPause, onStep, onSpeed, onRegen }
+ * @param {object} callbacks - { onPause, onStep, onSpeed, onRegen, onZoomToDwarves }
  * @returns {object} Controller with updateStatus method
  */
 export function initControlsWidget(parentElement, callbacks = {}) {
@@ -25,6 +26,7 @@ export function initControlsWidget(parentElement, callbacks = {}) {
   onStep = callbacks.onStep;
   onSpeed = callbacks.onSpeed;
   onRegen = callbacks.onRegen;
+  onZoomToDwarves = callbacks.onZoomToDwarves;
 
   controlsEl = document.createElement('div');
   controlsEl.id = 'controls-widget';
@@ -35,6 +37,8 @@ export function initControlsWidget(parentElement, callbacks = {}) {
   const stepBtn = createButton('btn-step', 'Step');
   const speedBtn = createButton('btn-speed', 'Speed: 1x');
   const regenBtn = createButton('btn-regen', 'New Map');
+  const zoomBtn = createButton('btn-zoom', 'Center');
+  zoomBtn.title = 'Center view on dwarves';
 
   // Create compact status display
   statusEl = document.createElement('div');
@@ -50,6 +54,7 @@ export function initControlsWidget(parentElement, callbacks = {}) {
   controlsEl.appendChild(stepBtn);
   controlsEl.appendChild(speedBtn);
   controlsEl.appendChild(regenBtn);
+  controlsEl.appendChild(zoomBtn);
   controlsEl.appendChild(statusEl);
 
   parentElement.appendChild(controlsEl);
@@ -69,6 +74,10 @@ export function initControlsWidget(parentElement, callbacks = {}) {
 
   regenBtn.addEventListener('click', () => {
     if (onRegen) onRegen(regenBtn, pauseBtn);
+  });
+
+  zoomBtn.addEventListener('click', () => {
+    if (onZoomToDwarves) onZoomToDwarves();
   });
 
   return getController();

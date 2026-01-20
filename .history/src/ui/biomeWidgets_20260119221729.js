@@ -1,7 +1,7 @@
 /**
  * Biome UI Widgets
  * - Biome title display at top center
- * - Event log widget on the right (below thought widget)
+ * - Event log widget at center left
  */
 
 let titleEl = null;
@@ -118,7 +118,7 @@ function checkTitleMobileBreakpoint() {
 // ============================================================
 
 /**
- * Initialize the event log widget on the right side (below thought widget)
+ * Initialize the event log widget at center left
  */
 export function initEventLog() {
   eventLogEl = document.createElement('div');
@@ -126,8 +126,9 @@ export function initEventLog() {
   eventLogEl.className = 'floating-widget';
   eventLogEl.style.cssText = `
     position: fixed;
-    top: 340px;
+    top: 50%;
     right: 10px;
+    transform: translateY(-50%);
     width: 280px;
     max-height: 320px;
     background: rgba(20, 20, 30, 0.95);
@@ -260,12 +261,10 @@ function checkEventLogMobileBreakpoint() {
   // Adjust width and position on mobile
   if (isMobile) {
     eventLogEl.style.width = '220px';
-    eventLogEl.style.right = '8px';
-    eventLogEl.style.top = '280px';
+    eventLogEl.style.left = '8px';
   } else {
     eventLogEl.style.width = '280px';
-    eventLogEl.style.right = '10px';
-    eventLogEl.style.top = '340px';
+    eventLogEl.style.left = '10px';
   }
 }
 

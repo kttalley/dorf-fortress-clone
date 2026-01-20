@@ -37,7 +37,16 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* On smaller screens, allow scrolling and align to top-left */
+    @media (max-width: 900px) {
+      #map-display {
+        align-items: flex-start;
+        justify-content: flex-start;
+      }
     }
 
     /* Loading Screen */

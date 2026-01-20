@@ -17,9 +17,9 @@ export function initGameAssistant(containerEl, getWorld) {
   const panelEl = document.createElement('div');
   panelEl.className = 'game-assistant-panel';
   panelEl.style.cssText = `
-    position: absolute;
-    left: 8px;
-    bottom: 8px;
+    position: fixed;
+    left: 10px;
+    bottom: 110px;
     width: 340px;
     max-height: 480px;
     background: rgba(15, 15, 20, 0.95);
@@ -36,7 +36,27 @@ export function initGameAssistant(containerEl, getWorld) {
     transition: opacity 200ms ease, transform 200ms ease;
     transform: translateY(10px);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
   `;
+
+  // Mobile adjustments for panel
+  function checkPanelMobile() {
+    const isMobile = window.innerWidth <= 728;
+    if (isMobile) {
+      panelEl.style.width = '280px';
+      panelEl.style.left = '8px';
+      panelEl.style.bottom = '100px';
+      panelEl.style.maxHeight = '400px';
+    } else {
+      panelEl.style.width = '340px';
+      panelEl.style.left = '10px';
+      panelEl.style.bottom = '110px';
+      panelEl.style.maxHeight = '480px';
+    }
+  }
+
+  checkPanelMobile();
+  window.addEventListener('resize', checkPanelMobile);
 
   // Header
   const headerEl = document.createElement('div');
@@ -433,27 +453,52 @@ export function initGameAssistant(containerEl, getWorld) {
 export function createAssistantToggle(containerEl, assistantController) {
   const btnEl = document.createElement('button');
   btnEl.className = 'assistant-toggle';
+  btnEl.id = 'assistant-toggle-btn';
   btnEl.title = 'Ask the Game (?)';
   btnEl.style.cssText = `
-    position: absolute;
-    left: 8px;
+    position: fixed;
+    left: 10px;
     bottom: 64px;
-    
+    padding: 8px 14px;
     height: 40px;
     background: rgba(15, 15, 20, 0.95);
-    border: 1px solid rgba(100, 100, 120, 0.5);
-    border-radius: 4px;
+    border: 1px solid rgba(74, 158, 255, 0.5);
+    border-radius: 6px;
     color: #4a9eff;
-    font-size: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
     font-weight: bold;
     cursor: pointer;
-    z-index: 250;
-    transition: background 150ms, transform 150ms;
+    z-index: 700;
+    transition: background 150ms, transform 150ms, border-color 150ms;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
   `;
   btnEl.textContent = 'Chat with the game engine';
+
+  // Ensure visibility on mobile
+  function checkMobileVisibility() {
+    const isMobile = window.innerWidth <= 728;
+    if (isMobile) {
+      btnEl.style.left = '8px';
+      btnEl.style.bottom = '60px';
+      btnEl.style.fontSize = '10px';
+      btnEl.style.padding = '6px 10px';
+      btnEl.style.height = '36px';
+    } else {
+      btnEl.style.left = '10px';
+      btnEl.style.bottom = '64px';
+      btnEl.style.fontSize = '11px';
+      btnEl.style.padding = '8px 14px';
+      btnEl.style.height = '40px';
+    }
+  }
+
+  checkMobileVisibility();
+  window.addEventListener('resize', checkMobileVisibility);
 
   btnEl.addEventListener('click', () => {
     assistantController.toggle();
