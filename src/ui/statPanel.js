@@ -1,6 +1,7 @@
 /**
  * Stat Panel - displays detailed entity information
  * Shows dwarf stats, personality, fulfillment, and relationships
+ * Includes chat feature for conversing with entities
  */
 
 import {
@@ -11,6 +12,8 @@ import {
   getHungerDescriptor,
   formatTileName
 } from './inspection.js';
+import { chatWithEntity, getEntityHistory, clearEntityHistory } from '../llm/entityChat.js';
+import { ENTITY_CHAT_STARTERS } from '../llm/prompts/entityChat.js';
 
 /**
  * Create a stat panel component
@@ -52,6 +55,10 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
   let currentGridX = 0;
   let currentGridY = 0;
   let worldState = null;
+
+  // Chat mode state
+  let chatMode = false;
+  let chatLoading = false;
 
   /**
    * Calculate and set panel position near a grid cell
@@ -237,8 +244,11 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         ${createFulfillmentSection(stats.fulfillment)}
         ${relationshipSection}
 
+        <!-- Chat button -->
+        ${renderChatButton('dwarf')}
+
         <!-- Close hint -->
-        <div style="margin-top: 12px; text-align: center; color: #666; font-size: 10px;">
+        <div style="margin-top: 8px; text-align: center; color: #666; font-size: 10px;">
           Click elsewhere to close
         </div>
       </div>
@@ -337,8 +347,11 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
           </div>
         ` : ''}
 
+        <!-- Chat button -->
+        ${renderChatButton(stats.race?.toLowerCase() || 'visitor')}
+
         <!-- Close hint -->
-        <div style="margin-top: 12px; text-align: center; color: #666; font-size: 10px;">
+        <div style="margin-top: 8px; text-align: center; color: #666; font-size: 10px;">
           Click elsewhere to close
         </div>
       </div>
@@ -387,6 +400,304 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     `;
   }
 
+  /**
+   * Render chat button for entities
+   */
+  function renderChatButton(entityType) {
+    return `
+      <button class="chat-toggle-btn" style="
+        width: 100%;
+        margin-top: 8px;
+        padding: 8px;
+        background: rgba(74, 158, 255, 0.15);
+        border: 1px solid rgba(74, 158, 255, 0.4);
+        border-radius: 4px;
+        color: #4a9eff;
+        font-family: inherit;
+        font-size: 11px;
+        cursor: pointer;
+        transition: background 150ms;
+      ">Chat with this ${entityType}</button>
+    `;
+  }
+
+  /**
+   * Render the chat interface
+   */
+  function renderChatUI(entity, entityType) {
+    const name = entity.generatedName || entity.name || 'Entity';
+    const history = getEntityHistory(entity, entityType);
+    const starters = ENTITY_CHAT_STARTERS[entityType] || ENTITY_CHAT_STARTERS.dwarf;
+
+    let messagesHtml = '';
+    if (history.length === 0) {
+      // Show conversation starters
+      messagesHtml = `
+        <div style="color: #666; font-size: 10px; margin-bottom: 8px;">Conversation starters:</div>
+        ${starters.slice(0, 3).map(s => `
+          <button class="chat-starter" style="
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: rgba(50, 50, 60, 0.4);
+            border: 1px solid rgba(100, 100, 120, 0.3);
+            border-radius: 4px;
+            padding: 6px 8px;
+            margin: 4px 0;
+            color: #aaa;
+            font-family: inherit;
+            font-size: 10px;
+            cursor: pointer;
+          ">${s}</button>
+        `).join('')}
+      `;
+    } else {
+      // Show conversation history
+      messagesHtml = history.map(msg => `
+        <div style="
+          margin: 6px 0;
+          padding: 8px;
+          border-radius: 6px;
+          ${msg.role === 'user'
+            ? 'background: rgba(74, 158, 255, 0.15); border: 1px solid rgba(74, 158, 255, 0.3); margin-left: 16px;'
+            : 'background: rgba(74, 255, 158, 0.1); border: 1px solid rgba(74, 255, 158, 0.3); margin-right: 16px;'}
+        ">
+          <div style="font-size: 9px; color: ${msg.role === 'user' ? '#4a9eff' : '#4aff9e'}; margin-bottom: 3px;">
+            ${msg.role === 'user' ? 'You' : name}
+          </div>
+          <div style="font-size: 11px; line-height: 1.4;">${escapeHtml(msg.content)}</div>
+        </div>
+      `).join('');
+    }
+
+    return `
+      <div style="padding: 12px;">
+        <!-- Header with back button -->
+        <div style="display: flex; align-items: center; margin-bottom: 12px; gap: 8px;">
+          <button class="chat-back-btn" style="
+            background: rgba(100, 100, 120, 0.3);
+            border: 1px solid rgba(100, 100, 120, 0.4);
+            border-radius: 4px;
+            padding: 4px 8px;
+            color: #888;
+            font-family: inherit;
+            font-size: 11px;
+            cursor: pointer;
+          ">< Back</button>
+          <div style="flex: 1;">
+            <div style="font-size: 13px; font-weight: bold; color: #fff;">Chat with ${name}</div>
+          </div>
+          ${history.length > 0 ? `
+            <button class="chat-clear-btn" style="
+              background: none;
+              border: 1px solid rgba(255, 100, 100, 0.3);
+              border-radius: 4px;
+              padding: 4px 6px;
+              color: #ff6666;
+              font-family: inherit;
+              font-size: 9px;
+              cursor: pointer;
+            ">Clear</button>
+          ` : ''}
+        </div>
+
+        <!-- Messages area -->
+        <div class="chat-messages" style="
+          max-height: 180px;
+          overflow-y: auto;
+          margin-bottom: 10px;
+          padding-right: 4px;
+        ">
+          ${messagesHtml}
+        </div>
+
+        <!-- Loading indicator (hidden by default) -->
+        <div class="chat-loading" style="
+          display: none;
+          text-align: center;
+          padding: 8px;
+          color: #888;
+          font-size: 11px;
+        ">
+          <span style="animation: pulse 1s infinite;">${name} is thinking...</span>
+        </div>
+
+        <!-- Input area -->
+        <div style="display: flex; gap: 6px;">
+          <input type="text" class="chat-input" placeholder="Say something..." style="
+            flex: 1;
+            background: rgba(30, 30, 40, 0.8);
+            border: 1px solid rgba(100, 100, 120, 0.4);
+            border-radius: 4px;
+            padding: 8px;
+            color: #ddd;
+            font-family: inherit;
+            font-size: 11px;
+            outline: none;
+          " />
+          <button class="chat-send-btn" style="
+            background: rgba(74, 158, 255, 0.2);
+            border: 1px solid rgba(74, 158, 255, 0.5);
+            border-radius: 4px;
+            padding: 8px 12px;
+            color: #4a9eff;
+            font-family: inherit;
+            font-size: 11px;
+            cursor: pointer;
+          ">Send</button>
+        </div>
+
+        <div style="margin-top: 6px; font-size: 9px; color: #555; text-align: center;">
+          Roleplay conversation - responses reflect personality
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Escape HTML for safe rendering
+   */
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  /**
+   * Wire up chat event handlers after rendering
+   */
+  function wireUpChatHandlers(entity, entityType, onRefresh) {
+    // Chat toggle button
+    const toggleBtn = panelEl.querySelector('.chat-toggle-btn');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        chatMode = true;
+        onRefresh();
+      });
+    }
+
+    // Back button
+    const backBtn = panelEl.querySelector('.chat-back-btn');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        chatMode = false;
+        onRefresh();
+      });
+    }
+
+    // Clear button
+    const clearBtn = panelEl.querySelector('.chat-clear-btn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        clearEntityHistory(entity, entityType);
+        onRefresh();
+      });
+    }
+
+    // Conversation starters
+    const starters = panelEl.querySelectorAll('.chat-starter');
+    starters.forEach(btn => {
+      btn.addEventListener('click', () => {
+        sendChatMessage(btn.textContent, entity, entityType, onRefresh);
+      });
+    });
+
+    // Send button
+    const sendBtn = panelEl.querySelector('.chat-send-btn');
+    const inputEl = panelEl.querySelector('.chat-input');
+
+    if (sendBtn && inputEl) {
+      sendBtn.addEventListener('click', () => {
+        const msg = inputEl.value.trim();
+        if (msg) {
+          sendChatMessage(msg, entity, entityType, onRefresh);
+        }
+      });
+
+      inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          const msg = inputEl.value.trim();
+          if (msg) {
+            sendChatMessage(msg, entity, entityType, onRefresh);
+          }
+        }
+      });
+
+      // Focus input when in chat mode
+      if (chatMode) {
+        setTimeout(() => inputEl.focus(), 50);
+      }
+    }
+
+    // Scroll chat to bottom
+    const messagesEl = panelEl.querySelector('.chat-messages');
+    if (messagesEl) {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  }
+
+  /**
+   * Send a chat message and get response
+   */
+  async function sendChatMessage(message, entity, entityType, onRefresh) {
+    if (chatLoading) return;
+
+    chatLoading = true;
+
+    // Show loading state
+    const loadingEl = panelEl.querySelector('.chat-loading');
+    const inputEl = panelEl.querySelector('.chat-input');
+    const sendBtn = panelEl.querySelector('.chat-send-btn');
+
+    if (loadingEl) loadingEl.style.display = 'block';
+    if (inputEl) {
+      inputEl.value = '';
+      inputEl.disabled = true;
+    }
+    if (sendBtn) sendBtn.disabled = true;
+
+    try {
+      await chatWithEntity(message, entity, entityType);
+    } catch (err) {
+      console.error('[EntityChat] Error:', err);
+    } finally {
+      chatLoading = false;
+      onRefresh();
+    }
+  }
+
+  /**
+   * Render and wire up the appropriate view for current entity
+   */
+  function renderCurrentView() {
+    if (!currentEntity || !currentType) return;
+
+    // Create a refresh callback for chat interactions
+    const onRefresh = () => renderCurrentView();
+
+    if (currentType === 'dwarf') {
+      if (chatMode) {
+        panelEl.innerHTML = renderChatUI(currentEntity, 'dwarf');
+      } else {
+        const stats = getDwarfStats(currentEntity);
+        panelEl.innerHTML = renderDwarf(stats);
+      }
+      wireUpChatHandlers(currentEntity, 'dwarf', onRefresh);
+    } else if (currentType === 'visitor') {
+      if (chatMode) {
+        panelEl.innerHTML = renderChatUI(currentEntity, 'visitor');
+      } else {
+        const stats = getVisitorStats(currentEntity);
+        panelEl.innerHTML = renderVisitor(stats);
+      }
+      wireUpChatHandlers(currentEntity, 'visitor', onRefresh);
+    } else if (currentType === 'food') {
+      const stats = getFoodStats(currentEntity);
+      panelEl.innerHTML = renderFood(stats);
+    }
+  }
+
   return {
     /**
      * Show panel with inspection data at cursor position
@@ -399,24 +710,21 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
       currentGridX = x;
       currentGridY = y;
 
+      // Reset chat mode when showing a new entity
+      chatMode = false;
+
       // Priority: dwarf > visitor > food > tile
       if (entities.length > 0) {
         const first = entities[0];
         if (first.type === 'dwarf') {
           currentEntity = first.entity;
           currentType = 'dwarf';
-          const stats = getDwarfStats(first.entity);
-          panelEl.innerHTML = renderDwarf(stats);
         } else if (first.type === 'visitor') {
           currentEntity = first.entity;
           currentType = 'visitor';
-          const stats = getVisitorStats(first.entity);
-          panelEl.innerHTML = renderVisitor(stats);
         } else if (first.type === 'food') {
           currentEntity = first.entity;
           currentType = 'food';
-          const stats = getFoodStats(first.entity);
-          panelEl.innerHTML = renderFood(stats);
         }
       } else if (tile) {
         currentEntity = null;
@@ -424,6 +732,11 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         panelEl.innerHTML = renderTile(tile, x, y);
       } else {
         return; // Nothing to show
+      }
+
+      // Render the appropriate view
+      if (currentType !== 'tile') {
+        renderCurrentView();
       }
 
       // Position panel near the clicked cell
@@ -441,6 +754,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
       panelEl.style.pointerEvents = 'none';
       currentEntity = null;
       currentType = null;
+      chatMode = false;
+      chatLoading = false;
     },
 
     /**
@@ -456,6 +771,38 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
      */
     update(state) {
       worldState = state;
+
+      // Don't update while in chat mode (would disrupt conversation)
+      if (chatMode || chatLoading) {
+        // Still update entity reference for position tracking
+        if (currentType === 'dwarf') {
+          const dwarf = state.dwarves.find(d => d.id === currentEntity.id);
+          if (!dwarf) {
+            this.hide();
+            return;
+          }
+          // Update position if dwarf moved
+          if (dwarf.x !== currentGridX || dwarf.y !== currentGridY) {
+            currentGridX = dwarf.x;
+            currentGridY = dwarf.y;
+            positionPanel(dwarf.x, dwarf.y);
+          }
+          currentEntity = dwarf;
+        } else if (currentType === 'visitor') {
+          const visitor = state.visitors?.find(v => v.id === currentEntity.id);
+          if (!visitor || visitor.state === 'dead') {
+            this.hide();
+            return;
+          }
+          if (visitor.x !== currentGridX || visitor.y !== currentGridY) {
+            currentGridX = visitor.x;
+            currentGridY = visitor.y;
+            positionPanel(visitor.x, visitor.y);
+          }
+          currentEntity = visitor;
+        }
+        return;
+      }
 
       if (currentType === 'dwarf') {
         // Find the dwarf in current state (might have moved)
@@ -474,8 +821,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
         // Re-render with fresh data
         currentEntity = dwarf;
-        const stats = getDwarfStats(dwarf);
-        panelEl.innerHTML = renderDwarf(stats);
+        renderCurrentView();
       } else if (currentType === 'visitor') {
         // Find the visitor in current state (might have moved)
         const visitor = state.visitors?.find(v => v.id === currentEntity.id);
@@ -493,8 +839,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
         // Re-render with fresh data
         currentEntity = visitor;
-        const stats = getVisitorStats(visitor);
-        panelEl.innerHTML = renderVisitor(stats);
+        renderCurrentView();
       }
     },
 
