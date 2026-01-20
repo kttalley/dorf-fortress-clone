@@ -76,8 +76,6 @@ export function createCursor(gridEl, width, height, onHover, onClick) {
    */
   function pixelToGrid(clientX, clientY) {
     const rect = gridEl.getBoundingClientRect();
-    
-    // Calculate relative position within grid element
     const relX = clientX - rect.left;
     const relY = clientY - rect.top;
 

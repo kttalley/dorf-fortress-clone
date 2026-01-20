@@ -477,7 +477,7 @@ export function createAssistantToggle(containerEl, assistantController) {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
   `;
-  btnEl.textContent = '🤖 Chat with the game engine';
+  btnEl.textContent = 'Chat with the game engine';
 
   // Ensure visibility on mobile
   function checkMobileVisibility() {

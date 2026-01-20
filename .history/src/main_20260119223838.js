@@ -27,7 +27,7 @@ import { resetSpawner } from './sim/visitorSpawner.js';
 
 
 // Map configuration
-const MAP_WIDTH = 142;
+const MAP_WIDTH = 92;
 const MAP_HEIGHT = 40;
 const INITIAL_DWARVES = 7;
 const INITIAL_FOOD_SOURCES = 42;

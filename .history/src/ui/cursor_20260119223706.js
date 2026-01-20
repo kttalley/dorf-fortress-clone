@@ -27,6 +27,7 @@ export function createCursor(gridEl, width, height, onHover, onClick) {
     position: absolute;
     left: 0;
     top: 0;
+    display: none;
     pointer-events: none;
     border: 2px solid rgba(255, 255, 100, 0.8);
     box-shadow: 0 0 8px rgba(255, 255, 100, 0.4), inset 0 0 4px rgba(255, 255, 100, 0.2);
@@ -76,8 +77,6 @@ export function createCursor(gridEl, width, height, onHover, onClick) {
    */
   function pixelToGrid(clientX, clientY) {
     const rect = gridEl.getBoundingClientRect();
-    
-    // Calculate relative position within grid element
     const relX = clientX - rect.left;
     const relY = clientY - rect.top;
 
