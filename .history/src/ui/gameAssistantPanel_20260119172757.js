@@ -135,11 +135,11 @@ export function initGameAssistant(containerEl, getWorld) {
         outline: none;
       " />
       <button class="send-btn" style="
-        background: rgba(74, 158, 255, 0.2);
-        border: 1px solid rgba(74, 158, 255, 0.5);
+        background: rgba(15, 15, 20, 0.95);
+    border: 1px solid rgba(100, 100, 120, 0.5);
         border-radius: 4px;
         padding: 8px 12px;
-        color: #4a9eff;
+        color: #fff;
         font-family: inherit;
         font-size: 12px;
         cursor: pointer;
@@ -440,8 +440,8 @@ export function createAssistantToggle(containerEl, assistantController) {
     bottom: 64px;
     
     height: 40px;
-    background: rgba(15, 15, 20, 0.95);
-    border: 1px solid rgba(100, 100, 120, 0.5);
+    background: rgba(74, 158, 255, 0.2);
+    border: 1px solid rgba(74, 158, 255, 0.5);
     border-radius: 4px;
     color: #4a9eff;
     font-size: 10px;
@@ -462,12 +462,12 @@ export function createAssistantToggle(containerEl, assistantController) {
   });
 
   btnEl.addEventListener('mouseenter', () => {
-    btnEl.style.background = 'rgba(15, 15, 20, 0.95)';
+    btnEl.style.background = 'rgba(74, 158, 255, 0.4)';
     btnEl.style.transform = 'scale(1.05)';
   });
 
   btnEl.addEventListener('mouseleave', () => {
-    btnEl.style.background = 'rgba(15, 15, 20, 0.95)';
+    btnEl.style.background = 'rgba(74, 158, 255, 0.2)';
     btnEl.style.transform = 'scale(1)';
   });
 

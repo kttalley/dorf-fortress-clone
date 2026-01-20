@@ -50,7 +50,7 @@ export function initGameAssistant(containerEl, getWorld) {
   headerEl.innerHTML = `
     <div style="display: flex; align-items: center; gap: 8px;">
       <span style="color: #4aff9e;">?</span>
-      <span style="font-weight: bold; color: #fff;">Chat with the game engine</span>
+      <span style="font-weight: bold; color: #fff;">Ask the Game</span>
     </div>
     <div style="display: flex; gap: 8px;">
       <button class="info-btn" title="How it works" style="
@@ -438,13 +438,13 @@ export function createAssistantToggle(containerEl, assistantController) {
     position: absolute;
     left: 8px;
     bottom: 64px;
-    
+    width: 40px;
     height: 40px;
-    background: rgba(15, 15, 20, 0.95);
-    border: 1px solid rgba(100, 100, 120, 0.5);
-    border-radius: 4px;
+    background: rgba(74, 158, 255, 0.2);
+    border: 1px solid rgba(74, 158, 255, 0.5);
+    border-radius: 50%;
     color: #4a9eff;
-    font-size: 10px;
+    font-size: 18px;
     font-weight: bold;
     cursor: pointer;
     z-index: 250;
@@ -453,7 +453,7 @@ export function createAssistantToggle(containerEl, assistantController) {
     align-items: center;
     justify-content: center;
   `;
-  btnEl.textContent = 'Chat with the game engine';
+  btnEl.textContent = '?';
 
   btnEl.addEventListener('click', () => {
     assistantController.toggle();
@@ -462,12 +462,12 @@ export function createAssistantToggle(containerEl, assistantController) {
   });
 
   btnEl.addEventListener('mouseenter', () => {
-    btnEl.style.background = 'rgba(15, 15, 20, 0.95)';
+    btnEl.style.background = 'rgba(74, 158, 255, 0.4)';
     btnEl.style.transform = 'scale(1.05)';
   });
 
   btnEl.addEventListener('mouseleave', () => {
-    btnEl.style.background = 'rgba(15, 15, 20, 0.95)';
+    btnEl.style.background = 'rgba(74, 158, 255, 0.2)';
     btnEl.style.transform = 'scale(1)';
   });
 

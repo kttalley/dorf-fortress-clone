@@ -462,12 +462,12 @@ export function createAssistantToggle(containerEl, assistantController) {
   });
 
   btnEl.addEventListener('mouseenter', () => {
-    btnEl.style.background = 'rgba(15, 15, 20, 0.95)';
+    btnEl.style.background = ' rgba(15, 15, 20, 0.95)';
     btnEl.style.transform = 'scale(1.05)';
   });
 
   btnEl.addEventListener('mouseleave', () => {
-    btnEl.style.background = 'rgba(15, 15, 20, 0.95)';
+    btnEl.style.background = 'rgba(74, 158, 255, 0.2)';
     btnEl.style.transform = 'scale(1)';
   });
 
