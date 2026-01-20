@@ -296,43 +296,178 @@ export function injectBubbleStyles() {
 }
 
 // ============================================================
-// SIDEBAR THOUGHT PANEL
+// FLOATING THOUGHT PANEL WIDGET
 // ============================================================
 
+let isMinimized = false;
+const MOBILE_BREAKPOINT = 728;
+
 /**
- * Initialize the sidebar thought panel
- * Creates a panel above the event log to show recent dwarf thoughts
+ * Initialize the floating thought panel widget
+ * Creates a collapsible panel in top-right corner
  */
 export function initSidebarThoughts() {
-  const sidebar = document.querySelector('.sidebar') || document.getElementById('sidebar');
-  if (!sidebar) {
-    console.warn('[SpeechBubble] No sidebar found for thought panel');
-    return;
-  }
-
-  // Create thought panel container
+  // Create floating widget container
   sidebarEl = document.createElement('div');
-  sidebarEl.id = 'thought-panel';
-  sidebarEl.className = 'thought-panel';
+  sidebarEl.id = 'thought-widget';
+  sidebarEl.className = 'floating-widget';
+  sidebarEl.style.cssText = `
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 280px;
+    max-height: 320px;
+    background: rgba(20, 20, 30, 0.95);
+    border: 1px solid rgba(100, 100, 120, 0.5);
+    border-radius: 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #aabbdd;
+    z-index: 600;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    overflow: hidden;
+  `;
 
-  // Header
+  // Header with minimize button
   const header = document.createElement('div');
-  header.className = 'thought-panel-header';
-  header.textContent = 'Dwarf Thoughts';
+  header.style.cssText = `
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: rgba(40, 40, 60, 0.8);
+    border-bottom: 1px solid rgba(100, 100, 120, 0.3);
+    cursor: pointer;
+  `;
+
+  const title = document.createElement('div');
+  title.style.cssText = `
+    font-weight: bold;
+    font-size: 12px;
+    color: #88aacc;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  `;
+  title.innerHTML = '<span style="margin-right: 6px;">💭</span> Dwarf Thoughts';
+
+  const minimizeBtn = document.createElement('button');
+  minimizeBtn.id = 'thought-minimize-btn';
+  minimizeBtn.textContent = '−';
+  minimizeBtn.title = 'Minimize';
+  minimizeBtn.style.cssText = `
+    background: rgba(60, 60, 80, 0.8);
+    border: 1px solid rgba(100, 100, 120, 0.5);
+    border-radius: 4px;
+    color: #88aacc;
+    font-size: 14px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: background 0.15s;
+  `;
+
+  minimizeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMinimize();
+  });
+
+  // Allow clicking header to toggle as well
+  header.addEventListener('click', toggleMinimize);
+
+  header.appendChild(title);
+  header.appendChild(minimizeBtn);
   sidebarEl.appendChild(header);
 
   // Content area
   const content = document.createElement('div');
   content.id = 'thought-panel-content';
-  content.className = 'thought-panel-content';
+  content.style.cssText = `
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 8px;
+    transition: max-height 0.3s ease;
+  `;
   sidebarEl.appendChild(content);
 
-  // Insert before the log section
-  const logSection = document.getElementById('log') || sidebar.querySelector('.log-section');
-  if (logSection) {
-    sidebar.insertBefore(sidebarEl, logSection);
+  // Add to body
+  document.body.appendChild(sidebarEl);
+
+  // Check for mobile and auto-collapse
+  checkMobileBreakpoint();
+  window.addEventListener('resize', checkMobileBreakpoint);
+}
+
+/**
+ * Toggle minimize state of thought widget
+ */
+function toggleMinimize() {
+  if (!sidebarEl) return;
+
+  const content = sidebarEl.querySelector('#thought-panel-content');
+  const btn = sidebarEl.querySelector('#thought-minimize-btn');
+
+  if (isMinimized) {
+    // Expand
+    content.style.display = 'block';
+    sidebarEl.style.maxHeight = '320px';
+    btn.textContent = '−';
+    btn.title = 'Minimize';
   } else {
-    sidebar.insertBefore(sidebarEl, sidebar.firstChild);
+    // Collapse
+    content.style.display = 'none';
+    sidebarEl.style.maxHeight = '44px';
+    btn.textContent = '+';
+    btn.title = 'Expand';
+  }
+
+  isMinimized = !isMinimized;
+}
+
+/**
+ * Check mobile breakpoint and auto-collapse
+ */
+function checkMobileBreakpoint() {
+  if (!sidebarEl) return;
+
+  const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+
+  if (isMobile && !isMinimized) {
+    toggleMinimize();
+  }
+
+  // Adjust width on mobile
+  if (isMobile) {
+    sidebarEl.style.width = '220px';
+    sidebarEl.style.right = '8px';
+    sidebarEl.style.top = '8px';
+  } else {
+    sidebarEl.style.width = '280px';
+    sidebarEl.style.right = '10px';
+    sidebarEl.style.top = '10px';
+  }
+}
+
+/**
+ * Programmatically collapse the thought widget
+ */
+export function collapseThoughtWidget() {
+  if (!isMinimized) {
+    toggleMinimize();
+  }
+}
+
+/**
+ * Programmatically expand the thought widget
+ */
+export function expandThoughtWidget() {
+  if (isMinimized) {
+    toggleMinimize();
   }
 }
 
@@ -349,7 +484,12 @@ export function updateSidebarThoughts(thoughts = []) {
 
   if (thoughts.length === 0) {
     const empty = document.createElement('div');
-    empty.className = 'thought-entry thought-empty';
+    empty.style.cssText = `
+      padding: 12px;
+      color: #555566;
+      font-style: italic;
+      text-align: center;
+    `;
     empty.textContent = 'No recent thoughts...';
     content.appendChild(empty);
     return;
@@ -360,24 +500,45 @@ export function updateSidebarThoughts(thoughts = []) {
 
   for (const thought of recentThoughts) {
     const entry = document.createElement('div');
-    entry.className = `thought-entry thought-type-${thought.type || 'observation'}`;
+    const borderColor = getThoughtBorderColor(thought.type);
+    entry.style.cssText = `
+      padding: 8px 10px;
+      margin: 6px 0;
+      background: rgba(40, 40, 55, 0.8);
+      border-radius: 4px;
+      border-left: 3px solid ${borderColor};
+    `;
 
     // Name with type indicator
     const nameEl = document.createElement('div');
-    nameEl.className = 'thought-entry-name';
+    nameEl.style.cssText = `
+      color: #88aacc;
+      font-weight: bold;
+      margin-bottom: 4px;
+      font-size: 10px;
+    `;
     const typeIcon = getThoughtTypeIcon(thought.type);
-    nameEl.innerHTML = `<span class="thought-icon">${typeIcon}</span> ${thought.dwarfName}`;
+    nameEl.innerHTML = `<span style="margin-right: 4px;">${typeIcon}</span> ${thought.dwarfName}`;
     entry.appendChild(nameEl);
 
     // Thought text
     const textEl = document.createElement('div');
-    textEl.className = 'thought-entry-text';
+    textEl.style.cssText = `
+      color: #ccccdd;
+      line-height: 1.3;
+      font-style: italic;
+    `;
     textEl.textContent = `"${thought.thought}"`;
     entry.appendChild(textEl);
 
     // Age indicator
     const ageEl = document.createElement('div');
-    ageEl.className = 'thought-entry-age';
+    ageEl.style.cssText = `
+      color: #666677;
+      font-size: 9px;
+      margin-top: 4px;
+      text-align: right;
+    `;
     ageEl.textContent = formatAge(thought.age);
     entry.appendChild(ageEl);
 
@@ -400,6 +561,20 @@ function getThoughtTypeIcon(type) {
 }
 
 /**
+ * Get border color for thought type
+ */
+function getThoughtBorderColor(type) {
+  switch (type) {
+    case 'meeting': return '#66aa88';
+    case 'food_found': return '#aaaa66';
+    case 'hunger': return '#aa6666';
+    case 'terrain': return '#8866aa';
+    case 'mood': return '#66aaaa';
+    default: return '#6688aa';
+  }
+}
+
+/**
  * Format age in human-readable form
  */
 function formatAge(ms) {
@@ -409,92 +584,21 @@ function formatAge(ms) {
 }
 
 /**
- * Get CSS for sidebar thought panel
+ * Get CSS for floating widgets (minimal, most styles are inline now)
  */
 function getSidebarStyles() {
   return `
-    .thought-panel {
-      background: rgba(30, 30, 40, 0.95);
-      border: 1px solid #4a4a5a;
-      border-radius: 4px;
-      margin-bottom: 12px;
-      overflow: hidden;
-    }
-
-    .thought-panel-header {
-      background: rgba(50, 50, 70, 0.8);
-      padding: 8px 12px;
-      font-size: 16px;
-      font-weight: bold;
-      color: #aabbcc;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      border-bottom: 1px solid #4a4a5a;
-    }
-
-    .thought-panel-content {
-      max-height: 400px;
-      overflow-y: auto;
-      padding: 4px;
-    }
-
-    .thought-entry {
-      padding: 8px 10px;
-      margin: 4px;
-      background: rgba(40, 40, 55, 0.8);
-      border-radius: 4px;
-      border-left: 3px solid #6688aa;
-      font-family: 'Courier New', monospace;
-      font-size: 11px;
-    }
-
-    .thought-entry-name {
-      color: #88aacc;
-      font-weight: bold;
-      margin-bottom: 4px;
-      font-size: 10px;
-    }
-
-    .thought-icon {
-      margin-right: 4px;
-    }
-
-    .thought-entry-text {
-      color: #ccccdd;
-      line-height: 1.3;
-      font-style: italic;
-    }
-
-    .thought-entry-age {
-      color: #666677;
-      font-size: 9px;
-      margin-top: 4px;
-      text-align: right;
-    }
-
-    .thought-empty {
-      color: #555566;
-      font-style: italic;
-      text-align: center;
-      border-left-color: #444455;
-    }
-
-    .thought-type-meeting { border-left-color: #66aa88; }
-    .thought-type-food_found { border-left-color: #aaaa66; }
-    .thought-type-hunger { border-left-color: #aa6666; }
-    .thought-type-terrain { border-left-color: #8866aa; }
-    .thought-type-mood { border-left-color: #66aaaa; }
-
-    .thought-panel-content::-webkit-scrollbar {
+    /* Scrollbar styling for thought panel */
+    #thought-panel-content::-webkit-scrollbar {
       width: 6px;
     }
 
-    .thought-panel-content::-webkit-scrollbar-track {
+    #thought-panel-content::-webkit-scrollbar-track {
       background: rgba(30, 30, 40, 0.5);
     }
 
-    .thought-panel-content::-webkit-scrollbar-thumb {
-      background: #4a4a5a;
+    #thought-panel-content::-webkit-scrollbar-thumb {
+      background: rgba(100, 100, 120, 0.5);
       border-radius: 3px;
     }
   `;

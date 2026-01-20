@@ -7,8 +7,7 @@ import { createWorldState, addLog } from './state/store.js';
 import { createDwarf, createFoodSource, resetIds, getDominantTraits, getDisplayName } from './sim/entities.js';
 import { generateBiomeMap, generateMixedMap, generateCaveMap, findWalkablePosition, addBiomeToMap, initBiomeGenerator } from './map/map.js';
 import { tick } from './sim/world.js';
-import { createRenderer, updateStatus, buildRenderEntities } from './ui/renderer.js';
-import { renderLog } from './ui/log.js';
+import { createRenderer, buildRenderEntities } from './ui/renderer.js';
 import { createCursor } from './ui/cursor.js';
 import { createStatPanel } from './ui/statPanel.js';
 import { initThoughtSystem, stopThoughtSystem, getThoughtStatus } from './ai/thoughts.js';
@@ -19,6 +18,7 @@ import { waitForBatchNameGeneration } from './llm/nameGenerationEvents.js';
 import { on, EVENTS } from './events/eventBus.js';
 import { initConversationToast } from './ui/conversationToast.js';
 import { initGameAssistant, createAssistantToggle } from './ui/gameAssistantPanel.js';
+import { initControlsWidget } from './ui/controlsWidget.js';
 
 // External forces imports
 import { generateWorldHistory, getHistorySummary } from './sim/history.js';
@@ -44,6 +44,7 @@ let renderer = null;
 let cursor = null;
 let statPanel = null;
 let gameAssistant = null;
+let controlsWidget = null;
 let llmConnected = false;
 
 // Create world state
@@ -281,7 +282,6 @@ async function init() {
   showLoadingScreen();
 
   const mapContainer = document.getElementById('map-display');
-  const logContainer = document.getElementById('log-entries');
 
   if (!mapContainer) {
     console.error('Map container not found');
@@ -332,11 +332,67 @@ async function init() {
   // Initialize speech bubbles
   initSpeechBubbles(mapContainer, renderer.el);
 
-  // Initialize sidebar thought panel
+  // Initialize floating thought panel widget
   initSidebarThoughts();
 
   // Initialize the conversation toast container
   initConversationToast(document.body);
+
+  // Initialize floating controls widget
+  controlsWidget = initControlsWidget(document.body, {
+    onPause: (btn) => {
+      running = !running;
+      btn.textContent = running ? 'Pause' : 'Resume';
+      if (running) {
+        startLoop(renderer);
+      } else if (loopId) {
+        clearTimeout(loopId);
+        loopId = null;
+      }
+    },
+    onStep: () => {
+      if (!running) {
+        tick(state);
+        renderFrame(renderer);
+      }
+    },
+    onSpeed: (btn) => {
+      speedIndex = (speedIndex + 1) % SPEED_LEVELS.length;
+      tickInterval = SPEED_LEVELS[speedIndex];
+      btn.textContent = `Speed: ${speedIndex + 1}x`;
+    },
+    onRegen: (regenBtn, pauseBtn) => {
+      // Cycle map mode
+      currentMapMode = (currentMapMode + 1) % MAP_MODES.length;
+
+      // Stop current loop
+      if (loopId) {
+        clearTimeout(loopId);
+        loopId = null;
+      }
+
+      // Regenerate world
+      regenerateWorld();
+
+      // Update button text to show mode
+      regenBtn.textContent = `New: ${MAP_MODES[currentMapMode]}`;
+
+      // Reset UI state
+      running = true;
+      const pauseButton = controlsWidget.getButton('btn-pause');
+      if (pauseButton) pauseButton.textContent = 'Pause';
+
+      // Render and restart
+      renderFrame(renderer);
+      startLoop(renderer);
+    },
+  });
+
+  // Set initial regen button text
+  const regenBtn = controlsWidget.getButton('btn-regen');
+  if (regenBtn) {
+    regenBtn.textContent = `New: ${MAP_MODES[(currentMapMode + 1) % MAP_MODES.length]}`;
+  }
 
   // Initialize Game Assistant ("Ask the Game" panel)
   gameAssistant = initGameAssistant(mapContainer, () => state);
@@ -368,31 +424,26 @@ async function init() {
   hideLoadingScreen();
 
   // Initial render
-  renderFrame(renderer, logContainer);
-
-  // Wire up controls
-  setupControls(renderer, logContainer);
+  renderFrame(renderer);
 
   // Start game loop
-  startLoop(renderer, logContainer);
+  startLoop(renderer);
 
   addLog(state, 'The dwarves begin to explore their surroundings...');
-  renderLog(state.log, logContainer);
 }
 
-function renderFrame(renderer, logContainer) {
+function renderFrame(renderer) {
   const entities = buildRenderEntities(state);
   renderer.render(state.map, entities);
-  updateStatus(state);
   updateBubblePositions();
-  renderLog(state.log, logContainer);
 
-  // Update cursor and stat panel with current state
+  // Update floating widgets with current state
+  if (controlsWidget) controlsWidget.updateStatus(state);
   if (cursor) cursor.update(state);
   if (statPanel && statPanel.isVisible()) statPanel.update(state);
 }
 
-function gameLoop(renderer, logContainer) {
+function gameLoop(renderer) {
   if (!running) return;
 
   tick(state);
@@ -419,85 +470,18 @@ function gameLoop(renderer, logContainer) {
     }
   }
 
-  renderFrame(renderer, logContainer);
+  renderFrame(renderer);
 
   if (running) {
-    loopId = setTimeout(() => gameLoop(renderer, logContainer), tickInterval);
+    loopId = setTimeout(() => gameLoop(renderer), tickInterval);
   }
 }
 
-function startLoop(renderer, logContainer) {
+function startLoop(renderer) {
   if (loopId) clearTimeout(loopId);
-  loopId = setTimeout(() => gameLoop(renderer, logContainer), tickInterval);
+  loopId = setTimeout(() => gameLoop(renderer), tickInterval);
 }
 
-function setupControls(renderer, logContainer) {
-  const pauseBtn = document.getElementById('btn-pause');
-  const stepBtn = document.getElementById('btn-step');
-  const speedBtn = document.getElementById('btn-speed');
-  const regenBtn = document.getElementById('btn-regen');
-
-  if (pauseBtn) {
-    pauseBtn.addEventListener('click', () => {
-      running = !running;
-      pauseBtn.textContent = running ? 'Pause' : 'Resume';
-
-      if (running) {
-        startLoop(renderer, logContainer);
-      } else if (loopId) {
-        clearTimeout(loopId);
-        loopId = null;
-      }
-    });
-  }
-
-  if (stepBtn) {
-    stepBtn.addEventListener('click', () => {
-      if (!running) {
-        tick(state);
-        renderFrame(renderer, logContainer);
-      }
-    });
-  }
-
-  if (speedBtn) {
-    speedBtn.addEventListener('click', () => {
-      speedIndex = (speedIndex + 1) % SPEED_LEVELS.length;
-      tickInterval = SPEED_LEVELS[speedIndex];
-      speedBtn.textContent = `Speed: ${speedIndex + 1}x`;
-    });
-  }
-
-  if (regenBtn) {
-    regenBtn.addEventListener('click', () => {
-      // Cycle map mode
-      currentMapMode = (currentMapMode + 1) % MAP_MODES.length;
-
-      // Stop current loop
-      if (loopId) {
-        clearTimeout(loopId);
-        loopId = null;
-      }
-
-      // Regenerate world
-      regenerateWorld();
-
-      // Update button text to show mode
-      regenBtn.textContent = `New: ${MAP_MODES[currentMapMode]}`;
-
-      // Reset UI state
-      running = true;
-      if (pauseBtn) pauseBtn.textContent = 'Pause';
-
-      // Render and restart
-      renderFrame(renderer, logContainer);
-      startLoop(renderer, logContainer);
-    });
-
-    // Show initial mode
-    regenBtn.textContent = `New: ${MAP_MODES[(currentMapMode + 1) % MAP_MODES.length]}`;
-  }
-}
 
 // Export for debugging
 window.gameState = state;

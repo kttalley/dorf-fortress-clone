@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dorf Fortress v0.1</title>
+  <title>Dorf Fortress v0.2</title>
   <link href="styles/tailwind.css" rel="stylesheet">
   <style>
     *,
@@ -25,29 +25,19 @@
     }
 
     #game-container {
-      display: flex;
+      position: relative;
       height: 100vh;
       width: 100vw;
-      gap: 0;
     }
 
     #map-display {
-      flex: 1;
+      width: 100%;
+      height: 100%;
       background: #0a0a0a;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-width: 0;
       overflow: hidden;
-    }
-
-    #sidebar {
-      width: 280px;
-      min-width: 280px;
-      display: flex;
-      flex-direction: column;
-      background: #111;
-      border-left: 1px solid #333;
     }
 
     /* Loading Screen */
@@ -87,107 +77,114 @@
     }
 
     @keyframes spin {
-      0% {
-        transform: rotate(0deg);
-      }
-
-      100% {
-        transform: rotate(360deg);
-      }
-    }
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
 
-    #status-panel {
-      padding: 0.75rem;
-      border-bottom: 1px solid #333;
+    /* Floating widget common styles */
+    .floating-widget {
+      position: fixed;
+      background: rgba(15, 15, 20, 0.95);
+      border: 1px solid rgba(100, 100, 120, 0.5);
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 500;
     }
 
-    #status-panel .stat {
+    /* Controls widget - bottom center */
+    #controls-widget {
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
-      justify-content: space-between;
-      margin-bottom: 0.25rem;
-      font-size: 13px;
+      gap: 8px;
+      padding: 10px 16px;
+      align-items: center;
     }
 
-    #status-panel .stat-label {
-      color: #888;
-    }
-
-    #status-panel .stat-value {
+    #controls-widget button {
+      background: rgba(30, 30, 40, 0.9);
+      border: 1px solid rgba(100, 100, 120, 0.5);
       color: #0ff;
-    }
-
-    #controls {
-      padding: 0.75rem;
-      border-bottom: 1px solid #333;
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-    }
-
-    button {
-      background: #1a1a1a;
-      border: 1px solid #444;
-      color: #0ff;
-      padding: 0.4rem 0.75rem;
+      padding: 8px 14px;
       cursor: pointer;
       font-family: inherit;
       font-size: 12px;
+      border-radius: 4px;
       transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
     }
 
-    button:hover {
-      background: #252525;
+    #controls-widget button:hover {
+      background: rgba(50, 50, 60, 0.9);
       border-color: #0ff;
     }
 
-    button:active {
-      background: #333;
+    #controls-widget button:active {
+      background: rgba(70, 70, 80, 0.9);
     }
 
-    #log-panel {
-      flex: 1;
-      padding: 0.75rem;
-      overflow-y: auto;
+    #controls-widget .status-compact {
+      display: flex;
+      gap: 12px;
+      padding: 0 12px;
+      border-left: 1px solid rgba(100, 100, 120, 0.3);
+      margin-left: 4px;
       font-size: 11px;
-    }
-
-    #log-panel .log-entry {
-      margin-bottom: 3px;
       color: #888;
-      line-height: 1.3;
     }
 
-    #log-panel .log-entry .tick {
-      color: #555;
-      margin-right: 0.5em;
-    }
-
-    h2 {
+    #controls-widget .status-compact .stat-value {
       color: #0ff;
-      margin: 0 0 0.5rem 0;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      font-weight: normal;
+      margin-left: 4px;
     }
 
     /* Scrollbar styling */
     ::-webkit-scrollbar {
-      width: 8px;
+      width: 6px;
     }
 
     ::-webkit-scrollbar-track {
-      background: #111;
+      background: rgba(20, 20, 30, 0.5);
     }
 
     ::-webkit-scrollbar-thumb {
-      background: #333;
-      border-radius: 4px;
+      background: rgba(100, 100, 120, 0.5);
+      border-radius: 3px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: #444;
+      background: rgba(120, 120, 140, 0.6);
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 728px) {
+      #controls-widget {
+        bottom: 8px;
+        padding: 8px 12px;
+        gap: 6px;
+      }
+
+      #controls-widget button {
+        padding: 6px 10px;
+        font-size: 11px;
+      }
+
+      #controls-widget .status-compact {
+        display: none;
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
     }
   </style>
 </head>
@@ -198,36 +195,12 @@
     <div class="loading-spinner"></div>
     <div class="loading-text">Generating World...</div>
   </div>
+
   <div id="game-container">
     <div id="map-display"></div>
-    <div id="sidebar">
-      <div id="status-panel">
-        <h2>Status</h2>
-        <div class="stat">
-          <span class="stat-label">Tick</span>
-          <span class="stat-value" id="tick-display">0</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Dwarves</span>
-          <span class="stat-value" id="dwarf-count">0</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Food Sources</span>
-          <span class="stat-value" id="food-count">0</span>
-        </div>
-      </div>
-      <div id="controls">
-        <button id="btn-pause">Pause</button>
-        <button id="btn-step">Step</button>
-        <button id="btn-speed">Speed: 1x</button>
-        <button id="btn-regen">New Map</button>
-      </div>
-      <div id="log-panel">
-        <h2>Event Log</h2>
-        <div id="log-entries"></div>
-      </div>
-    </div>
+    <!-- All UI is now floating widgets injected by JS -->
   </div>
+
   <script type="module" src="src/main.js"></script>
 </body>
 
