@@ -25,6 +25,9 @@ import { initBiomeTitle, updateBiomeTitle, initEventLog, updateEventLog } from '
 import { generateWorldHistory, getHistorySummary } from './sim/history.js';
 import { resetSpawner } from './sim/visitorSpawner.js';
 
+// Scenario and palette imports
+import { generateScenario, generateDuotonePalette, paletteToBiomeColorMod, applyPaletteToDocument, initSessionPalette } from './llm/scenarioGenerator.js';
+
 
 // Map configuration
 const MAP_WIDTH = 142;
@@ -32,6 +35,13 @@ const MAP_HEIGHT = 40;
 const INITIAL_DWARVES = 7;
 const INITIAL_FOOD_SOURCES = 42;
 const SPEED_LEVELS = [250, 150, 80, 40];  // ms per tick (slower for watching interactions)
+
+// Session palette (generated uniquely on each page load)
+let sessionPalette = null;
+
+// Track first load for scenario generation
+let isFirstLoad = true;
+let currentScenario = null;
 
 // Map generation modes
 const MAP_MODES = ['biome', 'mixed', 'cave'];
@@ -63,6 +73,19 @@ async function regenerateWorld() {
 
   const mapSeed = Date.now();
   const mode = MAP_MODES[currentMapMode];
+
+  // Generate themed scenario on first load
+  if (isFirstLoad) {
+    try {
+      console.log('[Init] Generating themed scenario...');
+      currentScenario = await generateScenario();
+      console.log('[Init] Scenario:', currentScenario.title);
+    } catch (error) {
+      console.warn('[Init] Scenario generation failed:', error.message);
+      currentScenario = null;
+    }
+    isFirstLoad = false;
+  }
 
   // Generate map based on mode
   switch (mode) {
@@ -96,18 +119,42 @@ async function regenerateWorld() {
       break;
   }
 
-  // Generate biome name for the map (LLM-based)
+  // Generate unique duotone palette for this session/world
+  const paletteSeed = mapSeed + Date.now();
+  sessionPalette = generateDuotonePalette(paletteSeed);
+  applyPaletteToDocument(sessionPalette);
+
+  // Generate biome name for the map (LLM-based), using session palette for color
   try {
     await addBiomeToMap(state.map, { timeout: 8000 });
     const biomeName = state.map.biome?.name || 'Unknown Region';
-    const colorMod = state.map.biome?.colorMod || null;
+    // Blend LLM color mod with session palette
+    const llmColorMod = state.map.biome?.colorMod || { hue: 0, saturation: 0, brightness: 0 };
+    const paletteColorMod = paletteToBiomeColorMod(sessionPalette);
+    // Average the two color mods for variety
+    const colorMod = {
+      hue: Math.round((llmColorMod.hue + paletteColorMod.hue) / 2),
+      saturation: Math.round((llmColorMod.saturation + paletteColorMod.saturation) / 2),
+      brightness: Math.round((llmColorMod.brightness + paletteColorMod.brightness) / 2),
+    };
+    state.map.biome.colorMod = colorMod;
     addLog(state, `Biome: ${biomeName}`);
     // Update biome title widget with name and color tint
     updateBiomeTitle(biomeName, colorMod);
   } catch (error) {
     console.warn('[World] Biome generation failed:', error.message);
+    // Use palette-derived color mod as fallback
+    const colorMod = paletteToBiomeColorMod(sessionPalette);
     addLog(state, 'A mysterious wilderness stretches before us.');
-    updateBiomeTitle('Mysterious Wilderness', null);
+    updateBiomeTitle('Mysterious Wilderness', colorMod);
+  }
+
+  // Log scenario info if available (first load only)
+  if (currentScenario) {
+    addLog(state, `Scenario: ${currentScenario.title}`);
+    if (currentScenario.description) {
+      addLog(state, currentScenario.description);
+    }
   }
 
   // Clear entities

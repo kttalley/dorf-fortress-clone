@@ -190,49 +190,79 @@ LLMs are treated as **replaceable components**, not hard dependencies.
 src/
 ├── ai/                    # Agent cognition and LLM integration
 │   ├── dwarfAI.js         # Decision-making, task selection
+│   ├── visitorAI.js       # External visitor behaviors
 │   ├── thoughts.js        # Event-driven thought generation
-│   ├── llmClient.js       # Ollama API, request queue
-│   └── visitorAI.js       # External visitor behaviors
+│   └── llmClient.js       # Ollama API, request queue
 │
 ├── llm/                   # LLM-specific generators
 │   ├── nameGenerator.js   # Dwarf names and biographies
 │   ├── biomeGenerator.js  # Biome names and color modifiers
 │   ├── entityChat.js      # Player-to-entity conversations
 │   ├── gameAssistant.js   # "Ask the Game" feature
+│   ├── fallbacks.js       # Local fallback responses
 │   └── prompts/           # LLM prompt templates
+│       ├── dwarf.js
+│       ├── narrative.js
+│       └── entityChat.js
 │
 ├── sim/                   # Core simulation systems
-│   ├── world.js           # Main tick loop, system orchestration
+│   ├── world.js           # Main tick loop (11-step orchestration)
 │   ├── entities.js        # Dwarf/food/visitor creation
-│   ├── movement.js        # Pathfinding, scent-following
+│   ├── movement.js        # Scent-based pathfinding
 │   ├── combat.js          # Combat resolution
-│   ├── tasks.js           # Task types and management
+│   ├── rules.js           # Hunger, death, food production
+│   ├── tasks.js           # Task types and skill system
+│   ├── jobs.js            # Job assignment & management
 │   ├── construction.js    # Building and digging
-│   └── visitorSpawner.js  # External force generation
+│   ├── crafting.js        # Workshop jobs & item creation
+│   ├── visitors.js        # Visitor entity management
+│   ├── visitorSpawner.js  # External force generation
+│   ├── races.js           # Race definitions (dwarf, human, goblin, elf)
+│   ├── foodProduction.js  # Farms, fishing, food systems
+│   ├── history.js         # World history & race relations
+│   └── edges.js           # Map boundary & fortress detection
 │
 ├── map/                   # Procedural generation
 │   ├── map.js             # Map creation, tile management
 │   ├── noise.js           # Simplex, FBM, ridged noise
 │   ├── biomes.js          # Biome classification
-│   └── tiles.js           # Tile definitions, colors
+│   ├── tiles.js           # Tile definitions, HSL color utilities
+│   └── mapConfig.js       # Map generation parameters
+│
+├── scenarios/             # Pre-built game scenarios
+│   ├── presets.js         # 10 hand-crafted scenarios
+│   └── scenarioSchema.js  # Validation & parameter ranges
 │
 ├── ui/                    # Rendering and interface
-│   ├── renderer.js        # CSS Grid ASCII renderer
+│   ├── renderer.js        # CSS Grid ASCII renderer (dirty-checked)
 │   ├── statPanel.js       # Entity inspection panel
-│   ├── speechBubble.js    # Floating thoughts/speech
-│   ├── biomeWidgets.js    # Title and event log
+│   ├── speechBubble.js    # Floating thoughts/speech + sidebar
+│   ├── biomeWidgets.js    # Title and event log widgets
 │   ├── controlsWidget.js  # Play/pause/speed controls
-│   └── gameAssistantPanel.js # Chat interface
+│   ├── gameAssistantPanel.js # "Ask the Game" chat panel
+│   ├── inspection.js      # Position inspection utilities
+│   ├── cursor.js          # Grid-snapping cursor system
+│   ├── log.js             # Event log management
+│   ├── logDisplay.js      # Event log rendering
+│   ├── conversationToast.js # Toast notifications
+│   └── speech.js          # Speech generation utilities
 │
 ├── state/                 # State management
-│   └── store.js           # World state schema
+│   └── store.js           # World state schema, log management
 │
-└── events/                # Communication
-    └── eventBus.js        # Pub/sub event system
+├── events/                # Communication
+│   └── eventBus.js        # Pub/sub event system
+│
+├── utils/                 # Utilities
+│   ├── worldCompressor.js # State serialization
+│   └── gameContextCompressor.js # Context for LLM
+│
+└── map_generators/        # Alternative generators
+    └── cellular_automata.js # Cave generation via CA
 
 styles/                    # CSS
 index.html                 # Entry point
-main.js                    # Initialization and game loop
+src/main.js               # Initialization and game loop
 ```
 
 ---
@@ -333,6 +363,27 @@ Dwarves use a **priority-based task selection** system, not a behavior tree or s
 ```
 
 **Implementation**: `src/ai/dwarfAI.js` → `decide()` and `findNewTask()` functions
+
+### Movement System
+
+Dwarves navigate using **intelligent scent-based pathfinding** with multiple weighted factors:
+
+```
+Movement Weight Composition:
+├── Momentum (40%)      - Prefer continuing previous direction
+├── Scent gradient (30%)- Follow attractive scents (food)
+├── Social (25%)        - Approach/avoid other dwarves
+├── Exploration (20%)   - Explore unmapped areas
+└── Wander noise (15%)  - Random deviation for naturalism
+
+Scent System:
+├── Emitted from food sources with strength × radius decay
+├── Spreads outward with exponential decay
+├── Dwarves sample scent gradient in 8 directions
+└── Global decay: 2% per tick
+```
+
+**Implementation**: `src/sim/movement.js`
 
 ### Dwarf States
 
@@ -515,12 +566,29 @@ src/map/noise.js
 └─ Warped Noise     - Organic distortion
 ```
 
-### Biome Color Modifiers
+### Biome Color System
 
-Each biome can shift tile colors via HSL adjustments:
-- `hue`: -30 to +30 (blue shift for cold, orange for hot)
-- `saturation`: -30 to +30 (desaturated for dry, vivid for wet)
-- `brightness`: -30 to +30 (darker for forests, brighter for deserts)
+Each biome applies HSL color modifiers to the base tile palette, creating unique visual themes:
+
+```
+Color Modification Pipeline:
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ Base Tile   │ ──► │ HSL Convert │ ──► │ Apply Mods  │ ──► Final Color
+│ (hex colors)│     │             │     │ (hue/sat/lt)│
+└─────────────┘     └─────────────┘     └─────────────┘
+
+Modifier Ranges (-30 to +30):
+├── Hue:        Blue shift (cold) ◄──► Orange shift (hot)
+├── Saturation: Desaturated (dry) ◄──► Vivid (wet)
+└── Brightness: Darker (forests)  ◄──► Brighter (deserts)
+```
+
+**27 Preset Biomes** organized by climate signature (temperature × moisture × elevation):
+- Cold: Arctic Tundra, Frozen Alpine Peaks, Boreal Taiga, etc.
+- Temperate: Temperate Woodland, Alpine Meadow, Cloud Forest, etc.
+- Hot: Desert Wasteland, Tropical Rainforest, Volcanic Highlands, etc.
+
+**Implementation**: `src/llm/biomeGenerator.js`, `src/map/tiles.js` → `shiftColor()`
 
 ---
 
@@ -559,6 +627,115 @@ src/ui/renderer.js
 - **Biome Title** - Map name with color theming
 - **Controls** - Pause, speed, regenerate
 - **Game Assistant** - "Ask the Game" chat panel
+
+---
+
+## External Forces & Visitors
+
+### Visitor System
+
+External entities (humans, goblins, elves) visit based on world history and race relations:
+
+```
+Visitor Lifecycle:
+┌────────────┐     ┌────────────┐     ┌────────────┐     ┌────────────┐
+│  ARRIVING  │ ──► │  ACTIVE    │ ──► │  LEAVING   │ ──► │   GONE     │
+│ (map edge) │     │(trade/raid)│     │ (satisfied)│     │            │
+└────────────┘     └────────────┘     └────────────┘     └────────────┘
+                          │
+                          ▼
+                   ┌────────────┐
+                   │  FIGHTING  │ ◄──► FLEEING
+                   └────────────┘
+```
+
+### Races & Roles
+
+| Race | Roles | Typical Disposition |
+|------|-------|---------------------|
+| Human | Merchant, Caravan Guard, Diplomat | Neutral-Friendly |
+| Goblin | Scout, Raider | Hostile |
+| Elf | Scout, Missionary | Neutral |
+
+### World History
+
+Race relations are determined by procedurally generated historical events:
+
+- **WAR** (-30 relation) / **ALLIANCE** (+35)
+- **TRADE_AGREEMENT** (+15) / **BETRAYAL** (-40)
+- **RELIGIOUS_CONFLICT** (-20) / **CULTURAL_EXCHANGE** (+10)
+
+These affect visitor spawn rates and initial dispositions.
+
+**Implementation**: `src/sim/history.js`, `src/sim/visitorSpawner.js`, `src/ai/visitorAI.js`
+
+---
+
+## Scenario System
+
+### Pre-Built Scenarios
+
+The game includes **10 hand-crafted preset scenarios** with varying difficulty and terrain:
+
+| Scenario | Terrain | Difficulty | Description |
+|----------|---------|------------|-------------|
+| Mountain Stronghold | Biome | Harsh | Frozen peaks, scarce resources |
+| Verdant Valley | Biome | Peaceful | Abundant forest, thriving commune |
+| Cavern Delvers | Cave | Normal | Underground expedition |
+| Desert Nomads | Biome | Harsh | Arid waste survival |
+| The Last Colony | Mixed | Brutal | Post-disaster rebuilding |
+| Marshland Settlers | Biome | Normal | Wetland settlement |
+| Expedition Prime | Mixed | Normal | Exploration-focused |
+| Fungal Kingdom | Cave | Peaceful | Giant mushroom caves |
+| Frozen Depths | Cave | Harsh | Ice caverns |
+| River Crossing | Biome | Normal | Valley with central river |
+
+### Scenario Parameters
+
+Each scenario configures:
+
+```javascript
+{
+  terrain: 'biome' | 'mixed' | 'cave',
+  biomeEmphasis: 'mountain' | 'forest' | 'marsh' | 'desert' | 'balanced',
+  difficulty: 'peaceful' | 'normal' | 'harsh' | 'brutal',
+  mapWidth: 40-100,        // Grid cells
+  mapHeight: 16-40,        // Grid cells
+  dwarfCount: 3-20,        // Starting population
+  initialFood: 500-5000,   // Starting food amount
+  foodSources: 5-30,       // Food spawn points
+  hungerRate: 0.5-3.0,     // Hunger multiplier
+  foodRespawnRate: 0.5-2.0 // Food regeneration
+}
+```
+
+**Implementation**: `src/scenarios/presets.js`, `src/scenarios/scenarioSchema.js`
+
+### LLM Scenario Generation
+
+The "Flavor" button triggers LLM-based scenario generation:
+- Generates themed scenarios (mountain survival, valley commune, cave expedition, etc.)
+- Returns valid JSON with title, description, parameters, and victory conditions
+- Falls back to preset scenarios if LLM unavailable
+
+**Implementation**: `src/llm/scenarioGenerator.js`, `src/llm/prompts/scenarios.js`
+
+### Session Color Palette
+
+Each page load generates a unique **duotone complementary HSL palette**:
+
+```
+Palette Structure:
+├── Primary     - Base hue, moderate saturation
+├── Secondary   - Complementary hue (180° opposite)
+├── Tertiary    - Analogous hue (+30°)
+├── Quaternary  - Triadic offset (+60°)
+└── Quinary     - Complement analogous (complement +30°)
+```
+
+The palette influences biome color modifiers for unique visual themes on every session.
+
+**Implementation**: `src/llm/scenarioGenerator.js` → `generateDuotonePalette()`, `paletteToBiomeColorMod()`
 
 ---
 

@@ -24,7 +24,10 @@ import { ENTITY_CHAT_STARTERS } from '../llm/prompts/entityChat.js';
  * @returns {object} Panel controller with show(), hide(), update()
  */
 export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
-  // Create panel element - positioned relative to cursor
+  // Mobile breakpoint
+  const MOBILE_BREAKPOINT = 728;
+
+  // Create panel element - positioned relative to cursor (or fixed on mobile)
   const panelEl = document.createElement('div');
   panelEl.className = 'stat-panel';
   panelEl.style.cssText = `
@@ -46,6 +49,28 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     transition: transform 320ms ease-in-out, opacity 200ms ease;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   `;
+
+  // Mobile-specific positioning - use fixed position for full visibility
+  function applyMobileStyles() {
+    if (window.innerWidth <= MOBILE_BREAKPOINT) {
+      panelEl.style.position = 'fixed';
+      panelEl.style.left = '50%';
+      panelEl.style.top = '50%';
+      panelEl.style.transform = 'translate(-50%, -50%)';
+      panelEl.style.width = 'calc(100vw - 32px)';
+      panelEl.style.maxWidth = '320px';
+      panelEl.style.maxHeight = 'calc(100vh - 100px)';
+    } else {
+      panelEl.style.position = 'absolute';
+      panelEl.style.width = '260px';
+      panelEl.style.maxWidth = '';
+      panelEl.style.maxHeight = '400px';
+    }
+  }
+
+  // Apply on resize
+  window.addEventListener('resize', applyMobileStyles);
+  applyMobileStyles();
 
   containerEl.appendChild(panelEl);
 
@@ -213,13 +238,28 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
     return `
       <div style="padding: 12px;">
-        <!-- Header -->
+        <!-- Header with close button -->
         <div style="display: flex; align-items: center; margin-bottom: 8px;">
           <span style="font-size: 24px; color: #ff0; margin-right: 8px;">🧌</span>
-          <div>
+          <div style="flex: 1;">
             <div style="font-size: 15px; font-weight: bold; color: #fff;">${stats.generatedName || stats.name}</div>
             <div style="font-size: 10px; color: #666;">Dwarf #${stats.id}</div>
           </div>
+          <button class="panel-close-btn" style="
+            background: rgba(100, 100, 120, 0.3);
+            border: 1px solid rgba(100, 100, 120, 0.5);
+            border-radius: 4px;
+            color: #888;
+            font-size: 16px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background 0.15s, color 0.15s;
+          " title="Close">×</button>
         </div>
 
         ${bioSection}
@@ -251,10 +291,6 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
         
 
-        <!-- Close hint -->
-        <div style="margin-top: 8px; text-align: center; color: #666; font-size: 10px;">
-          Click elsewhere to close
-        </div>
       </div>
     `;
   }
@@ -267,10 +303,25 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
       <div style="padding: 12px;">
         <div style="display: flex; align-items: center; margin-bottom: 12px;">
           <span style="font-size: 24px; color: #32cd32; margin-right: 8px;">%</span>
-          <div>
+          <div style="flex: 1;">
             <div style="font-size: 16px; font-weight: bold; color: #fff;">Food Source</div>
             <div style="font-size: 11px; color: #888;">ID ${stats.id}</div>
           </div>
+          <button class="panel-close-btn" style="
+            background: rgba(100, 100, 120, 0.3);
+            border: 1px solid rgba(100, 100, 120, 0.5);
+            border-radius: 4px;
+            color: #888;
+            font-size: 16px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background 0.15s, color 0.15s;
+          " title="Close">×</button>
         </div>
 
         <div style="margin: 8px 0;">
@@ -313,13 +364,28 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
     return `
       <div style="padding: 12px;">
-        <!-- Header -->
+        <!-- Header with close button -->
         <div style="display: flex; align-items: center; margin-bottom: 8px;">
           <span style="font-size: 20px; margin-right: 8px;">${getRaceEmoji(stats.race)}</span>
-          <div>
+          <div style="flex: 1;">
             <div style="font-size: 15px; font-weight: bold; color: #fff;">${stats.name}</div>
             <div style="font-size: 10px; color: #666;">${stats.race} ${stats.role} #${stats.id}</div>
           </div>
+          <button class="panel-close-btn" style="
+            background: rgba(100, 100, 120, 0.3);
+            border: 1px solid rgba(100, 100, 120, 0.5);
+            border-radius: 4px;
+            color: #888;
+            font-size: 16px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background 0.15s, color 0.15s;
+          " title="Close">×</button>
         </div>
 
         ${bioSection}
@@ -353,11 +419,6 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
         <!-- Chat button -->
         ${renderChatButton(stats.race?.toLowerCase() || 'visitor')}
-
-        <!-- Close hint -->
-        <div style="margin-top: 8px; text-align: center; color: #666; font-size: 10px;">
-          Click elsewhere to close
-        </div>
       </div>
     `;
   }
@@ -389,10 +450,25 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
       <div style="padding: 12px;">
         <div style="display: flex; align-items: center; margin-bottom: 12px;">
           <span style="font-size: 24px; color: ${tileFg}; background: ${tileBg}; padding: 4px 8px; border-radius: 4px; margin-right: 8px;">${tileChar}</span>
-          <div>
+          <div style="flex: 1;">
             <div style="font-size: 16px; font-weight: bold; color: #fff;">${formatTileName(tile.type)}</div>
             <div style="font-size: 11px; color: #888;">(${x}, ${y})</div>
           </div>
+          <button class="panel-close-btn" style="
+            background: rgba(100, 100, 120, 0.3);
+            border: 1px solid rgba(100, 100, 120, 0.5);
+            border-radius: 4px;
+            color: #888;
+            font-size: 16px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background 0.15s, color 0.15s;
+          " title="Close">×</button>
         </div>
 
         <div style="margin: 8px 0; color: #888;">
@@ -565,6 +641,31 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  /**
+   * Wire up close button handler
+   * @param {Function} onClose - Callback when close is clicked
+   */
+  function wireUpCloseButton(onClose) {
+    const closeBtn = panelEl.querySelector('.panel-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClose();
+      });
+      // Hover effect
+      closeBtn.addEventListener('mouseenter', () => {
+        closeBtn.style.background = 'rgba(255, 100, 100, 0.3)';
+        closeBtn.style.color = '#ff6666';
+        closeBtn.style.borderColor = 'rgba(255, 100, 100, 0.5)';
+      });
+      closeBtn.addEventListener('mouseleave', () => {
+        closeBtn.style.background = 'rgba(100, 100, 120, 0.3)';
+        closeBtn.style.color = '#888';
+        closeBtn.style.borderColor = 'rgba(100, 100, 120, 0.5)';
+      });
+    }
   }
 
   /**
@@ -743,8 +844,13 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         renderCurrentView();
       }
 
-      // Position panel near the clicked cell
-      positionPanel(x, y);
+      // Wire up close button for all panel types
+      wireUpCloseButton(() => this.hide());
+
+      // Position panel near the clicked cell (unless mobile - centered)
+      if (window.innerWidth > MOBILE_BREAKPOINT) {
+        positionPanel(x, y);
+      }
 
       panelEl.style.opacity = '1';
       panelEl.style.pointerEvents = 'auto';

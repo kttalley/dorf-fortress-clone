@@ -11,12 +11,20 @@ const activeBubbles = new Map();  // id -> { element, dwarf, type, expiry }
 const THOUGHT_DURATION = 4000;
 const SPEECH_DURATION = 5000;
 const MAX_SIDEBAR_THOUGHTS = 6;
+const MOBILE_BREAKPOINT = 728;
 
 let containerEl = null;
 let rendererEl = null;
 let sidebarEl = null;
 let cellWidth = 0;
 let cellHeight = 0;
+
+/**
+ * Check if we're on mobile
+ */
+function isMobile() {
+  return window.innerWidth <= MOBILE_BREAKPOINT;
+}
 
 /**
  * Initialize the speech bubble system
@@ -198,12 +206,29 @@ function createBubble(dwarf, text, type, target = null) {
 
 /**
  * Position a bubble relative to a dwarf
+ * On mobile, bubbles are positioned at top of screen for visibility
  * @param {HTMLElement} bubble
  * @param {object} dwarf
  * @param {string} type
  */
 function positionBubble(bubble, dwarf, type) {
   if (!rendererEl || !containerEl) return;
+
+  // On mobile, use fixed positioning at top of viewport
+  if (isMobile()) {
+    bubble.style.position = 'fixed';
+    bubble.style.left = '50%';
+    bubble.style.transform = 'translateX(-50%)';
+    bubble.style.top = '60px';  // Below biome title
+    bubble.style.maxWidth = 'calc(100vw - 32px)';
+    bubble.style.width = 'auto';
+    bubble.style.zIndex = '500';
+    return;
+  }
+
+  // Desktop positioning - relative to dwarf
+  bubble.style.position = 'absolute';
+  bubble.style.transform = 'none';
 
   const gridRect = rendererEl.getBoundingClientRect();
   const containerRect = containerEl.getBoundingClientRect();
@@ -220,7 +245,11 @@ function positionBubble(bubble, dwarf, type) {
   const bubbleX = offsetX + dwarfPixelX - 10;
   const bubbleY = offsetY + dwarfPixelY - 60;
 
-  bubble.style.left = `${Math.max(5, bubbleX)}px`;
+  // Ensure bubble stays within viewport
+  const bubbleWidth = bubble.offsetWidth || 200;
+  const maxX = containerRect.width - bubbleWidth - 5;
+
+  bubble.style.left = `${Math.max(5, Math.min(maxX, bubbleX))}px`;
   bubble.style.top = `${Math.max(5, bubbleY)}px`;
 }
 
@@ -300,7 +329,6 @@ export function injectBubbleStyles() {
 // ============================================================
 
 let isMinimized = false;
-const MOBILE_BREAKPOINT = 728;
 
 /**
  * Initialize the floating thought panel widget
@@ -435,21 +463,25 @@ function toggleMinimize() {
 function checkMobileBreakpoint() {
   if (!sidebarEl) return;
 
-  const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+  const mobile = window.innerWidth <= MOBILE_BREAKPOINT;
 
-  if (isMobile && !isMinimized) {
+  if (mobile && !isMinimized) {
     toggleMinimize();
   }
 
-  // Adjust width on mobile
-  if (isMobile) {
-    sidebarEl.style.width = '220px';
+  // Adjust position and width on mobile for full visibility
+  if (mobile) {
+    sidebarEl.style.width = 'calc(100vw - 16px)';
+    sidebarEl.style.maxWidth = '320px';
     sidebarEl.style.right = '8px';
     sidebarEl.style.top = '8px';
+    sidebarEl.style.left = 'auto';
   } else {
     sidebarEl.style.width = '280px';
+    sidebarEl.style.maxWidth = '';
     sidebarEl.style.right = '10px';
     sidebarEl.style.top = '10px';
+    sidebarEl.style.left = 'auto';
   }
 }
 
