@@ -45,8 +45,7 @@ let currentScenario = null;
 
 // Map generation modes
 const MAP_MODES = ['biome', 'mixed', 'cave'];
-let currentMapMode = Math.floor(Math.random() * MAP_MODES.length);
-
+let currentMapMode = 4;
 
 let tickInterval = SPEED_LEVELS[0];
 let speedIndex = 0;

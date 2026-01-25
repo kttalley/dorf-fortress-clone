@@ -465,16 +465,19 @@ function toggleMinimize() {
 }
 
 /**
- * Apply mobile styling based on breakpoint and minimized state
- * Called after manual toggle and on resize
+ * Check mobile breakpoint and auto-collapse
  */
-function applyMobileStyles() {
+function checkMobileBreakpoint() {
   if (!sidebarEl) return;
 
   const mobile = window.innerWidth <= MOBILE_BREAKPOINT;
   const header = sidebarEl.querySelector('div');
   const title = header?.querySelector('div');
   const minimizeBtn = sidebarEl.querySelector('#thought-minimize-btn');
+
+  if (mobile && !isMinimized) {
+    toggleMinimize();
+  }
 
   // Adjust for mobile: icon-only round button when collapsed
   if (mobile) {
@@ -542,22 +545,6 @@ function applyMobileStyles() {
     }
     if (minimizeBtn) minimizeBtn.style.display = 'flex';
   }
-}
-
-/**
- * Check mobile breakpoint and auto-collapse only on resize
- */
-function checkMobileBreakpoint() {
-  if (!sidebarEl) return;
-
-  const mobile = window.innerWidth <= MOBILE_BREAKPOINT;
-
-  // Only auto-collapse if we're on mobile and currently expanded
-  if (mobile && !isMinimized) {
-    isMinimized = true;
-  }
-
-  applyMobileStyles();
 }
 
 /**

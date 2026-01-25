@@ -253,16 +253,19 @@ function toggleEventLogMinimize() {
 }
 
 /**
- * Apply mobile styling based on breakpoint and minimized state
- * Called after manual toggle and on resize
+ * Check mobile breakpoint and auto-collapse
  */
-function applyEventLogMobileStyles() {
+function checkEventLogMobileBreakpoint() {
   if (!eventLogEl) return;
 
   const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
   const header = eventLogEl.querySelector('div');
   const title = header?.querySelector('div');
   const minimizeBtn = eventLogEl.querySelector('#event-log-minimize-btn');
+
+  if (isMobile && !eventLogMinimized) {
+    toggleEventLogMinimize();
+  }
 
   // Adjust for mobile: icon-only round button when collapsed
   if (isMobile) {
@@ -324,22 +327,6 @@ function applyEventLogMobileStyles() {
     }
     if (minimizeBtn) minimizeBtn.style.display = 'flex';
   }
-}
-
-/**
- * Check mobile breakpoint and auto-collapse only on resize
- */
-function checkEventLogMobileBreakpoint() {
-  if (!eventLogEl) return;
-
-  const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
-
-  // Only auto-collapse if we're on mobile and currently expanded
-  if (isMobile && !eventLogMinimized) {
-    eventLogMinimized = true;
-  }
-
-  applyEventLogMobileStyles();
 }
 
 /**

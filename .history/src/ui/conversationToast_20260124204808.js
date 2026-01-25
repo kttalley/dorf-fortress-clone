@@ -137,93 +137,27 @@ function injectConversationStyles() {
 }
 
 /**
- * Apply mobile styling based on breakpoint and minimized state
- * Called after manual toggle and on resize
- */
-function applyMobileStyles() {
-  if (!conversationContainer) return;
-
-  const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
-  const header = conversationContainer.querySelector('div');
-  const title = header?.querySelector('div');
-  const minimizeBtn = conversationContainer.querySelector('#conversation-minimize-btn');
-
-  // Adjust for mobile: icon-only round button when collapsed
-  if (isMobile) {
-    if (isMinimized) {
-      // Round icon-only button
-      conversationContainer.style.width = '44px';
-      conversationContainer.style.height = '44px';
-      conversationContainer.style.maxHeight = '44px';
-      conversationContainer.style.borderRadius = '50%';
-      conversationContainer.style.left = '8px';
-      conversationContainer.style.top = '50px';
-      if (header) {
-        header.style.padding = '10px';
-        header.style.justifyContent = 'center';
-        header.style.borderBottom = 'none';
-      }
-      if (title) {
-        title.innerHTML = '💬';
-        title.style.fontSize = '18px';
-        title.style.letterSpacing = '0';
-      }
-      if (minimizeBtn) minimizeBtn.style.display = 'none';
-    } else {
-      // Expanded on mobile
-      conversationContainer.style.width = '260px';
-      conversationContainer.style.height = 'auto';
-      conversationContainer.style.maxHeight = '280px';
-      conversationContainer.style.borderRadius = '8px';
-      conversationContainer.style.left = '8px';
-      conversationContainer.style.top = '45px';
-      if (header) {
-        header.style.padding = '10px 12px';
-        header.style.justifyContent = 'space-between';
-        header.style.borderBottom = '1px solid rgba(100, 100, 120, 0.3)';
-      }
-      if (title) {
-        title.innerHTML = '<span style="margin-right: 6px;">💬</span> Conversations';
-        title.style.fontSize = '12px';
-        title.style.letterSpacing = '1px';
-      }
-      if (minimizeBtn) minimizeBtn.style.display = 'flex';
-    }
-  } else {
-    // Desktop: full width panel
-    conversationContainer.style.width = '280px';
-    conversationContainer.style.height = 'auto';
-    conversationContainer.style.borderRadius = '8px';
-    conversationContainer.style.left = '10px';
-    conversationContainer.style.top = '50px';
-    if (header) {
-      header.style.padding = '10px 12px';
-      header.style.justifyContent = 'space-between';
-      header.style.borderBottom = '1px solid rgba(100, 100, 120, 0.3)';
-    }
-    if (title) {
-      title.innerHTML = '<span style="margin-right: 6px;">💬</span> Conversations';
-      title.style.fontSize = '12px';
-      title.style.letterSpacing = '1px';
-    }
-    if (minimizeBtn) minimizeBtn.style.display = 'flex';
-  }
-}
-
-/**
- * Check mobile breakpoint and auto-collapse only on resize
+ * Check mobile breakpoint and auto-collapse
  */
 function checkMobileBreakpoint() {
   if (!conversationContainer) return;
 
   const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
 
-  // Only auto-collapse if we're on mobile and currently expanded
   if (isMobile && !isMinimized) {
-    isMinimized = true;
+    toggleMinimize();
   }
 
-  applyMobileStyles();
+  // Adjust width and position on mobile
+  if (isMobile) {
+    conversationContainer.style.width = '220px';
+    conversationContainer.style.left = '8px';
+    conversationContainer.style.top = '45px';
+  } else {
+    conversationContainer.style.width = '280px';
+    conversationContainer.style.left = '10px';
+    conversationContainer.style.top = '50px';
+  }
 }
 
 /**
@@ -239,24 +173,17 @@ function toggleMinimize() {
     // Expand
     contentContainer.style.display = 'block';
     conversationContainer.style.maxHeight = '280px';
-    if (minimizeButton) {
-      minimizeButton.textContent = '−';
-      minimizeButton.title = 'Minimize';
-    }
+    minimizeButton.textContent = '−';
+    minimizeButton.title = 'Minimize';
   } else {
     // Collapse
     contentContainer.style.display = 'none';
     conversationContainer.style.maxHeight = '44px';
-    if (minimizeButton) {
-      minimizeButton.textContent = '+';
-      minimizeButton.title = 'Expand';
-    }
+    minimizeButton.textContent = '+';
+    minimizeButton.title = 'Expand';
   }
 
   isMinimized = !isMinimized;
-
-  // Re-apply mobile styling after toggle (without auto-collapse)
-  applyMobileStyles();
 }
 
 /**

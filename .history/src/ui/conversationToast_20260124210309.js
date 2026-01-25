@@ -255,8 +255,8 @@ function toggleMinimize() {
 
   isMinimized = !isMinimized;
 
-  // Re-apply mobile styling after toggle (without auto-collapse)
-  applyMobileStyles();
+  // Re-apply mobile styling after toggle
+  checkMobileBreakpoint();
 }
 
 /**
