@@ -277,7 +277,7 @@ export function getLogDisplayStyles() {
       background: none;
       border: 1px solid #444;
       color: #666;
-      font-size: 13px;
+      font-size: 10px;
       padding: 0 4px;
       margin-left: 8px;
       cursor: pointer;
@@ -299,7 +299,7 @@ export function getLogDisplayStyles() {
     }
 
     .log-source-header {
-      font-size: 13px;
+      font-size: 10px;
       color: #666;
       margin-bottom: 4px;
     }

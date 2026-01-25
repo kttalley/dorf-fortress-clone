@@ -231,35 +231,19 @@ export function createRenderer(containerEl, width, height) {
           cell.style.color = fg;
           cell.style.backgroundColor = bg;
           
-          // Apply visual treatment based on entity type
-          if (entity && entity.scale && entity.scale > 1.0) {
-            cell.style.transform = `scale(${entity.scale})`;
+          // Apply special styling for dwarves
+          if (isDwarf) {
+            cell.style.transform = 'scale(1.75)';
             cell.style.fontWeight = 'bold';
             cell.style.zIndex = '100';
             
-            // Enhance shadow if speaking - highlight outline effect
-            if (isSpeaking && entity.shadow) {
-              // Outline-style highlight around speaking entities (semi-transparent)
-              cell.style.textShadow = `
-                -2px -2px 0 rgba(255, 255, 0, 0.5),
-                2px -2px 0 rgba(255, 255, 0, 0.5),
-                -2px 2px 0 rgba(255, 255, 0, 0.5),
-                2px 2px 0 rgba(255, 255, 0, 0.5),
-                -1px 0 0 rgba(255, 255, 0, 0.35),
-                1px 0 0 rgba(255, 255, 0, 0.35),
-                0 -1px 0 rgba(255, 255, 0, 0.35),
-                0 1px 0 rgba(255, 255, 0, 0.35)
-              `;
-              // Subtle drop shadow only
-              cell.style.filter = 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6))';
-              // Pulsing outline animation
-              cell.style.animation = 'pulse-outline 1.5s ease-in-out infinite';
-            } else if (entity.shadow) {
-              cell.style.textShadow = entity.shadow;
-              cell.style.animation = 'none';
-              if (entity.filter) {
-                cell.style.filter = entity.filter;
-              }
+            // If dwarf is speaking, add yellow cursor highlight
+            if (isSpeaking) {
+              cell.style.textShadow = '0 0 10px rgba(255, 255, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.8)';
+              cell.style.filter = 'drop-shadow(0 0 8px rgba(255, 255, 0, 0.6)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))';
+            } else {
+              cell.style.textShadow = '0 2px 4px rgba(0, 0, 0, 0.8), 0 0 6px rgba(255, 255, 0, 0.4)';
+              cell.style.filter = 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))';
             }
           } else {
             cell.style.transform = 'scale(1)';
@@ -267,7 +251,6 @@ export function createRenderer(containerEl, width, height) {
             cell.style.fontWeight = 'normal';
             cell.style.zIndex = 'auto';
             cell.style.filter = 'none';
-            cell.style.animation = 'none';
           }
           
           prevState[idx] = stateKey;

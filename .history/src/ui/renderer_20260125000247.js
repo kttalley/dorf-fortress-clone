@@ -237,23 +237,18 @@ export function createRenderer(containerEl, width, height) {
             cell.style.fontWeight = 'bold';
             cell.style.zIndex = '100';
             
-            // Enhance shadow if speaking - highlight outline effect
+            // Enhance shadow if speaking
             if (isSpeaking && entity.shadow) {
-              // Outline-style highlight around speaking entities (semi-transparent)
+              // Enhanced glow effect for speaking entities
               cell.style.textShadow = `
-                -2px -2px 0 rgba(255, 255, 0, 0.5),
-                2px -2px 0 rgba(255, 255, 0, 0.5),
-                -2px 2px 0 rgba(255, 255, 0, 0.5),
-                2px 2px 0 rgba(255, 255, 0, 0.5),
-                -1px 0 0 rgba(255, 255, 0, 0.35),
-                1px 0 0 rgba(255, 255, 0, 0.35),
-                0 -1px 0 rgba(255, 255, 0, 0.35),
-                0 1px 0 rgba(255, 255, 0, 0.35)
+                0 0 16px rgba(255, 255, 0, 0.6),
+                0 0 10px rgba(255, 255, 0, 0.4),
+                0 2px 4px rgba(0, 0, 0, 0.8)
               `;
-              // Subtle drop shadow only
-              cell.style.filter = 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6))';
-              // Pulsing outline animation
-              cell.style.animation = 'pulse-outline 1.5s ease-in-out infinite';
+              // Enhanced drop shadow
+              cell.style.filter = 'drop-shadow(0 0 10px rgba(255, 255, 0, 0.5)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6))';
+              // Gentle pulsing animation
+              cell.style.animation = 'pulse-speak 1.5s ease-in-out infinite';
             } else if (entity.shadow) {
               cell.style.textShadow = entity.shadow;
               cell.style.animation = 'none';

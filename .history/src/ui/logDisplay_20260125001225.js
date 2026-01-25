@@ -299,7 +299,7 @@ export function getLogDisplayStyles() {
     }
 
     .log-source-header {
-      font-size: 13px;
+      font-size: 10px;
       color: #666;
       margin-bottom: 4px;
     }

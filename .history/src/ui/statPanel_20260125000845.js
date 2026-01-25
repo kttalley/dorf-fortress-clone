@@ -87,24 +87,14 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
   let chatLoading = false;
 
   /**
-   * Hide the panel (internal function used by event handlers)
-   */
-  function hide() {
-    panelEl.style.opacity = '0';
-    // Delay pointer-events until fade completes (200ms per CSS transition)
-    setTimeout(() => {
-      panelEl.style.pointerEvents = 'none';
-    }, 210);
-    currentEntity = null;
-    currentType = null;
-    chatMode = false;
-    chatLoading = false;
-  }
-
-  /**
    * Event delegation handler for panel clicks
    */
   function handlePanelClick(e) {
+    // Ignore clicks if panel is hidden or not interactive
+    if (panelEl.style.pointerEvents === 'none' || panelEl.style.opacity === '0') {
+      return;
+    }
+
     const closeBtn = e.target.closest('.panel-close-btn');
     if (closeBtn) {
       e.stopPropagation();
@@ -163,8 +153,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     }
   }
 
-  // Attach event delegation listener (bubbling phase for proper event delegation)
-  panelEl.addEventListener('click', handlePanelClick);
+  // Attach event delegation listener with capture phase for better reliability
+  panelEl.addEventListener('click', handlePanelClick, true);
 
   /**
    * Handle keydown in chat input
@@ -294,7 +284,10 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         display: inline-block;
         background: rgba(100, 100, 120, 0.3);
         border: 1px solid rgba(100, 100, 120, 0.5);
-        font-size: 13px;
+        border-radius: 3px;
+        padding: 2px 6px;
+        margin: 2px;
+        font-size: 10px;
       ">${t}</span>`
     ).join('');
 
@@ -317,7 +310,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     let bioSection = '';
     if (stats.bio) {
       bioSection = `
-        <div style="margin: 8px 0; padding: 8px; background: rgba(40, 35, 30, 0.6); border-left: 2px solid #887755; font-style: italic; color: #aa9977; font-size: 14px;">
+        <div style="margin: 8px 0; padding: 8px; background: rgba(40, 35, 30, 0.6); border-left: 2px solid #887755; font-style: italic; color: #aa9977; font-size: 11px;">
           ${stats.bio}
         </div>
       `;
@@ -335,7 +328,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     let relationshipSection = '';
     if (stats.relationshipCount > 0) {
       relationshipSection = `
-        <div style="margin-top: 8px; color: #888; font-size: 14px;">
+        <div style="margin-top: 8px; color: #888; font-size: 11px;">
           Knows ${stats.relationshipCount} dwarf${stats.relationshipCount > 1 ? 's' : ''}
           ${stats.bestFriend ? ` (closest: ID ${stats.bestFriend.id})` : ''}
         </div>
@@ -348,8 +341,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         <div style="display: flex; align-items: center; margin-bottom: 8px;">
           <span style="font-size: 24px; color: #ff0; margin-right: 8px;">🧌</span>
           <div style="flex: 1;">
-            <div style="font-size: 18px; font-weight: bold; color: #fff;">${stats.generatedName || stats.name}</div>
-            <div style="font-size: 13px; color: #666;">Dwarf #${stats.id}</div>
+            <div style="font-size: 15px; font-weight: bold; color: #fff;">${stats.generatedName || stats.name}</div>
+            <div style="font-size: 10px; color: #666;">Dwarf #${stats.id}</div>
           </div>
           <button class="panel-close-btn" style="
             background: rgba(100, 100, 120, 0.3);
@@ -378,10 +371,10 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
           <span style="color: #4aff9e; margin-left: 4px;">${stats.state}</span>
         </div>
 
+        ${thoughtSection}
+
         <!-- Chat button -->
         ${renderChatButton('dwarf')}
-
-        ${thoughtSection}
 
         <!-- Vitals -->
         <div style="margin-top: 12px;">
@@ -410,8 +403,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         <div style="display: flex; align-items: center; margin-bottom: 12px;">
           <span style="font-size: 24px; color: #32cd32; margin-right: 8px;">%</span>
           <div style="flex: 1;">
-            <div style="font-size: 19px; font-weight: bold; color: #fff;">Food Source</div>
-            <div style="font-size: 14px; color: #888;">ID ${stats.id}</div>
+            <div style="font-size: 16px; font-weight: bold; color: #fff;">Food Source</div>
+            <div style="font-size: 11px; color: #888;">ID ${stats.id}</div>
           </div>
           <button class="panel-close-btn" style="
             background: rgba(100, 100, 120, 0.3);
@@ -432,10 +425,10 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
         <div style="margin: 8px 0;">
           <span style="color: #888;">Servings remaining:</span>
-          <span style="color: #4aff4a; font-size: 21px; margin-left: 8px;">${stats.amount}</span>
+          <span style="color: #4aff4a; font-size: 18px; margin-left: 8px;">${stats.amount}</span>
         </div>
 
-        <div style="color: #666; font-size: 14px; margin-top: 8px;">
+        <div style="color: #666; font-size: 11px; margin-top: 8px;">
           Position: (${stats.position.x}, ${stats.position.y})
         </div>
       </div>
@@ -462,7 +455,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     let bioSection = '';
     if (stats.bio) {
       bioSection = `
-        <div style="margin: 8px 0; padding: 8px; background: rgba(40, 35, 30, 0.6); border-left: 2px solid #887755; font-style: italic; color: #aa9977; font-size: 14px;">
+        <div style="margin: 8px 0; padding: 8px; background: rgba(40, 35, 30, 0.6); border-left: 2px solid #887755; font-style: italic; color: #aa9977; font-size: 11px;">
           ${stats.bio}
         </div>
       `;
@@ -474,8 +467,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         <div style="display: flex; align-items: center; margin-bottom: 8px;">
           <span style="font-size: 20px; margin-right: 8px;">${getRaceEmoji(stats.race)}</span>
           <div style="flex: 1;">
-            <div style="font-size: 18px; font-weight: bold; color: #fff;">${stats.name}</div>
-            <div style="font-size: 13px; color: #666;">${stats.race} ${stats.role} #${stats.id}</div>
+            <div style="font-size: 15px; font-weight: bold; color: #fff;">${stats.name}</div>
+            <div style="font-size: 10px; color: #666;">${stats.race} ${stats.role} #${stats.id}</div>
           </div>
           <button class="panel-close-btn" style="
             background: rgba(100, 100, 120, 0.3);
@@ -512,7 +505,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         <div style="margin-top: 12px;">
           <div style="color: #aaa; margin-bottom: 6px; font-weight: bold;">Combat</div>
           ${createStatBar('HP', stats.hp, stats.maxHp, stats.hpPercent > 50 ? '#4aff4a' : stats.hpPercent > 25 ? '#ffff4a' : '#ff4a4a')}
-          <div style="margin: 4px 0; color: #888; font-size: 14px;">Damage: <span style="color: #ffaa66;">${stats.damage}</span></div>
+          <div style="margin: 4px 0; color: #888; font-size: 11px;">Damage: <span style="color: #ffaa66;">${stats.damage}</span></div>
         </div>
 
         <!-- Goal Progress -->
@@ -557,8 +550,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         <div style="display: flex; align-items: center; margin-bottom: 12px;">
           <span style="font-size: 24px; color: ${tileFg}; background: ${tileBg}; padding: 4px 8px; border-radius: 4px; margin-right: 8px;">${tileChar}</span>
           <div style="flex: 1;">
-            <div style="font-size: 19px; font-weight: bold; color: #fff;">${formatTileName(tile.type)}</div>
-            <div style="font-size: 14px; color: #888;">(${x}, ${y})</div>
+            <div style="font-size: 16px; font-weight: bold; color: #fff;">${formatTileName(tile.type)}</div>
+            <div style="font-size: 11px; color: #888;">(${x}, ${y})</div>
           </div>
           <button class="panel-close-btn" style="
             background: rgba(100, 100, 120, 0.3);
@@ -600,7 +593,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         border-radius: 4px;
         color: #4a9eff;
         font-family: inherit;
-        font-size: 14px;
+        font-size: 11px;
         cursor: pointer;
         transition: background 150ms;
       ">Chat with this ${entityType}</button>
@@ -619,7 +612,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     if (history.length === 0) {
       // Show conversation starters
       messagesHtml = `
-        <div style="color: #666; font-size: 13px; margin-bottom: 8px;">Conversation starters:</div>
+        <div style="color: #666; font-size: 10px; margin-bottom: 8px;">Conversation starters:</div>
         ${starters.slice(0, 3).map(s => `
           <button class="chat-starter" style="
             display: block;
@@ -632,7 +625,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
             margin: 4px 0;
             color: #aaa;
             font-family: inherit;
-            font-size: 13px;
+            font-size: 10px;
             cursor: pointer;
           ">${s}</button>
         `).join('')}
@@ -648,10 +641,10 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
             ? 'background: rgba(74, 158, 255, 0.15); border: 1px solid rgba(74, 158, 255, 0.3); margin-left: 16px;'
             : 'background: rgba(74, 255, 158, 0.1); border: 1px solid rgba(74, 255, 158, 0.3); margin-right: 16px;'}
         ">
-          <div style="font-size: 12px; color: ${msg.role === 'user' ? '#4a9eff' : '#4aff9e'}; margin-bottom: 3px;">
+          <div style="font-size: 9px; color: ${msg.role === 'user' ? '#4a9eff' : '#4aff9e'}; margin-bottom: 3px;">
             ${msg.role === 'user' ? 'You' : name}
           </div>
-          <div style="font-size: 14px; line-height: 1.4;">${escapeHtml(msg.content)}</div>
+          <div style="font-size: 11px; line-height: 1.4;">${escapeHtml(msg.content)}</div>
         </div>
       `).join('');
     }
@@ -667,11 +660,11 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
             padding: 4px 8px;
             color: #888;
             font-family: inherit;
-            font-size: 14px;
+            font-size: 11px;
             cursor: pointer;
           ">< Back</button>
           <div style="flex: 1;">
-            <div style="font-size: 19px; font-weight: bold; color: #fff;">Chat with ${name}</div>
+            <div style="font-size: 13px; font-weight: bold; color: #fff;">Chat with ${name}</div>
           </div>
           ${history.length > 0 ? `
             <button class="chat-clear-btn" style="
@@ -681,7 +674,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
               padding: 4px 6px;
               color: #ff6666;
               font-family: inherit;
-              font-size: 15px;
+              font-size: 9px;
               cursor: pointer;
             ">Clear</button>
           ` : ''}
@@ -703,7 +696,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
           text-align: center;
           padding: 8px;
           color: #888;
-          font-size: 14px;
+          font-size: 11px;
         ">
           <span style="animation: pulse 1s infinite;">${name} is thinking...</span>
         </div>
@@ -718,7 +711,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
             padding: 8px;
             color: #ddd;
             font-family: inherit;
-            font-size: 14px;
+            font-size: 11px;
             outline: none;
           " />
           <button class="chat-send-btn" style="
@@ -728,12 +721,12 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
             padding: 8px 12px;
             color: #4a9eff;
             font-family: inherit;
-            font-size: 14px;
+            font-size: 11px;
             cursor: pointer;
           ">Send</button>
         </div>
 
-        <div style="margin-top: 6px; font-size: 12px; color: #555; text-align: center;">
+        <div style="margin-top: 6px; font-size: 9px; color: #555; text-align: center;">
           Roleplay conversation - responses reflect personality
         </div>
       </div>
@@ -877,7 +870,12 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
      * Hide the panel
      */
     hide() {
-      hide();
+      panelEl.style.opacity = '0';
+      panelEl.style.pointerEvents = 'none';
+      currentEntity = null;
+      currentType = null;
+      chatMode = false;
+      chatLoading = false;
     },
 
     /**

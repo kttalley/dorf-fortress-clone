@@ -1,0 +1,39 @@
+/* Tailwind placeholder - inline styles used for MVP */
+/* Add Tailwind build step in v0.2 if needed */
+
+/* Pulse animation for speaking entities - outline style */
+@keyframes pulse-outline {
+  0% {
+    text-shadow: 
+      -2px -2px 0 rgba(255, 255, 0, 0.7),
+      2px -2px 0 rgba(255, 255, 0, 0.7),
+      -2px 2px 0 rgba(255, 255, 0, 0.7),
+      2px 2px 0 rgba(255, 255, 0, 0.7),
+      -1px 0 0 rgba(255, 255, 0, 0.5),
+      1px 0 0 rgba(255, 255, 0, 0.5),
+      0 -1px 0 rgba(255, 255, 0, 0.5),
+      0 1px 0 rgba(255, 255, 0, 0.5);
+  }
+  50% {
+    text-shadow: 
+      -2px -2px 0 rgba(255, 255, 0, 0.9),
+      2px -2px 0 rgba(255, 255, 0, 0.9),
+      -2px 2px 0 rgba(255, 255, 0, 0.9),
+      2px 2px 0 rgba(255, 255, 0, 0.9),
+      -1px 0 0 rgba(255, 255, 0, 0.7),
+      1px 0 0 rgba(255, 255, 0, 0.7),
+      0 -1px 0 rgba(255, 255, 0, 0.7),
+      0 1px 0 rgba(255, 255, 0, 0.7);
+  }
+  100% {
+    text-shadow: 
+      -2px -2px 0 rgba(255, 255, 0, 0.7),
+      2px -2px 0 rgba(255, 255, 0, 0.7),
+      -2px 2px 0 rgba(255, 255, 0, 0.7),
+      2px 2px 0 rgba(255, 255, 0, 0.7),
+      -1px 0 0 rgba(255, 255, 0, 0.5),
+      1px 0 0 rgba(255, 255, 0, 0.5),
+      0 -1px 0 rgba(255, 255, 0, 0.5),
+      0 1px 0 rgba(255, 255, 0, 0.5);
+  }
+}

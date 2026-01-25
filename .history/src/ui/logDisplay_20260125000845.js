@@ -223,7 +223,7 @@ export function getLogDisplayStyles() {
   return `
     .log-display {
       font-family: monospace;
-      font-size: 14px;
+      font-size: 15px;
       line-height: 1.4;
       overflow-y: auto;
       padding: 8px;
@@ -232,7 +232,7 @@ export function getLogDisplayStyles() {
     }
 
     .log-mode-indicator {
-      font-size: 13px;
+      font-size: 10px;
       color: #666;
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -277,7 +277,7 @@ export function getLogDisplayStyles() {
       background: none;
       border: 1px solid #444;
       color: #666;
-      font-size: 13px;
+      font-size: 10px;
       padding: 0 4px;
       margin-left: 8px;
       cursor: pointer;
@@ -299,7 +299,7 @@ export function getLogDisplayStyles() {
     }
 
     .log-source-header {
-      font-size: 13px;
+      font-size: 10px;
       color: #666;
       margin-bottom: 4px;
     }
@@ -318,7 +318,7 @@ export function getLogDisplayStyles() {
       align-items: center;
       gap: 6px;
       cursor: pointer;
-      font-size: 17px;
+      font-size: 14px;
       color: #888;
     }
 

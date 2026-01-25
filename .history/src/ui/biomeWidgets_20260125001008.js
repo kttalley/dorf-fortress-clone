@@ -174,7 +174,7 @@ export function initEventLog() {
     border: 1px solid rgba(100, 100, 120, 0.5);
     border-radius: 4px;
     color: #88aacc;
-    font-size: 17px;
+    font-size: 14px;
     width: 24px;
     height: 24px;
     cursor: pointer;
@@ -300,7 +300,7 @@ function applyEventLogMobileStyles() {
       }
       if (title) {
         title.innerHTML = '<span style="margin-right: 6px;">📜</span> Event Log';
-        title.style.fontSize = '15px';
+        title.style.fontSize = '12px';
         title.style.letterSpacing = '1px';
       }
       if (minimizeBtn) minimizeBtn.style.display = 'flex';
@@ -387,7 +387,7 @@ export function updateEventLog(state) {
     const tickEl = document.createElement('span');
     tickEl.style.cssText = `
       color: #666677;
-      font-size: 15px;
+      font-size: 9px;
       margin-right: 6px;
     `;
     tickEl.textContent = `[${log.tick}]`;

@@ -87,21 +87,6 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
   let chatLoading = false;
 
   /**
-   * Hide the panel (internal function used by event handlers)
-   */
-  function hide() {
-    panelEl.style.opacity = '0';
-    // Delay pointer-events until fade completes (200ms per CSS transition)
-    setTimeout(() => {
-      panelEl.style.pointerEvents = 'none';
-    }, 210);
-    currentEntity = null;
-    currentType = null;
-    chatMode = false;
-    chatLoading = false;
-  }
-
-  /**
    * Event delegation handler for panel clicks
    */
   function handlePanelClick(e) {
@@ -163,8 +148,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     }
   }
 
-  // Attach event delegation listener (bubbling phase for proper event delegation)
-  panelEl.addEventListener('click', handlePanelClick);
+  // Attach event delegation listener with capture phase for better reliability
+  panelEl.addEventListener('click', handlePanelClick, true);
 
   /**
    * Handle keydown in chat input
@@ -877,7 +862,15 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
      * Hide the panel
      */
     hide() {
-      hide();
+      panelEl.style.opacity = '0';
+      // Delay pointer-events until fade completes (200ms per CSS transition)
+      setTimeout(() => {
+        panelEl.style.pointerEvents = 'none';
+      }, 210);
+      currentEntity = null;
+      currentType = null;
+      chatMode = false;
+      chatLoading = false;
     },
 
     /**

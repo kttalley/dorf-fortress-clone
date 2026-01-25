@@ -87,24 +87,14 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
   let chatLoading = false;
 
   /**
-   * Hide the panel (internal function used by event handlers)
-   */
-  function hide() {
-    panelEl.style.opacity = '0';
-    // Delay pointer-events until fade completes (200ms per CSS transition)
-    setTimeout(() => {
-      panelEl.style.pointerEvents = 'none';
-    }, 210);
-    currentEntity = null;
-    currentType = null;
-    chatMode = false;
-    chatLoading = false;
-  }
-
-  /**
    * Event delegation handler for panel clicks
    */
   function handlePanelClick(e) {
+    // Ignore clicks if panel is hidden or not interactive
+    if (panelEl.style.pointerEvents === 'none' || panelEl.style.opacity === '0') {
+      return;
+    }
+
     const closeBtn = e.target.closest('.panel-close-btn');
     if (closeBtn) {
       e.stopPropagation();
@@ -163,8 +153,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     }
   }
 
-  // Attach event delegation listener (bubbling phase for proper event delegation)
-  panelEl.addEventListener('click', handlePanelClick);
+  // Attach event delegation listener with capture phase for better reliability
+  panelEl.addEventListener('click', handlePanelClick, true);
 
   /**
    * Handle keydown in chat input
@@ -378,10 +368,10 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
           <span style="color: #4aff9e; margin-left: 4px;">${stats.state}</span>
         </div>
 
+        ${thoughtSection}
+
         <!-- Chat button -->
         ${renderChatButton('dwarf')}
-
-        ${thoughtSection}
 
         <!-- Vitals -->
         <div style="margin-top: 12px;">
@@ -667,11 +657,11 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
             padding: 4px 8px;
             color: #888;
             font-family: inherit;
-            font-size: 14px;
+            font-size: 11px;
             cursor: pointer;
           ">< Back</button>
           <div style="flex: 1;">
-            <div style="font-size: 19px; font-weight: bold; color: #fff;">Chat with ${name}</div>
+            <div style="font-size: 16px; font-weight: bold; color: #fff;">Chat with ${name}</div>
           </div>
           ${history.length > 0 ? `
             <button class="chat-clear-btn" style="
@@ -681,7 +671,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
               padding: 4px 6px;
               color: #ff6666;
               font-family: inherit;
-              font-size: 15px;
+              font-size: 12px;
               cursor: pointer;
             ">Clear</button>
           ` : ''}
@@ -877,7 +867,12 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
      * Hide the panel
      */
     hide() {
-      hide();
+      panelEl.style.opacity = '0';
+      panelEl.style.pointerEvents = 'none';
+      currentEntity = null;
+      currentType = null;
+      chatMode = false;
+      chatLoading = false;
     },
 
     /**

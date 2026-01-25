@@ -285,7 +285,7 @@ export function addConversationMessage(message, type = 'speech', dwarf = null) {
       if (parts.length > 1) {
         const header = parts[0];
         const content = parts.slice(1).join(': ');
-        formattedMessage = `<div style="color: #cccc88; font-weight: bold; margin-bottom: 4px; font-size: 13px;">${header}</div><div style="color: #ddddaa;">${content}</div>`;
+        formattedMessage = `<div style="color: #cccc88; font-weight: bold; margin-bottom: 4px; font-size: 10px;">${header}</div><div style="color: #ddddaa;">${content}</div>`;
       } else {
         formattedMessage = message;
       }

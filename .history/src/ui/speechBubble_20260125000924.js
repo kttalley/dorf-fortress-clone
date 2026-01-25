@@ -231,7 +231,7 @@ function createBubble(dwarf, text, type, target = null) {
   const nameEl = document.createElement('div');
   nameEl.style.cssText = `
     font-weight: bold;
-    font-size: 13px;
+    font-size: 10px;
     color: ${isThought ? '#88aacc' : '#cccc88'};
     margin-bottom: 3px;
     text-transform: uppercase;
@@ -437,7 +437,7 @@ export function initSidebarThoughts() {
     border: 1px solid rgba(100, 100, 120, 0.5);
     border-radius: 8px;
     font-family: 'Courier New', monospace;
-    font-size: 14px;
+    font-size: 11px;
     color: #aabbdd;
     z-index: 600;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
@@ -461,7 +461,7 @@ export function initSidebarThoughts() {
   const title = document.createElement('div');
   title.style.cssText = `
     font-weight: bold;
-    font-size: 18px;
+    font-size: 15px;
     color: #88aacc;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -477,7 +477,7 @@ export function initSidebarThoughts() {
     border: 1px solid rgba(100, 100, 120, 0.5);
     border-radius: 4px;
     color: #88aacc;
-    font-size: 20px;
+    font-size: 17px;
     width: 24px;
     height: 24px;
     cursor: pointer;
@@ -710,7 +710,7 @@ export function updateSidebarThoughts(thoughts = []) {
       color: #88aacc;
       font-weight: bold;
       margin-bottom: 4px;
-      font-size: 13px;
+      font-size: 10px;
     `;
     const typeIcon = getThoughtTypeIcon(thought.type);
     nameEl.innerHTML = `<span style="margin-right: 4px;">${typeIcon}</span> ${thought.dwarfName}`;
@@ -730,7 +730,7 @@ export function updateSidebarThoughts(thoughts = []) {
     const ageEl = document.createElement('div');
     ageEl.style.cssText = `
       color: #666677;
-      font-size: 15px;
+      font-size: 9px;
       margin-top: 4px;
       text-align: right;
     `;

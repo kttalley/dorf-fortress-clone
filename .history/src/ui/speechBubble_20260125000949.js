@@ -730,7 +730,7 @@ export function updateSidebarThoughts(thoughts = []) {
     const ageEl = document.createElement('div');
     ageEl.style.cssText = `
       color: #666677;
-      font-size: 15px;
+      font-size: 12px;
       margin-top: 4px;
       text-align: right;
     `;

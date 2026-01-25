@@ -229,7 +229,7 @@ export function initGameAssistant(containerEl, getWorld, scenarioContext = null)
       padding: 6px 12px;
       color: #aaa;
       font-family: inherit;
-      font-size: 14px;
+      font-size: 11px;
       cursor: pointer;
     ">Got it</button>
   `;
@@ -483,7 +483,7 @@ export function createAssistantToggle(containerEl, assistantController) {
     border-radius: 6px;
     color: #4a9eff;
     font-family: 'Courier New', monospace;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: bold;
     cursor: pointer;
     z-index: 700;

@@ -387,7 +387,7 @@ export function updateEventLog(state) {
     const tickEl = document.createElement('span');
     tickEl.style.cssText = `
       color: #666677;
-      font-size: 15px;
+      font-size: 12px;
       margin-right: 6px;
     `;
     tickEl.textContent = `[${log.tick}]`;

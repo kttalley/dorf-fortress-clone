@@ -239,16 +239,16 @@ export function createRenderer(containerEl, width, height) {
             
             // Enhance shadow if speaking - highlight outline effect
             if (isSpeaking && entity.shadow) {
-              // Outline-style highlight around speaking entities (semi-transparent)
+              // Outline-style highlight around speaking entities
               cell.style.textShadow = `
-                -2px -2px 0 rgba(255, 255, 0, 0.5),
-                2px -2px 0 rgba(255, 255, 0, 0.5),
-                -2px 2px 0 rgba(255, 255, 0, 0.5),
-                2px 2px 0 rgba(255, 255, 0, 0.5),
-                -1px 0 0 rgba(255, 255, 0, 0.35),
-                1px 0 0 rgba(255, 255, 0, 0.35),
-                0 -1px 0 rgba(255, 255, 0, 0.35),
-                0 1px 0 rgba(255, 255, 0, 0.35)
+                -2px -2px 0 rgba(255, 255, 0, 0.7),
+                2px -2px 0 rgba(255, 255, 0, 0.7),
+                -2px 2px 0 rgba(255, 255, 0, 0.7),
+                2px 2px 0 rgba(255, 255, 0, 0.7),
+                -1px 0 0 rgba(255, 255, 0, 0.5),
+                1px 0 0 rgba(255, 255, 0, 0.5),
+                0 -1px 0 rgba(255, 255, 0, 0.5),
+                0 1px 0 rgba(255, 255, 0, 0.5)
               `;
               // Subtle drop shadow only
               cell.style.filter = 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6))';

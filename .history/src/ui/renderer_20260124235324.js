@@ -231,35 +231,19 @@ export function createRenderer(containerEl, width, height) {
           cell.style.color = fg;
           cell.style.backgroundColor = bg;
           
-          // Apply visual treatment based on entity type
-          if (entity && entity.scale && entity.scale > 1.0) {
-            cell.style.transform = `scale(${entity.scale})`;
+          // Apply special styling for dwarves
+          if (isDwarf) {
+            cell.style.transform = 'scale(1.75)';
             cell.style.fontWeight = 'bold';
             cell.style.zIndex = '100';
             
-            // Enhance shadow if speaking - highlight outline effect
-            if (isSpeaking && entity.shadow) {
-              // Outline-style highlight around speaking entities (semi-transparent)
-              cell.style.textShadow = `
-                -2px -2px 0 rgba(255, 255, 0, 0.5),
-                2px -2px 0 rgba(255, 255, 0, 0.5),
-                -2px 2px 0 rgba(255, 255, 0, 0.5),
-                2px 2px 0 rgba(255, 255, 0, 0.5),
-                -1px 0 0 rgba(255, 255, 0, 0.35),
-                1px 0 0 rgba(255, 255, 0, 0.35),
-                0 -1px 0 rgba(255, 255, 0, 0.35),
-                0 1px 0 rgba(255, 255, 0, 0.35)
-              `;
-              // Subtle drop shadow only
-              cell.style.filter = 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6))';
-              // Pulsing outline animation
-              cell.style.animation = 'pulse-outline 1.5s ease-in-out infinite';
-            } else if (entity.shadow) {
-              cell.style.textShadow = entity.shadow;
-              cell.style.animation = 'none';
-              if (entity.filter) {
-                cell.style.filter = entity.filter;
-              }
+            // If dwarf is speaking, add yellow cursor highlight
+            if (isSpeaking) {
+              cell.style.textShadow = '0 0 10px rgba(255, 255, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.8)';
+              cell.style.filter = 'drop-shadow(0 0 8px rgba(255, 255, 0, 0.6)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))';
+            } else {
+              cell.style.textShadow = '0 2px 4px rgba(0, 0, 0, 0.8), 0 0 6px rgba(255, 255, 0, 0.4)';
+              cell.style.filter = 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))';
             }
           } else {
             cell.style.transform = 'scale(1)';
@@ -267,7 +251,6 @@ export function createRenderer(containerEl, width, height) {
             cell.style.fontWeight = 'normal';
             cell.style.zIndex = 'auto';
             cell.style.filter = 'none';
-            cell.style.animation = 'none';
           }
           
           prevState[idx] = stateKey;
@@ -514,9 +497,6 @@ export function buildRenderEntities(state) {
       fg: glyph.fg,
       zIndex: glyph.zIndex,
       id: dwarf.id,
-      scale: glyph.scale,
-      shadow: glyph.shadow,
-      filter: glyph.filter,
     });
   }
 
@@ -525,24 +505,26 @@ export function buildRenderEntities(state) {
     for (const visitor of state.visitors) {
       if (visitor.state === 'dead') continue;
 
-      let glyph;
+      let char, fg;
 
       // Determine glyph based on race
       switch (visitor.race) {
         case 'human':
-          glyph = visitor.disposition < -20 ? EntityGlyph.HUMAN_HOSTILE : EntityGlyph.HUMAN;
+          char = EntityGlyph.HUMAN.char;
+          fg = visitor.disposition < -20 ? EntityGlyph.HUMAN_HOSTILE.fg : EntityGlyph.HUMAN.fg;
           break;
         case 'goblin':
-          glyph = visitor.disposition < -20 ? EntityGlyph.GOBLIN_HOSTILE : EntityGlyph.GOBLIN;
+          char = EntityGlyph.GOBLIN.char;
+          fg = visitor.disposition < -20 ? EntityGlyph.GOBLIN_HOSTILE.fg : EntityGlyph.GOBLIN.fg;
           break;
         case 'elf':
-          glyph = EntityGlyph.ELF;
+          char = EntityGlyph.ELF.char;
+          fg = EntityGlyph.ELF.fg;
           break;
         default:
-          glyph = { char: '?', fg: '#ffffff', zIndex: 10, scale: 1.0, shadow: 'none', filter: 'none' };
+          char = '?';
+          fg = '#ffffff';
       }
-
-      let fg = glyph.fg;
 
       // Tint wounded visitors redder
       if (visitor.hp < visitor.maxHp * 0.5) {
@@ -552,14 +534,11 @@ export function buildRenderEntities(state) {
       entities.push({
         x: visitor.x,
         y: visitor.y,
-        char: glyph.char,
+        char,
         fg,
-        zIndex: glyph.zIndex,
+        zIndex: 10,
         name: visitor.name,
         id: visitor.id,
-        scale: glyph.scale,
-        shadow: glyph.shadow,
-        filter: glyph.filter,
       });
     }
   }
@@ -607,9 +586,6 @@ export function buildRenderEntities(state) {
         char: glyph.char,
         fg,
         zIndex: glyph.zIndex,
-        scale: glyph.scale,
-        shadow: glyph.shadow,
-        filter: glyph.filter,
       });
     }
   }

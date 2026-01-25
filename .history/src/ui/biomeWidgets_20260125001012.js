@@ -300,7 +300,7 @@ function applyEventLogMobileStyles() {
       }
       if (title) {
         title.innerHTML = '<span style="margin-right: 6px;">📜</span> Event Log';
-        title.style.fontSize = '15px';
+        title.style.fontSize = '12px';
         title.style.letterSpacing = '1px';
       }
       if (minimizeBtn) minimizeBtn.style.display = 'flex';
@@ -387,7 +387,7 @@ export function updateEventLog(state) {
     const tickEl = document.createElement('span');
     tickEl.style.cssText = `
       color: #666677;
-      font-size: 15px;
+      font-size: 9px;
       margin-right: 6px;
     `;
     tickEl.textContent = `[${log.tick}]`;

@@ -877,7 +877,15 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
      * Hide the panel
      */
     hide() {
-      hide();
+      panelEl.style.opacity = '0';
+      // Delay pointer-events until fade completes (200ms per CSS transition)
+      setTimeout(() => {
+        panelEl.style.pointerEvents = 'none';
+      }, 210);
+      currentEntity = null;
+      currentType = null;
+      chatMode = false;
+      chatLoading = false;
     },
 
     /**
