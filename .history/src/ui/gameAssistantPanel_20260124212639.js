@@ -192,17 +192,7 @@ export function initGameAssistant(containerEl, getWorld) {
     overflow-y: auto;
   `;
   infoModalEl.innerHTML = `
-
-  <div style="font-weight: bold; color: #fff; margin-bottom: 10px; font-size: 13px;">About this project:</div>
-
-  <p style="margin: 0 0 10px;">an agent-based simulation inspired by Dwarf Fortress emphasizing emergent storytelling through mechanics.</p>
-  
-  <p style="margin: 0 0 10px;"><strong style="color: #88aacc;">Built by:</strong> Kristian Talley.</p>
-      
-    <p style="margin-top: 4px; color: #666; font-size: 10px;">Uses LLM when available, falls back to heuristics offline. Dwarf Fortress and all related creative and intellectual property are property of Bay12 Games</p>  
-  
-  
-
+    <div style="font-weight: bold; color: #fff; margin-bottom: 10px; font-size: 13px;">Game & Project Assistant</div>
     <div style="color: #aaa; font-size: 11px; line-height: 1.6;">
       <p style="margin: 0 0 10px;"><strong style="color: #4aff9e;">📊 Colony Analysis:</strong><br/>
       Analyzes your fortress's state and answers questions about dwarves, resources, and relationships. Identifies trends and potential issues.</p>
@@ -218,7 +208,9 @@ export function initGameAssistant(containerEl, getWorld) {
       • Tell you what actions to take<br/>
       • Modify the game state</p>
       
+      <p style="margin: 0 0 10px;"><strong style="color: #88aacc;">Built by:</strong> Dorf Fortress Clone, an agent-based simulation inspired by Dwarf Fortress and RimWorld, emphasizing emergent storytelling through mechanics.</p>
       
+      <p style="margin: 0; color: #666; font-size: 10px;">Uses LLM when available, falls back to heuristics offline.</p>
     </div>
     <button class="close-info" style="
       margin-top: 12px;

@@ -33,9 +33,9 @@ Prefix your responses with:
  * Project context - information about the Dorf Fortress Clone project
  * Allows answering questions about architecture and design
  */
-const PROJECT_CONTEXT = `## PROJECT CONTEXT: LLM Fortress
+const PROJECT_CONTEXT = `## PROJECT CONTEXT: Dorf Fortress Clone
 
-This is an agent-based simulation inspired by Dwarf Fortress and RimWorld, created by designer and developer Kristian Talley, and built on:
+This is an agent-based simulation inspired by Dwarf Fortress and RimWorld, built on:
 
 **Design Philosophy:**
 - Simulation First: World runs deterministically; LLMs provide cognition only
@@ -76,60 +76,13 @@ ${PROJECT_CONTEXT}`;
  * @param {string} worldSummary - Compressed world state
  * @param {string} question - Player's question
  * @param {Array} chatHistory - Previous exchanges [{role, content}]
- * @param {object} worldContext - Additional context {biome, history, visitors}
  * @returns {string} Complete user prompt
  */
-export function buildUserPrompt(worldSummary, question, chatHistory = [], worldContext = {}) {
+export function buildUserPrompt(worldSummary, question, chatHistory = []) {
   let prompt = `## CURRENT COLONY STATE\n${worldSummary}\n\n`;
 
-  // Add world context if available
-  if (worldContext.biome) {
-    prompt += `## WORLD CONTEXT\n`;
-    if (worldContext.biome.name) {
-      prompt += `Biome: ${worldContext.biome.name}\n`;
-    }
-    if (worldContext.biome.description) {
-      prompt += `${worldContext.biome.description}\n`;
-    }
-  }
-
-  // Add world history and race relations
-  if (worldContext.history) {
-    if (worldContext.history.events && worldContext.history.events.length > 0) {
-      prompt += `\n## WORLD HISTORY\n`;
-      const recentEvents = worldContext.history.events.slice(-3);
-      recentEvents.forEach(event => {
-        prompt += `- ${event}\n`;
-      });
-    }
-
-    if (worldContext.history.raceRelations) {
-      prompt += `\n## RACE RELATIONS\n`;
-      const relations = worldContext.history.raceRelations;
-      if (relations.dwarf_human !== undefined) {
-        prompt += `Dwarves & Humans: ${relations.dwarf_human > 0 ? 'Allied' : relations.dwarf_human < 0 ? 'Hostile' : 'Neutral'} (${relations.dwarf_human})\n`;
-      }
-      if (relations.dwarf_goblin !== undefined) {
-        prompt += `Dwarves & Goblins: ${relations.dwarf_goblin > 0 ? 'Allied' : relations.dwarf_goblin < 0 ? 'Hostile' : 'Neutral'} (${relations.dwarf_goblin})\n`;
-      }
-      if (relations.dwarf_elf !== undefined) {
-        prompt += `Dwarves & Elves: ${relations.dwarf_elf > 0 ? 'Allied' : relations.dwarf_elf < 0 ? 'Hostile' : 'Neutral'} (${relations.dwarf_elf})\n`;
-      }
-    }
-  }
-
-  // Add visitor information
-  if (worldContext.visitors && worldContext.visitors.length > 0) {
-    prompt += `\n## EXTERNAL ENTITIES\n`;
-    const visitorSummary = worldContext.visitors
-      .slice(0, 5)
-      .map(v => `- ${v.race} (${v.group}): ${v.purpose || 'unknown'}`)
-      .join('\n');
-    prompt += visitorSummary + '\n';
-  }
-
   if (chatHistory.length > 0) {
-    prompt += `\n## CONVERSATION HISTORY\n`;
+    prompt += `## CONVERSATION HISTORY\n`;
     for (const msg of chatHistory.slice(-6)) { // Last 6 messages max
       const role = msg.role === 'user' ? 'Player' : 'Analyst';
       prompt += `${role}: ${msg.content}\n`;
@@ -146,19 +99,12 @@ export function buildUserPrompt(worldSummary, question, chatHistory = [], worldC
  * Example questions for UI hints
  */
 export const EXAMPLE_QUESTIONS = [
-  // Colony analysis
   "Who has the lowest mood and why?",
   "What's the food situation?",
   "Who are the social butterflies?",
   "Which dwarves get along best?",
-  // World context
-  "Tell me about the current biome",
-  "What's the history of this world?",
-  "What's the relationship with humans?",
-  // Architecture/design
-  "How does the simulation work?",
-  "What races exist and how do they behave?",
-  "Can you explain the world generation?",
+  "Is anyone exploring new areas?",
+  "What's the overall colony wellbeing?",
 ];
 
 /**

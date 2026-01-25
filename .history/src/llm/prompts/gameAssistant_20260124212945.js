@@ -33,9 +33,9 @@ Prefix your responses with:
  * Project context - information about the Dorf Fortress Clone project
  * Allows answering questions about architecture and design
  */
-const PROJECT_CONTEXT = `## PROJECT CONTEXT: LLM Fortress
+const PROJECT_CONTEXT = `## PROJECT CONTEXT: Dorf Fortress Clone
 
-This is an agent-based simulation inspired by Dwarf Fortress and RimWorld, created by designer and developer Kristian Talley, and built on:
+This is an agent-based simulation inspired by Dwarf Fortress and RimWorld, built on:
 
 **Design Philosophy:**
 - Simulation First: World runs deterministically; LLMs provide cognition only

@@ -33,9 +33,9 @@ Prefix your responses with:
  * Project context - information about the Dorf Fortress Clone project
  * Allows answering questions about architecture and design
  */
-const PROJECT_CONTEXT = `## PROJECT CONTEXT: LLM Fortress
+const PROJECT_CONTEXT = `## PROJECT CONTEXT: Dorf Fortress Clone
 
-This is an agent-based simulation inspired by Dwarf Fortress and RimWorld, created by designer and developer Kristian Talley, and built on:
+This is an agent-based simulation inspired by Dwarf Fortress and RimWorld, built on:
 
 **Design Philosophy:**
 - Simulation First: World runs deterministically; LLMs provide cognition only
@@ -146,19 +146,12 @@ export function buildUserPrompt(worldSummary, question, chatHistory = [], worldC
  * Example questions for UI hints
  */
 export const EXAMPLE_QUESTIONS = [
-  // Colony analysis
   "Who has the lowest mood and why?",
   "What's the food situation?",
   "Who are the social butterflies?",
   "Which dwarves get along best?",
-  // World context
-  "Tell me about the current biome",
-  "What's the history of this world?",
-  "What's the relationship with humans?",
-  // Architecture/design
-  "How does the simulation work?",
-  "What races exist and how do they behave?",
-  "Can you explain the world generation?",
+  "Is anyone exploring new areas?",
+  "What's the overall colony wellbeing?",
 ];
 
 /**

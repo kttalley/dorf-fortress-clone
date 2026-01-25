@@ -197,9 +197,9 @@ export function initGameAssistant(containerEl, getWorld) {
 
   <p style="margin: 0 0 10px;">an agent-based simulation inspired by Dwarf Fortress emphasizing emergent storytelling through mechanics.</p>
   
-  <p style="margin: 0 0 10px;"><strong style="color: #88aacc;">Built by:</strong> Kristian Talley.</p>
+  <p style="margin: 0 0 10px;"><strong style="color: #88aacc;">Built by:</strong> Kristian Talley, an agent-based simulation inspired by Dwarf Fortress emphasizing emergent storytelling through mechanics.</p>
       
-    <p style="margin-top: 4px; color: #666; font-size: 10px;">Uses LLM when available, falls back to heuristics offline. Dwarf Fortress and all related creative and intellectual property are property of Bay12 Games</p>  
+    <p style="margin-top: 4px; color: #666; font-size: 10px;">Uses LLM when available, falls back to heuristics offline.</p>  
   
   
 
