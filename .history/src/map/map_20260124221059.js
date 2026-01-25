@@ -640,42 +640,6 @@ const CAVE_BIOME_PRESETS = [
 ];
 
 /**
- * Infer native resources based on climate characteristics
- * @param {object} climate - { avgTemperature, avgMoisture, avgElevation }
- * @returns {Array<string>} Resource descriptors
- */
-function inferBiomeResources(climate) {
-  const resources = [];
-
-  // Temperature-based resources
-  if (climate.avgTemperature < 0.35) {
-    resources.push('permafrost', 'ice');
-  } else if (climate.avgTemperature > 0.65) {
-    resources.push('volcanic minerals', 'sulfur');
-  } else {
-    resources.push('temperate metals');
-  }
-
-  // Moisture-based resources
-  if (climate.avgMoisture > 0.65) {
-    resources.push('aquatic life', 'fish', 'reeds');
-  } else if (climate.avgMoisture < 0.35) {
-    resources.push('sand', 'stone');
-  } else {
-    resources.push('wood', 'game');
-  }
-
-  // Elevation-based resources
-  if (climate.avgElevation > 0.65) {
-    resources.push('mountain stone', 'gems', 'ore veins');
-  } else if (climate.avgElevation < 0.35) {
-    resources.push('fertile soil', 'clay');
-  }
-
-  return resources;
-}
-
-/**
  * Add biome metadata to a map based on its terrain characteristics.
  * Generates an LLM-based biome name and color modifiers.
  * @param {object} map - Map with elevation and moisture arrays

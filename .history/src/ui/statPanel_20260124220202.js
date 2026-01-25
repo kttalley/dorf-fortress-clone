@@ -903,8 +903,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
             this.hide();
             return;
           }
-          // Update position if dwarf moved (desktop only)
-          if (window.innerWidth > MOBILE_BREAKPOINT && (dwarf.x !== currentGridX || dwarf.y !== currentGridY)) {
+          // Update position if dwarf moved
+          if (dwarf.x !== currentGridX || dwarf.y !== currentGridY) {
             currentGridX = dwarf.x;
             currentGridY = dwarf.y;
             positionPanel(dwarf.x, dwarf.y);
@@ -916,8 +916,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
             this.hide();
             return;
           }
-          // Update position if visitor moved (desktop only)
-          if (window.innerWidth > MOBILE_BREAKPOINT && (visitor.x !== currentGridX || visitor.y !== currentGridY)) {
+          if (visitor.x !== currentGridX || visitor.y !== currentGridY) {
             currentGridX = visitor.x;
             currentGridY = visitor.y;
             positionPanel(visitor.x, visitor.y);
@@ -935,8 +934,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
           return;
         }
 
-        // Update position if dwarf moved (desktop only)
-        if (window.innerWidth > MOBILE_BREAKPOINT && (dwarf.x !== currentGridX || dwarf.y !== currentGridY)) {
+        // Update position if dwarf moved
+        if (dwarf.x !== currentGridX || dwarf.y !== currentGridY) {
           currentGridX = dwarf.x;
           currentGridY = dwarf.y;
           positionPanel(dwarf.x, dwarf.y);
@@ -953,8 +952,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
           return;
         }
 
-        // Update position if visitor moved (desktop only)
-        if (window.innerWidth > MOBILE_BREAKPOINT && (visitor.x !== currentGridX || visitor.y !== currentGridY)) {
+        // Update position if visitor moved
+        if (visitor.x !== currentGridX || visitor.y !== currentGridY) {
           currentGridX = visitor.x;
           currentGridY = visitor.y;
           positionPanel(visitor.x, visitor.y);

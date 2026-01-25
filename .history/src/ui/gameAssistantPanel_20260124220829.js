@@ -333,7 +333,7 @@ export function initGameAssistant(containerEl, getWorld, scenarioContext = null)
 
     try {
       const world = getWorld();
-      const result = await askGame(q, world, null, scenarioContext);
+      const result = await askGame(q, world);
 
       // Remove loading
       loadingEl.remove();
