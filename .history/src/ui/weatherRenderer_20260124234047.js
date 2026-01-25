@@ -71,15 +71,18 @@ export function composeWeatherTile(x, y, terrain, tick, simulator = null) {
   const phase = Math.floor((tick / 4) % weather.chars.length);
   const char = weather.chars[phase];
 
-  // Keep clouds stark white for maximum visibility
-  const weatherFg = '#FFFFFF';
+  // Tint clouds with biome color: mostly terrain color with subtle white highlight
+  // This creates a cohesive visual where clouds inherit the landscape beneath them
+  // 80% opacity effect: blend to mostly terrain with just a subtle white tint
+  const terrainColor = terrain.fg || '#FFFFFF';
+  const biomeTint = blendColors('#FFFFFF', terrainColor, 0.2);  // 20% white, 80% terrain color
   
   // SOLID GREY BACKGROUND for entire tile when weather is present
   const weatherBg = weather.bgColor || '#444444';
 
   return {
     char,
-    fg: weatherFg,
+    fg: biomeTint,
     bg: weatherBg,
     animated: true,
     intensity: weather.intensity,

@@ -328,29 +328,11 @@ function removeBubble(id) {
 }
 
 /**
- * Get list of currently visible speakers (for highlighting in renderer)
- * @returns {Array} Array of speaker dwarf objects
- */
-export function getActiveSpeakers() {
-  const speakers = [];
-  for (const [id, speechData] of visibleSpeechBubbles) {
-    if (speechData.dwarf) {
-      speakers.push(speechData.dwarf);
-    }
-  }
-  return speakers;
-}
-
-/**
  * Update all bubble positions (call each frame)
  */
 export function updateBubblePositions() {
   for (const [id, bubble] of activeBubbles) {
     positionBubble(bubble.element, bubble.dwarf, bubble.type);
-  }
-  
-  for (const [id, speechData] of visibleSpeechBubbles) {
-    positionBubble(speechData.element, speechData.dwarf, 'speech');
   }
 }
 

@@ -495,8 +495,7 @@ export function buildRenderEntities(state) {
       y: dwarf.y,
       char: glyph.char,
       fg: glyph.fg,
-      zIndex: glyph.zIndex,
-      id: dwarf.id,
+      zIndex: glyph.zIndex
     });
   }
 
@@ -538,7 +537,6 @@ export function buildRenderEntities(state) {
         fg,
         zIndex: 10,
         name: visitor.name,
-        id: visitor.id,
       });
     }
   }

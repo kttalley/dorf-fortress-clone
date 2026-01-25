@@ -112,7 +112,6 @@ export function showThought(dwarf, thought) {
 
 /**
  * Show a speech bubble for dwarf conversation
- * Queues conversations to display max 2 at a time, each for 5s + 1s fade
  * @param {object} speaker - Speaking dwarf
  * @param {object} listener - Listening dwarf
  * @param {string} text - Speech text
@@ -120,77 +119,24 @@ export function showThought(dwarf, thought) {
 export function showSpeech(speaker, listener, text) {
   if (!containerEl) return;
   
-  // Queue the conversation
-  const conversationData = {
-    id: `speech-${speaker.id}-${Date.now()}`,
-    speaker,
-    listener,
-    text,
-    bubble: null,
-  };
+  const id = `speech-${speaker.id}-${Date.now()}`;
+  const bubble = createBubble(speaker, text, 'speech', listener);
   
-  speechQueue.push(conversationData);
+  activeBubbles.set(id, {
+    element: bubble,
+    dwarf: speaker,
+    type: 'speech',
+    expiry: Date.now() + SPEECH_DURATION,
+  });
+  
+  containerEl.appendChild(bubble);
+  positionBubble(bubble, speaker, 'speech');
   
   // Add to conversation toast
   addSpeechMessage(speaker, listener, text);
   
-  // Process queue if not already running
-  if (!speechQueueTimer) {
-    processSpeechQueue();
-  }
-}
-
-/**
- * Process the speech queue, displaying up to 2 conversations at a time
- */
-function processSpeechQueue() {
-  if (visibleSpeechBubbles.size >= MAX_VISIBLE_SPEECH || speechQueue.length === 0) {
-    return;
-  }
-  
-  const conversation = speechQueue.shift();
-  const bubble = createBubble(conversation.speaker, conversation.text, 'speech', conversation.listener);
-  
-  conversation.bubble = bubble;
-  visibleSpeechBubbles.set(conversation.id, {
-    element: bubble,
-    dwarf: conversation.speaker,
-    type: 'speech',
-    conversationData: conversation,
-  });
-  
-  containerEl.appendChild(bubble);
-  positionBubble(bubble, conversation.speaker, 'speech');
-  
-  // Schedule fade out after display duration
-  setTimeout(() => {
-    fadeOutSpeech(conversation.id);
-  }, SPEECH_DISPLAY_DURATION);
-}
-
-/**
- * Fade out a speech bubble and process next in queue
- * @param {string} id
- */
-function fadeOutSpeech(id) {
-  const speechData = visibleSpeechBubbles.get(id);
-  if (!speechData) return;
-  
-  const bubble = speechData.element;
-  
-  // Add fade out animation
-  bubble.style.animation = `bubbleFadeOut ${SPEECH_FADE_DURATION / 1000}s ease-in forwards`;
-  
-  // Remove after fade completes
-  setTimeout(() => {
-    if (bubble.parentNode) {
-      bubble.remove();
-    }
-    visibleSpeechBubbles.delete(id);
-    
-    // Process next in queue
-    processSpeechQueue();
-  }, SPEECH_FADE_DURATION);
+  // Auto-remove after duration
+  setTimeout(() => removeBubble(id), SPEECH_DURATION);
 }
 
 /**
@@ -328,50 +274,21 @@ function removeBubble(id) {
 }
 
 /**
- * Get list of currently visible speakers (for highlighting in renderer)
- * @returns {Array} Array of speaker dwarf objects
- */
-export function getActiveSpeakers() {
-  const speakers = [];
-  for (const [id, speechData] of visibleSpeechBubbles) {
-    if (speechData.dwarf) {
-      speakers.push(speechData.dwarf);
-    }
-  }
-  return speakers;
-}
-
-/**
  * Update all bubble positions (call each frame)
  */
 export function updateBubblePositions() {
   for (const [id, bubble] of activeBubbles) {
     positionBubble(bubble.element, bubble.dwarf, bubble.type);
   }
-  
-  for (const [id, speechData] of visibleSpeechBubbles) {
-    positionBubble(speechData.element, speechData.dwarf, 'speech');
-  }
 }
 
 /**
- * Clear all bubbles and queue
+ * Clear all bubbles
  */
 export function clearAllBubbles() {
   for (const [id] of activeBubbles) {
     removeBubble(id);
   }
-  
-  // Clear speech queue
-  speechQueue.length = 0;
-  
-  // Clear visible speech bubbles
-  for (const [id, speechData] of visibleSpeechBubbles) {
-    if (speechData.element.parentNode) {
-      speechData.element.remove();
-    }
-  }
-  visibleSpeechBubbles.clear();
 }
 
 /**

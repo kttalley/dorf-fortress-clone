@@ -340,9 +340,6 @@ export function getActiveSpeakers() {
   }
   return speakers;
 }
-
-/**
- * Update all bubble positions (call each frame)
  */
 export function updateBubblePositions() {
   for (const [id, bubble] of activeBubbles) {

@@ -538,7 +538,6 @@ export function buildRenderEntities(state) {
         fg,
         zIndex: 10,
         name: visitor.name,
-        id: visitor.id,
       });
     }
   }

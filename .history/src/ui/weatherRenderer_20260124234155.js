@@ -79,7 +79,7 @@ export function composeWeatherTile(x, y, terrain, tick, simulator = null) {
 
   return {
     char,
-    fg: weatherFg,
+    fg: biomeTint,
     bg: weatherBg,
     animated: true,
     intensity: weather.intensity,

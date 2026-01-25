@@ -159,8 +159,6 @@ export function createRenderer(containerEl, width, height) {
    */
   function render(map, entities = []) {
     const entityLookup = buildEntityLookup(entities);
-    const activeSpeakers = getActiveSpeakers();
-    const activeSpeakerIds = new Set(activeSpeakers.map(s => s.id));
 
     // Get biome color modifiers if available
     const biomeColorMod = map.biome?.colorMod || null;
@@ -224,8 +222,7 @@ export function createRenderer(containerEl, width, height) {
 
         // Dirty check: only update DOM if changed
         const isDwarf = entity && entity.char === '🧌';
-        const isSpeaking = isDwarf && entity && activeSpeakerIds.has(entity.id);
-        const stateKey = `${char}|${fg}|${bg}|${isDwarf}|${isSpeaking}`;
+        const stateKey = `${char}|${fg}|${bg}|${isDwarf}`;
         if (prevState[idx] !== stateKey) {
           cell.textContent = char;
           cell.style.color = fg;
@@ -234,17 +231,10 @@ export function createRenderer(containerEl, width, height) {
           // Apply special styling for dwarves
           if (isDwarf) {
             cell.style.transform = 'scale(1.75)';
+            cell.style.textShadow = '0 2px 4px rgba(0, 0, 0, 0.8), 0 0 6px rgba(255, 255, 0, 0.4)';
             cell.style.fontWeight = 'bold';
             cell.style.zIndex = '100';
-            
-            // If dwarf is speaking, add yellow cursor highlight
-            if (isSpeaking) {
-              cell.style.textShadow = '0 0 10px rgba(255, 255, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.8)';
-              cell.style.filter = 'drop-shadow(0 0 8px rgba(255, 255, 0, 0.6)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))';
-            } else {
-              cell.style.textShadow = '0 2px 4px rgba(0, 0, 0, 0.8), 0 0 6px rgba(255, 255, 0, 0.4)';
-              cell.style.filter = 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))';
-            }
+            cell.style.filter = 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))';
           } else {
             cell.style.transform = 'scale(1)';
             cell.style.textShadow = 'none';
@@ -495,8 +485,7 @@ export function buildRenderEntities(state) {
       y: dwarf.y,
       char: glyph.char,
       fg: glyph.fg,
-      zIndex: glyph.zIndex,
-      id: dwarf.id,
+      zIndex: glyph.zIndex
     });
   }
 
@@ -538,7 +527,6 @@ export function buildRenderEntities(state) {
         fg,
         zIndex: 10,
         name: visitor.name,
-        id: visitor.id,
       });
     }
   }
