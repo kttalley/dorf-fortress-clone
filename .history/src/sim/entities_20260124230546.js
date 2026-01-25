@@ -276,33 +276,17 @@ export function getDominantTraits(dwarf) {
  */
 export function addMemory(dwarf, type, content, tick) {
   if (!dwarf.memory) {
-    dwarf.memory = {
-      recentThoughts: [],
-      recentConversations: [],
-      significantEvents: [],
-      visitedAreas: new Set(),
-      craftedItems: [],
-      shortTerm: [],
-      locations: {},
-      knownEntities: {},
-    };
-  }
-
-  // Ensure shortTerm array exists (for unified perception)
-  if (!dwarf.memory.shortTerm) {
-    dwarf.memory.shortTerm = [];
+    dwarf.memory = { recentThoughts: [], recentConversations: [], significantEvents: [] };
   }
 
   switch (type) {
     case 'thought':
-      if (!dwarf.memory.recentThoughts) dwarf.memory.recentThoughts = [];
       dwarf.memory.recentThoughts.push({ content, tick });
       if (dwarf.memory.recentThoughts.length > 5) {
         dwarf.memory.recentThoughts.shift();
       }
       break;
     case 'conversation':
-      if (!dwarf.memory.recentConversations) dwarf.memory.recentConversations = [];
       dwarf.memory.recentConversations.push({ content, tick });
       if (dwarf.memory.recentConversations.length > 3) {
         dwarf.memory.recentConversations.shift();

@@ -237,27 +237,33 @@ export const TILE_DEFS = Object.freeze({
   // === WATER ===
   [TileType.WATER_SHALLOW]: {
     char: '~',
+    chars: ['~', '≈', '~', 'ˉ'],  // Animated rippling frames
     fg: '#4488cc',
     bg: '#112233',
     walkable: false,
     harvestable: false,
     moveCost: Infinity,
+    animated: true,
   },
   [TileType.WATER_DEEP]: {
     char: '≈',
+    chars: ['≈', '~', '≈', '⋮'],  // Animated flowing frames
     fg: '#2266aa',
     bg: '#0a1520',
     walkable: false,
     harvestable: false,
     moveCost: Infinity,
+    animated: true,
   },
   [TileType.RIVER]: {
     char: '~',
+    chars: ['~', '≈', '~', 'ˉ'],  // Animated flowing frames
     fg: '#55aadd',
     bg: '#0a2030',
     walkable: false,
     harvestable: false,
     moveCost: Infinity,
+    animated: true,
   },
   [TileType.RIVER_BANK]: {
     char: '.',

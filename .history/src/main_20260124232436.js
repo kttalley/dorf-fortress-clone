@@ -30,7 +30,7 @@ import { generateScenario, generateDuotonePalette, paletteToBiomeColorMod, apply
 
 // Weather system imports
 import { WeatherSimulator } from './sim/weather.js';
-import { triggerCloudFormations, updateSeasonalWeather } from './sim/weatherScenarios.js';
+import { triggerRainStorm, triggerFogInCavern, updateSeasonalWeather } from './sim/weatherScenarios.js';
 
 // Map configuration
 const MAP_WIDTH = 142;

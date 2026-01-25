@@ -8,6 +8,7 @@
 import { getTileDef } from '../map/tiles.js';
 import { getTile } from '../map/map.js';
 import { getDigDesignations, getBuildProjects, getStructures } from '../sim/construction.js';
+import { composeWeatherTile } from '../ui/weatherRenderer.js';
 
 // Fixed font size for consistent tile rendering (no scrunching)
 const FIXED_FONT_SIZE = 16;
@@ -161,6 +162,9 @@ export function createRenderer(containerEl, width, height) {
     // Get biome color modifiers if available
     const biomeColorMod = map.biome?.colorMod || null;
 
+    // DEBUG: Log weather availability
+    let weatherDebugLogged = false;
+
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
@@ -183,8 +187,14 @@ export function createRenderer(containerEl, width, height) {
           fg = entity.fg ?? '#fff';
           bg = tileDef?.bg ?? '#000';
         } else if (tileDef) {
-          // Just tile
-          char = tileDef.char;
+          // Tile - check if it has animation frames
+          if (tileDef.animated && tileDef.chars && map.state) {
+            // Animate the character
+            const phase = Math.floor((map.state.tick / 4) % tileDef.chars.length);
+            char = tileDef.chars[phase];
+          } else {
+            char = tileDef.char;
+          }
           fg = tileDef.fg;
           bg = tileDef.bg ?? '#000';
         } else {
@@ -192,6 +202,21 @@ export function createRenderer(containerEl, width, height) {
           char = ' ';
           fg = '#fff';
           bg = '#000';
+        }
+
+        // Phase 3: Apply weather rendering if available
+        const weatherSimulator = map.weather || (map.state && map.state.weather);
+        if (weatherSimulator) {
+          if (!weatherDebugLogged) {
+            console.log('[Renderer] Weather simulator found, tick:', map.state?.tick, 'sources:', weatherSimulator.sources?.length);
+            weatherDebugLogged = true;
+          }
+          const weatherComposed = composeWeatherTile(x, y, { char, fg, bg }, map.state?.tick || 0, weatherSimulator);
+          if (weatherComposed && weatherComposed.char !== char) {
+            char = weatherComposed.char;
+            fg = weatherComposed.fg;
+            bg = weatherComposed.bg;
+          }
         }
 
         // Dirty check: only update DOM if changed

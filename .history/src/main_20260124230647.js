@@ -30,7 +30,7 @@ import { generateScenario, generateDuotonePalette, paletteToBiomeColorMod, apply
 
 // Weather system imports
 import { WeatherSimulator } from './sim/weather.js';
-import { triggerCloudFormations, updateSeasonalWeather } from './sim/weatherScenarios.js';
+import { triggerRainStorm, triggerFogInCavern, updateSeasonalWeather } from './sim/weatherScenarios.js';
 
 // Map configuration
 const MAP_WIDTH = 142;
@@ -179,8 +179,16 @@ async function regenerateWorld() {
   state.weather = new WeatherSimulator(MAP_WIDTH, MAP_HEIGHT, mapSeed);
 
   // Spawn initial weather for visual effect (demo purposes)
-  // Only clouds on surface - no rain, snow, or underground weather
-  triggerCloudFormations(state, 0.8, 600);
+  // Add MULTIPLE weather sources for visibility
+  triggerRainStorm(state, 0.9, 500);  // Heavy rain for 500 ticks
+  triggerFogInCavern(state, null, 0.6);  // Thick fog
+  
+  // Add a few more rain sources across the map
+  for (let i = 0; i < 3; i++) {
+    const randomX = Math.random() * MAP_WIDTH | 0;
+    const randomY = Math.random() * MAP_HEIGHT * 0.3 | 0;
+    state.weather.addSource(randomX, randomY, 'RAIN', 0.7, 400);
+  }
   
   console.log('[Weather] Initial weather sources spawned:', state.weather.sources.length);
 

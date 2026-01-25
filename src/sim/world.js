@@ -1,6 +1,6 @@
 /**
  * Core simulation loop
- * Order: scent → hunger → decision → action → death → spawn
+ * Order: scent → hunger → perception (decision interval) → decide → act → combat → death → spawn
  * Emits events for the thought system
  */
 
@@ -14,11 +14,14 @@ import { emit, EVENTS } from '../events/eventBus.js';
 import { initScentMap, emitScent, decayScents } from './movement.js';
 import { initConstruction } from './construction.js';
 import { initCrafting } from './crafting.js';
+import { decayDrives, getDominantDrive } from './drives.js';
+import { perceiveWorld } from './perception.js';
 
 // External forces imports
 import { processVisitors } from '../ai/visitorAI.js';
 import { maybeSpawnVisitors, resetSpawner } from './visitorSpawner.js';
 import { processCombat, cleanupDeadEntities, tickCooldowns } from './combat.js';
+import { applyWeatherMood, getWeatherBehaviorModifier, updateWeatherFulfillment, getWeatherHealthEffects } from './weatherCognition.js';
 
 let systemsInitialized = false;
 
@@ -44,7 +47,12 @@ export function tick(state) {
 
   state.tick++;
 
-  // 0. Update scent map
+  // 0. Update weather (Phase 1: Core Loop)
+  if (state.weather) {
+    state.weather.tick(state);
+  }
+
+  // 0.5 Update scent map
   decayScents();
 
   // Emit food scents
@@ -62,7 +70,12 @@ export function tick(state) {
     previousMoods.set(dwarf.id, dwarf.mood || 50);
   }
 
-  // 1. Apply hunger pressure
+  // === NEW: 0.75 Decay all entity drives (replaces applyHunger for drives) ===
+  for (const dwarf of state.dwarves) {
+    decayDrives(dwarf, state);
+  }
+
+  // 1. Apply hunger pressure (legacy compatibility; now also uses drives)
   applyHunger(state);
 
   // Emit hunger threshold events
@@ -76,6 +89,17 @@ export function tick(state) {
         newHunger: current,
         worldState: state,
       });
+    }
+  }
+
+  // === NEW: 1.5 Perception at decision intervals ===
+  for (const dwarf of state.dwarves) {
+    if (!dwarf.decisionTick) dwarf.decisionTick = 0;
+    if (!dwarf.decisionInterval) dwarf.decisionInterval = 30;
+
+    // Every N ticks, perceive the world
+    if (state.tick % dwarf.decisionInterval === 0) {
+      perceiveWorld(dwarf, state);
     }
   }
 

@@ -3,6 +3,39 @@
  * Dwarves pursue meaningful work based on their skills and personality
  */
 
+// === SKILL TREE ===
+// Interconnected skills that improve with practice
+export const SKILL_TREE = {
+  // Production
+  'fishing': { category: 'production', baseDifficulty: 0.5, requires: ['perception'] },
+  'hunting': { category: 'production', baseDifficulty: 0.6, requires: ['perception', 'melee'] },
+  'farming': { category: 'production', baseDifficulty: 0.3 },
+  'cooking': { category: 'production', baseDifficulty: 0.4, requires: ['farming'] },
+  'brewing': { category: 'production', baseDifficulty: 0.5, requires: ['cooking'] },
+  
+  // Crafting
+  'carpentry': { category: 'crafting', baseDifficulty: 0.5, requires: ['melee'] },
+  'metalworking': { category: 'crafting', baseDifficulty: 0.7, requires: ['carpentry'] },
+  'masonry': { category: 'crafting', baseDifficulty: 0.4 },
+  'leatherworking': { category: 'crafting', baseDifficulty: 0.6, requires: ['hunting'] },
+  'stonecarving': { category: 'crafting', baseDifficulty: 0.5, requires: ['masonry'] },
+  
+  // Combat
+  'melee': { category: 'combat', baseDifficulty: 0.4 },
+  'dodge': { category: 'combat', baseDifficulty: 0.5, requires: ['melee'] },
+  
+  // Support
+  'hauling': { category: 'support', baseDifficulty: 0.1 },
+  'mining': { category: 'construction', baseDifficulty: 0.3 },
+  'building': { category: 'construction', baseDifficulty: 0.4 },
+  
+  // Mental
+  'perception': { category: 'perception', baseDifficulty: 0.3 },
+  'teaching': { category: 'social', baseDifficulty: 0.5, requires: ['social'] },
+  'leadership': { category: 'social', baseDifficulty: 0.6, requires: ['teaching'] },
+  'social': { category: 'social', baseDifficulty: 0.4 },
+};
+
 // === TASK TYPES ===
 export const TASK_TYPE = {
   // Construction
@@ -137,24 +170,169 @@ export function generateAspiration(personality) {
  */
 export function generateSkills(personality) {
   const p = personality || {};
-  const skills = {};
+  
+  // Initialize with empty array instead of object
+  // Skills are now objects with level, experience, proficiency
+  return [
+    {
+      name: 'melee',
+      level: 0.2 + Math.random() * 0.3,
+      experience: 0,
+      proficiency: 0.2 + (p.bravery || 0) * 0.3,
+      category: 'combat',
+      prerequisites: [],
+    },
+    {
+      name: 'perception',
+      level: 0.1,
+      experience: 0,
+      proficiency: 0.1 + (p.curiosity || 0) * 0.2,
+      category: 'perception',
+      prerequisites: [],
+    },
+    {
+      name: 'mining',
+      level: 0.2,
+      experience: 0,
+      proficiency: 0.2 + (p.stubbornness || 0) * 0.2,
+      category: 'construction',
+      prerequisites: [],
+    },
+  ];
+}
 
-  // Base skills with personality influence
-  skills[SKILL.MINING] = 0.2 + Math.random() * 0.3 + (p.stubbornness || 0) * 0.2;
-  skills[SKILL.MASONRY] = 0.2 + Math.random() * 0.3 + (p.patience || 0) * 0.2;
-  skills[SKILL.CARPENTRY] = 0.2 + Math.random() * 0.3 + (p.creativity || 0) * 0.2;
-  skills[SKILL.CRAFTING] = 0.2 + Math.random() * 0.3 + (p.creativity || 0) * 0.3;
-  skills[SKILL.COOKING] = 0.2 + Math.random() * 0.3 + (p.patience || 0) * 0.2;
-  skills[SKILL.SOCIAL] = 0.2 + Math.random() * 0.3 + (p.friendliness || 0) * 0.3;
-  skills[SKILL.EXPLORATION] = 0.2 + Math.random() * 0.3 + (p.curiosity || 0) * 0.3;
+/**
+ * Award XP to a dwarf for a skill
+ * Amount: XP points to award
+ */
+export function awardSkillXP(dwarf, skillName, amount = 1) {
+  if (!dwarf.skills) dwarf.skills = [];
 
-  // Clamp all to 0-1
-  for (const skill of Object.keys(skills)) {
-    skills[skill] = Math.min(1, Math.max(0, skills[skill]));
+  let skill = dwarf.skills.find(s => s.name === skillName);
+
+  if (!skill) {
+    // Create skill if doesn't exist
+    const skillDef = SKILL_TREE[skillName];
+    skill = {
+      name: skillName,
+      level: 0,
+      experience: 0,
+      proficiency: dwarf.personality?.creativity ? dwarf.personality.creativity * 0.5 : 0.3,
+      category: skillDef?.category || 'general',
+      prerequisites: skillDef?.prerequisites || [],
+    };
+    dwarf.skills.push(skill);
   }
 
-  return skills;
+  skill.experience += amount;
+
+  // Level up: 100 XP = +0.1 levels (adjusted per skill difficulty)
+  const skillDef = SKILL_TREE[skillName];
+  const xpPerLevel = 100 + (skillDef?.baseDifficulty || 0.5) * 50;
+  
+  const levelUp = Math.floor(skill.experience / xpPerLevel);
+  if (levelUp > 0) {
+    skill.level = Math.min(1.0, skill.level + levelUp * 0.1);
+    skill.experience -= levelUp * xpPerLevel;
+  }
+
+  // Update proficiency: influenced by personality + skill level
+  if (dwarf.personality) {
+    const personalityMod = (dwarf.personality.creativity || 0.5) * 0.3;
+    skill.proficiency = personalityMod + (skill.level * 0.7);
+  }
 }
+
+/**
+ * Get dwarf's primary profession based on highest skill
+ */
+export function getPrimaryProfession(dwarf) {
+  if (!dwarf.skills || dwarf.skills.length === 0) {
+    return 'Novice';
+  }
+
+  // Find highest-level skill
+  const topSkill = dwarf.skills.reduce((best, skill) =>
+    !best || skill.level > best.level ? skill : best
+  );
+
+  if (!topSkill || topSkill.level < 0.1) {
+    return 'Laborer'; // No significant skill yet
+  }
+
+  // Map skill names to profession titles
+  const professionMap = {
+    'fishing': 'Angler',
+    'hunting': 'Hunter',
+    'farming': 'Farmer',
+    'cooking': 'Cook',
+    'brewing': 'Brewer',
+    'carpentry': 'Carpenter',
+    'metalworking': 'Blacksmith',
+    'masonry': 'Mason',
+    'leatherworking': 'Leatherworker',
+    'stonecarving': 'Stonecutter',
+    'melee': 'Soldier',
+    'mining': 'Miner',
+    'building': 'Builder',
+    'hauling': 'Hauler',
+    'teaching': 'Instructor',
+    'leadership': 'Leader',
+    'social': 'Socialite',
+    'perception': 'Scout',
+  };
+
+  return professionMap[topSkill.name] || 'Specialist';
+}
+
+/**
+ * Get secondary professions (skills at 0.4+ level)
+ */
+export function getSecondaryProfessions(dwarf) {
+  if (!dwarf.skills) return [];
+
+  return dwarf.skills
+    .filter(s => s.level >= 0.4 && s.level < 0.8)
+    .map(s => {
+      const professionMap = {
+        'fishing': 'Angler',
+        'hunting': 'Hunter',
+        'farming': 'Farmer',
+        'cooking': 'Cook',
+        'carpentry': 'Carpenter',
+        'masonry': 'Mason',
+        'melee': 'Soldier',
+        'mining': 'Miner',
+      };
+      return professionMap[s.name] || capitalize(s.name);
+    });
+}
+
+/**
+ * Check if skill has prerequisites met
+ */
+export function hasSkillPrerequisites(dwarf, skillName) {
+  const skillDef = SKILL_TREE[skillName];
+  if (!skillDef || !skillDef.requires) return true;
+
+  return skillDef.requires.every(prereq =>
+    dwarf.skills?.some(s => s.name === prereq && s.level > 0)
+  );
+}
+
+/**
+ * Get all learnable skills for dwarf
+ */
+export function getLearnableSkills(dwarf) {
+  return Object.keys(SKILL_TREE).filter(skillName =>
+    hasSkillPrerequisites(dwarf, skillName) &&
+    !dwarf.skills?.some(s => s.name === skillName)
+  );
+}
+
+// === LEGACY SKILL COMPATIBILITY ===
+// Keep old SKILL constants for backward compatibility
+
 
 /**
  * Calculate task suitability for a dwarf
@@ -262,14 +440,15 @@ export function isTaskComplete(task) {
 }
 
 /**
- * Progress a task based on skill
+ * Skill improvement
  */
 export function progressTask(task, dwarf, amount = 1) {
   if (!task || task.status === 'completed') return;
 
   let skillMultiplier = 1;
   if (task.requiredSkill && dwarf.skills) {
-    skillMultiplier = 0.5 + (dwarf.skills[task.requiredSkill] || 0.3) * 1.5;
+    const skill = dwarf.skills.find(s => s.name === task.requiredSkill);
+    skillMultiplier = skill ? (0.5 + skill.level * 1.5) : 0.5;
   }
 
   task.progress = Math.min(100, task.progress + amount * skillMultiplier);
@@ -278,10 +457,14 @@ export function progressTask(task, dwarf, amount = 1) {
     task.status = 'completed';
   }
 
-  // Skill improvement
-  if (task.requiredSkill && dwarf.skills && Math.random() < 0.1) {
-    dwarf.skills[task.requiredSkill] = Math.min(1,
-      (dwarf.skills[task.requiredSkill] || 0.2) + 0.01
-    );
+  // Award XP on task completion
+  if (task.status === 'completed' && task.requiredSkill) {
+    awardSkillXP(dwarf, task.requiredSkill, 10);
   }
+}
+
+// === UTILITY FUNCTIONS ===
+
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
