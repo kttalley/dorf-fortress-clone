@@ -13,7 +13,7 @@ const STATUS_MESSAGES = {
   llmConnect: [
     'Consulting the oracle...',
     'Awakening the thought engine...',
-    'Connecting to the ancestral wisdom...',
+    'Consulting the deep archives...',
   ],
   scenario: [
     'Weaving tales of old...',
@@ -41,9 +41,8 @@ const STATUS_MESSAGES = {
     'Calling forth creatures of the deep...',
   ],
   names: [
-    'Inscribing names in the book of kin...',
-    'Consulting genealogies most ancient...',
-    'Bestowing names upon the worthy...',
+    'Carving names into the stone registry...',
+    'Assigning names to the expedition...',
   ],
   weather: [
     'Conjuring clouds and winds...',

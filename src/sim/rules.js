@@ -1,6 +1,6 @@
 /**
  * Simulation rules for v0.1 - Food Production Edition
- * No death from hunger - food production sustains the colony
+ * No death from hunger - food production sustains the fortress
  */
 
 import { addLog } from '../state/store.js';
@@ -15,7 +15,7 @@ export const RULES = {
   HUNGER_RESTORE: 30,       // Base food restores some hunger
   HUNGER_CAP: HUNGER_CAP,   // Hard cap on hunger
 
-  // Food production (sustains the colony)
+  // Food production (sustains the fortress)
   FOOD_RESPAWN_CHANCE: 0.02, // Lower - production systems take over
   FOOD_INITIAL_AMOUNT: 15,   // Seed food from map
 
@@ -41,7 +41,7 @@ export function applyHunger(state) {
  */
 export function processDeath(state) {
   // No more starvation deaths!
-  // Colony survives through food production systems
+  // Fortress survives through food production systems
   // Keep this function for future death mechanics (accidents, etc.)
   return [];
 }

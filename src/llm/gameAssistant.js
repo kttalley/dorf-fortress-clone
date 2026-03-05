@@ -1,6 +1,6 @@
 /**
  * Game Assistant LLM Interface
- * Read-only conversational analysis of colony state
+ * Read-only conversational analysis of fortress state
  */
 
 import { queueGeneration, checkConnection } from '../ai/llmClient.js';
@@ -183,19 +183,19 @@ function generateFallbackResponse(question, world) {
   }
 
   // General wellbeing
-  if (q.includes('wellbeing') || q.includes('colony') || q.includes('overall')) {
+  if (q.includes('wellbeing') || q.includes('fortress') || q.includes('overall')) {
     return analyzeFallbackOverall(dwarves, food);
   }
 
   // Default
-  return `ANALYSIS: The colony has ${dwarves.length} dwarf${dwarves.length !== 1 ? 's' : ''} and ${food.length} food source${food.length !== 1 ? 's' : ''}. Average mood is ${getAverage(dwarves, 'mood')} and average hunger is ${getAverage(dwarves, 'hunger')}.`;
+  return `ANALYSIS: The fortress has ${dwarves.length} dwarf${dwarves.length !== 1 ? 's' : ''} and ${food.length} food source${food.length !== 1 ? 's' : ''}. Average mood is ${getAverage(dwarves, 'mood')} and average hunger is ${getAverage(dwarves, 'hunger')}.`;
 }
 
 // === FALLBACK ANALYZERS ===
 
 function analyzeFallbackHunger(dwarves, food) {
   if (dwarves.length === 0) {
-    return 'ANALYSIS: No dwarves in the colony.';
+    return 'ANALYSIS: No dwarves in the fortress.';
   }
 
   // Sort by hunger (highest first)
@@ -213,14 +213,14 @@ function analyzeFallbackHunger(dwarves, food) {
     response += `No dwarves are in danger. ${hungriest.name} has the highest hunger at ${hungriest.hunger}/100. `;
   }
 
-  response += `Colony has ${totalFood} food servings available.`;
+  response += `Fortress has ${totalFood} food servings available.`;
 
   return response;
 }
 
 function analyzeFallbackMood(dwarves) {
   if (dwarves.length === 0) {
-    return 'ANALYSIS: No dwarves in the colony.';
+    return 'ANALYSIS: No dwarves in the fortress.';
   }
 
   const sorted = [...dwarves].sort((a, b) => (a.mood || 50) - (b.mood || 50));
@@ -228,7 +228,7 @@ function analyzeFallbackMood(dwarves) {
   const happiest = sorted[sorted.length - 1];
   const avgMood = getAverage(dwarves, 'mood');
 
-  let response = `ANALYSIS: Average colony mood is ${avgMood}/100. `;
+  let response = `ANALYSIS: Average fortress mood is ${avgMood}/100. `;
 
   if (saddest.mood < 30) {
     response += `${saddest.name} has the lowest mood (${saddest.mood}) and may need attention. `;
@@ -243,7 +243,7 @@ function analyzeFallbackMood(dwarves) {
 
 function analyzeFallbackSocial(dwarves) {
   if (dwarves.length === 0) {
-    return 'ANALYSIS: No dwarves in the colony.';
+    return 'ANALYSIS: No dwarves in the fortress.';
   }
 
   const lonely = dwarves.filter(d => d.fulfillment?.social < 30);
@@ -269,7 +269,7 @@ function analyzeFallbackFood(food, dwarves) {
   const dwarfCount = dwarves.length;
   const servingsPerDwarf = dwarfCount > 0 ? Math.round(totalFood / dwarfCount) : totalFood;
 
-  let response = `ANALYSIS: Colony has ${food.length} food source${food.length !== 1 ? 's' : ''} with ${totalFood} total servings. `;
+  let response = `ANALYSIS: Fortress has ${food.length} food source${food.length !== 1 ? 's' : ''} with ${totalFood} total servings. `;
 
   if (dwarfCount > 0) {
     response += `That's about ${servingsPerDwarf} servings per dwarf. `;
@@ -330,7 +330,7 @@ function analyzeFallbackOverall(dwarves, food) {
   else if (avgMood < 40 || avgHunger > 60) status = 'struggling';
   else if (avgMood < 25 || avgHunger > 80) status = 'critical';
 
-  return `ANALYSIS: Colony status: ${status}. ${dwarves.length} dwarves with average mood ${avgMood}/100 and hunger ${avgHunger}/100. ${totalFood} food servings available.`;
+  return `ANALYSIS: Fortress status: ${status}. ${dwarves.length} dwarves with average mood ${avgMood}/100 and hunger ${avgHunger}/100. ${totalFood} food servings available.`;
 }
 
 function getAverage(dwarves, prop) {

@@ -10,7 +10,7 @@
  * System message establishing the analyst role
  * Enforces JSON-only output and factual grounding
  */
-export const SYSTEM_ANALYST = `You are an objective post-run analyst for a dwarf colony simulation. Your role is to analyze completed simulation runs and identify patterns that led to success or failure.
+export const SYSTEM_ANALYST = `You are an objective post-run analyst for a dwarf fortress simulation. Your role is to analyze completed simulation runs and identify patterns that led to success or failure.
 
 CRITICAL RULES:
 1. Output ONLY valid JSON - no markdown, no explanations outside JSON
@@ -27,7 +27,7 @@ Your analysis helps players understand emergent system behavior and improve futu
  * @returns {string} Formatted prompt
  */
 export function buildAnalysisPrompt(summary) {
-  return `Analyze this completed dwarf colony simulation run and provide structured insights.
+  return `Analyze this completed dwarf fortress simulation run and provide structured insights.
 
 ## SIMULATION DATA
 
@@ -74,7 +74,7 @@ Provide 3-5 turning points, exactly 1 root cause, and 3-5 suggestions. Cite tick
  * Lightweight analysis prompt for shorter runs or constrained contexts
  */
 export function buildQuickAnalysisPrompt(summary) {
-  return `Quick analysis of dwarf colony run.
+  return `Quick analysis of dwarf fortress run.
 
 Duration: ${summary.duration} ticks | Population: ${summary.peakPopulation}→${summary.finalPopulation} | Outcome: ${summary.outcome}
 

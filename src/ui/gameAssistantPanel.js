@@ -205,7 +205,7 @@ export function initGameAssistant(containerEl, getWorld, scenarioContext = null)
   
 
     <div style="color: #aaa; font-size: 14px; line-height: 1.6;">
-      <p style="margin: 0 0 10px;"><strong style="color: #4aff9e;">📊 Colony Analysis:</strong><br/>
+      <p style="margin: 0 0 10px;"><strong style="color: #4aff9e;">📊 Fortress Analysis:</strong><br/>
       Analyzes your fortress's state and answers questions about dwarves, resources, and relationships. Identifies trends and potential issues.</p>
       
       <p style="margin: 0 0 10px;"><strong style="color: #4aff9e;">🌍 World Context:</strong><br/>

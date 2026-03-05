@@ -154,7 +154,7 @@ if (hasGeneratedName(dwarf)) {
 
 ### 3. World Awareness
 - LLM prompt includes worldContext if available
-- Potential for names/bios to reference colony events
+- Potential for names/bios to reference fortress events
 - Example: "Recent arrival from deeper caverns"
 
 ### 4. Graceful Degradation

@@ -189,7 +189,7 @@ function generateDwarfFallback(msg, dwarf) {
   if (msg.includes('how are you') || msg.includes('feeling') || msg.includes('how do you feel')) {
     if (mood > 70) {
       return pickRandom([
-        "Can't complain! Life in the colony is good.",
+        "Can't complain! Life in the fortress is good.",
         "Feeling quite well, thank you for asking!",
         "I'm in fine spirits today.",
       ]);
@@ -222,8 +222,8 @@ function generateDwarfFallback(msg, dwarf) {
     return `I'm ${name}, just a humble dwarf doing my part. ${dwarf.generatedBio || ''}`;
   }
 
-  // Place / colony
-  if (msg.includes('place') || msg.includes('colony') || msg.includes('here')) {
+  // Place / fortress
+  if (msg.includes('place') || msg.includes('fortress') || msg.includes('here')) {
     if (mood > 60) {
       return pickRandom([
         "It's not bad here. We're making it work.",
