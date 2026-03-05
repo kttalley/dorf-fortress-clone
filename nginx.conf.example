@@ -1,0 +1,86 @@
+# Nginx Configuration Example for LLM Fortress
+#
+# This example shows how to:
+# 1. Serve the game's static files from the dist folder
+# 2. Proxy the LLM proxy service running on localhost:3001
+#
+# Usage:
+# 1. Copy this to your nginx sites-available directory
+# 2. Modify the paths and domain name
+# 3. Create a symlink in sites-enabled
+# 4. Test: sudo nginx -t
+# 5. Reload: sudo systemctl reload nginx
+
+server {
+    listen 80;
+    server_name yourdomain.com;  # Change this to your domain
+
+    # If you have SSL/TLS (recommended), uncomment and configure:
+    # listen 443 ssl http2;
+    # ssl_certificate /path/to/cert.pem;
+    # ssl_certificate_key /path/to/key.pem;
+
+    # Root directory for the game (your dist folder)
+    root /var/www/llm-fortress/dist;  # Change this to your dist path
+    index index.html;
+
+    # Enable gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/javascript application/json;
+
+    # Serve static files
+    location / {
+        try_files $uri $uri/ /index.html;
+
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # Proxy LLM Proxy Service (OpenAI fallback)
+    # This proxies /api/llm-proxy/* to the Node.js service on localhost:3001
+    location /api/llm-proxy/ {
+        proxy_pass http://localhost:3001/api/;
+        proxy_http_version 1.1;
+
+        # Headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts (LLM responses can take a few seconds)
+        proxy_read_timeout 30s;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+
+        # Disable buffering for streaming responses (if needed in future)
+        proxy_buffering off;
+
+        # CORS headers (if needed, though the proxy handles this)
+        # add_header Access-Control-Allow-Origin * always;
+    }
+
+    # Optional: Proxy your Ollama server as well
+    # Uncomment if you want to access it via /api/ollama/
+    # location /api/ollama/ {
+    #     proxy_pass http://localhost:11434/;  # Assuming Ollama runs on 11434
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_read_timeout 60s;
+    # }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Logging
+    access_log /var/log/nginx/llm-fortress-access.log;
+    error_log /var/log/nginx/llm-fortress-error.log;
+}

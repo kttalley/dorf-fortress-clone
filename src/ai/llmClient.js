@@ -1,13 +1,18 @@
 /**
- * Ollama LLM Client
- * Async, non-blocking integration with Ollama API
+ * LLM Client with OpenAI Fallback
+ * Async, non-blocking integration with Ollama API (primary) and OpenAI (fallback)
  * Used for generating dwarf thoughts and speech - NEVER in main tick loop
  */
 
-const OLLAMA_URL = 'https://llm.kristiantalley.com';
-const MODEL = 'incept5/llama3.1-claude:latest';
-// const MODEL = 'gemma3:latest';
+// Primary Ollama Configuration
+const OLLAMA_URL = import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434';
+const MODEL = import.meta.env.VITE_OLLAMA_MODEL || 'llama3.1';
 const REQUEST_TIMEOUT = 5000;
+
+// OpenAI Fallback Configuration (via proxy)
+// The proxy runs on the same server and keeps the API key secure
+const OPENAI_PROXY_URL = '/api/llm-proxy/generate'; // Nginx proxies this to localhost:3001
+const USE_OPENAI_FALLBACK = true; // Set to false to disable fallback entirely
 
 // Request queue to prevent overwhelming the server
 const requestQueue = [];
@@ -16,7 +21,60 @@ const MAX_CONCURRENT = 10;  // Increased from 2 to handle more concurrent reques
 let activeRequests = 0;
 
 /**
- * Generate text completion from Ollama
+ * Generate text completion from OpenAI via proxy (fallback)
+ * @param {string} prompt - The prompt to send
+ * @param {object} options - Generation options
+ * @returns {Promise<string>} Generated text
+ */
+async function generateWithOpenAI(prompt, options = {}) {
+  const {
+    maxTokens = 100,
+    temperature = 0.8,
+    stop = ['\n\n', 'Human:', 'User:'],
+  } = options;
+
+  const requestBody = {
+    prompt,
+    maxTokens,
+    temperature,
+    stop,
+  };
+
+  try {
+    console.log(`[LLM/OpenAI] Using fallback via proxy`);
+
+    const response = await fetch(OPENAI_PROXY_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error(`[LLM/OpenAI] Proxy error ${response.status}:`, errorData);
+      throw new Error(`Proxy error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const result = data.response?.trim() || '';
+
+    if (data.usage) {
+      console.log(`[LLM/OpenAI] ✓ Response (${result.length} chars) - Tokens: ${data.usage.total_tokens}`);
+    } else {
+      console.log(`[LLM/OpenAI] ✓ Received response (${result.length} chars)`);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('[LLM/OpenAI] Generation via proxy failed:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Generate text completion from Ollama with OpenAI fallback
  * @param {string} prompt - The prompt to send
  * @param {object} options - Generation options
  * @returns {Promise<string>} Generated text
@@ -42,8 +100,8 @@ export async function generate(prompt, options = {}) {
   };
 
   try {
-    console.log(`[LLM/fetch] Using model: ${MODEL}, sending ${prompt.length} char prompt`);
-    
+    console.log(`[LLM/Ollama] Using model: ${MODEL}, sending ${prompt.length} char prompt`);
+
     const response = await fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
       headers: {
@@ -54,16 +112,26 @@ export async function generate(prompt, options = {}) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[LLM/fetch] Server error ${response.status}:`, errorText);
+      console.error(`[LLM/Ollama] Server error ${response.status}:`, errorText);
       throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
     const result = data.response?.trim() || '';
-    console.log(`[LLM/fetch] ✓ Received response (${result.length} chars)`);
+    console.log(`[LLM/Ollama] ✓ Received response (${result.length} chars)`);
     return result;
   } catch (error) {
-    console.error('[LLM/fetch] Generation failed:', error.message);
+    console.error('[LLM/Ollama] Generation failed:', error.message);
+
+    // Try OpenAI fallback if enabled
+    if (USE_OPENAI_FALLBACK && OPENAI_API_KEY) {
+      console.log('[LLM] Attempting OpenAI fallback...');
+      const fallbackResult = await generateWithOpenAI(prompt, options);
+      if (fallbackResult) {
+        return fallbackResult;
+      }
+    }
+
     return null;
   }
 }
@@ -104,17 +172,50 @@ async function processQueue() {
 }
 
 /**
- * Check if LLM server is available
+ * Check if OpenAI proxy is available
  * @returns {Promise<boolean>}
+ */
+async function checkOpenAIHealth() {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+    try {
+      // Use relative URL for proxy health check
+      const healthUrl = OPENAI_PROXY_URL.replace('/generate', '').replace('/api/', '/api/llm-proxy/') + 'health';
+      const response = await fetch('/api/llm-proxy/health', {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[LLM/OpenAI] Proxy health check: ✓', data);
+        return data.hasApiKey === true;
+      }
+      return false;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    console.warn('[LLM/OpenAI] Proxy health check failed:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Check if LLM server is available (tries primary, then fallback)
+ * @returns {Promise<{ available: boolean, provider: string }>}
  */
 export async function checkLLMHealth() {
   try {
     // Use AbortController for proper timeout support
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
-    
+
     try {
-      console.log('[LLM] Health check: connecting to', OLLAMA_URL);
+      console.log('[LLM/Ollama] Health check: connecting to', OLLAMA_URL);
       const response = await fetch(`${OLLAMA_URL}/api/tags`, {
         method: 'GET',
         signal: controller.signal,
@@ -122,15 +223,28 @@ export async function checkLLMHealth() {
         credentials: 'omit',
       });
       clearTimeout(timeoutId);
-      console.log('[LLM] Health check: response', response.status, response.ok ? '✓' : '✗');
-      return response.ok;
+      console.log('[LLM/Ollama] Health check: response', response.status, response.ok ? '✓' : '✗');
+
+      if (response.ok) {
+        return { available: true, provider: 'ollama' };
+      }
     } finally {
       clearTimeout(timeoutId);
     }
   } catch (error) {
-    console.warn('[LLM] Health check failed:', error.message);
-    return false;
+    console.warn('[LLM/Ollama] Health check failed:', error.message);
   }
+
+  // Try OpenAI fallback
+  if (USE_OPENAI_FALLBACK && OPENAI_API_KEY) {
+    console.log('[LLM] Trying OpenAI fallback...');
+    const openaiOk = await checkOpenAIHealth();
+    if (openaiOk) {
+      return { available: true, provider: 'openai' };
+    }
+  }
+
+  return { available: false, provider: null };
 }
 
 /**
@@ -637,31 +751,14 @@ function getDefaultSpeech(speaker) {
 
 /**
  * Check if LLM server is available
- * @returns {Promise<boolean>}
+ * @returns {Promise<{ connected: boolean, provider: string }>}
  */
 export async function checkConnection() {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    try {
-      console.log('[LLM] Connection check: connecting to', OLLAMA_URL);
-      const response = await fetch(`${OLLAMA_URL}/api/tags`, {
-        method: 'GET',
-        signal: controller.signal,
-        mode: 'cors',
-        credentials: 'omit',
-      });
-      clearTimeout(timeoutId);
-      console.log('[LLM] Connection check: response', response.status, response.ok ? '✓' : '✗');
-      return response.ok;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  } catch (error) {
-    console.warn('[LLM] Connection check failed:', error.message);
-    return false;
-  }
+  const health = await checkLLMHealth();
+  return {
+    connected: health.available,
+    provider: health.provider,
+  };
 }
 
 /**
