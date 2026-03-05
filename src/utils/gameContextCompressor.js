@@ -12,7 +12,7 @@
 export function compressGameContext(world) {
   const sections = [];
 
-  // 1. Colony Overview
+  // 1. Fortress Overview
   sections.push(compressOverview(world));
 
   // 2. Dwarves
@@ -31,7 +31,7 @@ export function compressGameContext(world) {
 }
 
 /**
- * Colony overview stats
+ * Fortress overview stats
  */
 function compressOverview(world) {
   const dwarfCount = world.dwarves?.length || 0;

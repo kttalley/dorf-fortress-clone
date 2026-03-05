@@ -100,7 +100,7 @@ export const PRESET_SCENARIOS = [
   },
 
   {
-    title: 'The Last Colony',
+    title: 'The Last Fortress',
     description: 'Three survivors of a great disaster must rebuild civilization from nothing. Every choice matters.',
     parameters: {
       terrain: 'mixed',

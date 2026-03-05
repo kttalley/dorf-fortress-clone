@@ -1,7 +1,7 @@
 /**
  * Food Production System
  * Farming, hunting, fishing, and brewing to provide abundant food
- * No death from hunger - food production keeps colony fed
+ * No death from hunger - food production keeps the fortress fed
  */
 
 import { nextId, distance, getDisplayName } from './entities.js';
@@ -221,7 +221,7 @@ export function processFeast(feast, dwarf, state) {
   if (dwarf.memory) {
     dwarf.memory.significantEvents = dwarf.memory.significantEvents || [];
     dwarf.memory.significantEvents.push({
-      content: 'Attended a great feast with the colony',
+      content: 'Attended a great feast with the fortress',
       tick: state.tick,
     });
   }

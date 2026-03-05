@@ -227,8 +227,8 @@ export function getWeatherBehaviorModifier(dwarf, weatherType, intensity) {
  */
 export function getWeatherChatContext(weather, intensity) {
   const contexts = {
-    rain: `Heavy rain is affecting the colony's mood. Dwarves seek shelter.`,
-    snow: `Snow blankets the landscape. The colony is experiencing a calm, cold period.`,
+    rain: `Heavy rain is affecting the fortress's mood. Dwarves seek shelter.`,
+    snow: `Snow blankets the landscape. The fortress is experiencing a calm, cold period.`,
     fog: `Thick fog obscures the map. Dwarves feel disoriented and isolated.`,
     miasma: `Noxious miasma hangs in the air. This is toxic and dangerous!`,
     smoke: `Smoke from fires fills the air. Dwarves are coughing and uncomfortable.`,
@@ -236,7 +236,7 @@ export function getWeatherChatContext(weather, intensity) {
     spores: `Floating spores irritate dwarves' eyes and lungs. Some may become sick.`,
   };
 
-  const base = contexts[weather] || 'Weather is affecting the colony.';
+  const base = contexts[weather] || 'Weather is affecting the fortress.';
   const intensityNote = intensity > 0.7 ? ' (SEVERE)' : intensity > 0.4 ? ' (moderate)' : '';
 
   return base + intensityNote;

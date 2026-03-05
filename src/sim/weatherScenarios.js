@@ -40,8 +40,8 @@ export function applyScenarioWeather(state, scenario) {
     // Random surface location
     x = Math.random() * state.map.width | 0;
     y = Math.random() * state.map.height * 0.3 | 0;  // Upper part = surface
-  } else if (weather.location === 'colony_center') {
-    // At dwarf colony center
+  } else if (weather.location === 'fortress_center') {
+    // At dwarf fortress center
     const dwarves = state.dwarves.filter(d => d.state !== 'dead');
     if (dwarves.length > 0) {
       const avgX = dwarves.reduce((sum, d) => sum + d.x, 0) / dwarves.length;
@@ -343,7 +343,7 @@ export function triggerComplexWeather(state, scenario) {
     let x, y;
 
     if (trigger.x === 'forge' && trigger.y === 'forge') {
-      // Find forge location or use colony center
+      // Find forge location or use fortress center
       x = state.map.width / 2 | 0;
       y = state.map.height / 2 | 0;
     } else if (trigger.x === 'water') {

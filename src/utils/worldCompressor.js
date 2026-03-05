@@ -83,7 +83,7 @@ function determineOutcome(world) {
   const dead = world.deadDwarves?.length || 0;
 
   if (alive === 0 && dead > 0) {
-    return 'COLONY_COLLAPSED';
+    return 'FORTRESS_COLLAPSED';
   }
   if (alive > 0 && dead === 0) {
     return 'THRIVING';

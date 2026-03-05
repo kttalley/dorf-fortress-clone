@@ -32,7 +32,7 @@ function buildDwarfSystemPrompt(dwarf) {
   const memories = formatMemories(dwarf.memory);
   const relationships = formatRelationships(dwarf.relationships);
 
-  return `You are ${name}, a dwarf in a fantasy colony simulation. Stay completely in character.
+  return `You are ${name}, a dwarf in a fantasy fortress simulation. Stay completely in character.
 
 ## YOUR IDENTITY
 ${bio}
@@ -79,7 +79,7 @@ function buildVisitorSystemPrompt(visitor) {
     elf: 'aloof, nature-loving, values beauty and tradition',
   };
 
-  return `You are ${name}, a ${race} ${role} visiting a dwarf colony. Stay completely in character.
+  return `You are ${name}, a ${race} ${role} visiting a dwarf fortress. Stay completely in character.
 
 ## YOUR IDENTITY
 ${bio}
