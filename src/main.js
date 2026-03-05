@@ -253,14 +253,6 @@ async function regenerateWorld() {
   }
   setLoadingProgress(55);
 
-  // Reinitialize thought system
-  stopThoughtSystem();
-  initThoughtSystem(state, {
-    onThought: handleDwarfThought,
-    onSpeech: handleDwarfSpeech,
-    onSidebarUpdate: updateSidebarThoughts,
-  });
-
   // === LLM NAME GENERATION WITH REALTIME UI UPDATE ===
   try {
     console.log('[Init] Batch generating dwarf names...');
@@ -278,8 +270,6 @@ async function regenerateWorld() {
       // Update components immediately
       if (renderer) renderFrame(renderer, document.getElementById('log-entries'));
       if (statPanel) statPanel.update(state);
-      if (speechBubble) speechBubble.update(state);
-      if (conversationToast) conversationToast.update(state);
     });
 
     console.log('[Init] ✓ All dwarf names ready');
@@ -298,6 +288,14 @@ async function regenerateWorld() {
       if (statPanel) statPanel.update(state);
     });
   }
+
+  // Start thought system after names are ready so it doesn't contend for the LLM queue
+  stopThoughtSystem();
+  initThoughtSystem(state, {
+    onThought: handleDwarfThought,
+    onSpeech: handleDwarfSpeech,
+    onSidebarUpdate: updateSidebarThoughts,
+  });
 }
 
 /**

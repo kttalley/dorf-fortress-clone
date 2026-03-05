@@ -319,6 +319,8 @@ export async function requestNameBioBatch(entities, worldSnapshot = null) {
  * @returns {Promise<Array<{ entity, name, bio, source }>>}
  */
 export async function requestNameBioBatchSingle(entities, worldSnapshot = null, options = {}) {
+  if (!entities || entities.length === 0) return [];
+
   const timeout = options.timeout || (CONFIG.TIMEOUT_MS * 1.5);  // Slightly longer for batch
   const startTime = Date.now();
 
