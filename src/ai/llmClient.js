@@ -1,18 +1,18 @@
 /**
- * LLM Client with OpenAI Fallback
- * Async, non-blocking integration with Ollama API (primary) and OpenAI (fallback)
+ * LLM Client with Ollama Fallback
+ * Async, non-blocking integration with Groq API (primary) and Ollama (fallback)
  * Used for generating dwarf thoughts and speech - NEVER in main tick loop
  */
 
-// Primary Ollama Configuration
-const OLLAMA_URL = import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434';
-const MODEL = import.meta.env.VITE_OLLAMA_MODEL || 'llama3.1';
-const REQUEST_TIMEOUT = 5000;
-
-// Groq Fallback Configuration
+// Primary Groq Configuration
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = import.meta.env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant';
+
+// Ollama Fallback Configuration
+const OLLAMA_URL = import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434';
+const MODEL = import.meta.env.VITE_OLLAMA_MODEL || 'llama3.1';
+const REQUEST_TIMEOUT = 5000;
 
 // Request queue to prevent overwhelming the server
 const requestQueue = [];
@@ -37,7 +37,7 @@ async function generateWithGroq(prompt, options = {}) {
   } = options;
 
   try {
-    console.log(`[LLM/Groq] Using fallback model: ${GROQ_MODEL}`);
+    console.log(`[LLM/Groq] Using model: ${GROQ_MODEL}`);
 
     const response = await fetch(GROQ_URL, {
       method: 'POST',
@@ -90,6 +90,14 @@ export async function generate(prompt, options = {}) {
     stop = ['\n\n', 'Human:', 'User:'],
   } = options;
 
+  // Try Groq first (primary)
+  if (GROQ_API_KEY) {
+    const groqResult = await generateWithGroq(prompt, options);
+    if (groqResult) return groqResult;
+    console.log('[LLM] Groq failed, attempting Ollama fallback...');
+  }
+
+  // Ollama fallback
   const requestBody = {
     model: MODEL,
     prompt,
@@ -125,14 +133,6 @@ export async function generate(prompt, options = {}) {
     return result;
   } catch (error) {
     console.error('[LLM/Ollama] Generation failed:', error.message);
-
-    // Try Groq fallback
-    if (GROQ_API_KEY) {
-      console.log('[LLM] Attempting Groq fallback...');
-      const fallbackResult = await generateWithGroq(prompt, options);
-      if (fallbackResult) return fallbackResult;
-    }
-
     return null;
   }
 }
@@ -177,8 +177,14 @@ async function processQueue() {
  * @returns {Promise<{ available: boolean, provider: string }>}
  */
 export async function checkLLMHealth() {
+  // Groq is available if we have an API key — no health check needed
+  if (GROQ_API_KEY) {
+    console.log('[LLM] Groq primary available');
+    return { available: true, provider: 'groq' };
+  }
+
+  // Fall back to Ollama
   try {
-    // Use AbortController for proper timeout support
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
 
@@ -201,12 +207,6 @@ export async function checkLLMHealth() {
     }
   } catch (error) {
     console.warn('[LLM/Ollama] Health check failed:', error.message);
-  }
-
-  // Groq is available if we have an API key — no health check needed
-  if (GROQ_API_KEY) {
-    console.log('[LLM] Groq fallback available');
-    return { available: true, provider: 'groq' };
   }
 
   return { available: false, provider: null };
@@ -393,7 +393,7 @@ export async function generateConversationSpeech(speaker, listener, speakerThoug
   const speech = await queueGeneration(prompt, {
     maxTokens: 50,
     temperature: 0.85,
-    stop: ['\n', '"', '*', '(', 'They', 'The dwarf'],
+    stop: ['\n', '"', '*', '('],
   });
 
   return cleanResponse(speech) || getPersonalitySpeech(speaker);
