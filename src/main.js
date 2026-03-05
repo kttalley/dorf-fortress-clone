@@ -20,6 +20,7 @@ import { initConversationToast } from './ui/conversationToast.js';
 import { initGameAssistant, createAssistantToggle } from './ui/gameAssistantPanel.js';
 import { initControlsWidget } from './ui/controlsWidget.js';
 import { initBiomeTitle, updateBiomeTitle, initEventLog, updateEventLog } from './ui/biomeWidgets.js';
+import { initLoadingProgress, setLoadingProgress, addLoadingStatus, setLoadingText, completeLoading, resetLoadingProgress } from './ui/loadingProgress.js';
 
 // External forces imports
 import { generateWorldHistory, getHistorySummary } from './sim/history.js';
@@ -27,6 +28,7 @@ import { resetSpawner } from './sim/visitorSpawner.js';
 
 // Scenario and palette imports
 import { generateScenario, generateDuotonePalette, paletteToBiomeColorMod, applyPaletteToDocument, initSessionPalette } from './llm/scenarioGenerator.js';
+import { generateNameBioLocal } from './llm/fallbacks.js';
 
 // Weather system imports
 import { WeatherSimulator } from './sim/weather.js';
@@ -78,12 +80,17 @@ async function regenerateWorld() {
   const mapSeed = Date.now();
   const mode = MAP_MODES[currentMapMode];
 
+  // Progress tracking
+  setLoadingProgress(10);
+
   // Generate themed scenario on first load
   if (isFirstLoad) {
     try {
       console.log('[Init] Generating themed scenario...');
+      addLoadingStatus('scenario');
       currentScenario = await generateScenario();
       console.log('[Init] Scenario:', currentScenario.title);
+      setLoadingProgress(15);
     } catch (error) {
       console.warn('[Init] Scenario generation failed:', error.message);
       currentScenario = null;
@@ -92,6 +99,7 @@ async function regenerateWorld() {
   }
 
   // Generate map based on mode
+  addLoadingStatus('mapGen');
   switch (mode) {
     case 'biome':
       state.map = generateBiomeMap(MAP_WIDTH, MAP_HEIGHT, {
@@ -122,13 +130,16 @@ async function regenerateWorld() {
       });
       break;
   }
+  setLoadingProgress(25);
 
   // Generate unique duotone palette for this session/world
   const paletteSeed = mapSeed + Date.now();
   sessionPalette = generateDuotonePalette(paletteSeed);
   applyPaletteToDocument(sessionPalette);
+  setLoadingProgress(30);
 
   // Generate biome name for the map (LLM-based), using session palette for color
+  addLoadingStatus('biomeGen');
   try {
     await addBiomeToMap(state.map, { timeout: 8000 });
     const biomeName = state.map.biome?.name || 'Unknown Region';
@@ -152,6 +163,7 @@ async function regenerateWorld() {
     addLog(state, 'A mysterious wilderness stretches before us.');
     updateBiomeTitle('Mysterious Wilderness', colorMod);
   }
+  setLoadingProgress(35);
 
   // Log scenario info if available (first load only)
   if (currentScenario) {
@@ -169,20 +181,24 @@ async function regenerateWorld() {
   state.tick = 0;
 
   // Generate world history
+  addLoadingStatus('history');
   const historySeed = mapSeed;
   state.history = generateWorldHistory(historySeed);
+  setLoadingProgress(40);
 
   // Reset visitor spawner
   resetSpawner();
 
   // Initialize weather simulator (Phase 1: Core Loop)
+  addLoadingStatus('weather');
   state.weather = new WeatherSimulator(MAP_WIDTH, MAP_HEIGHT, mapSeed);
 
   // Spawn initial weather for visual effect (demo purposes)
   // Only clouds on surface - no rain, snow, or underground weather
   triggerCloudFormations(state, 0.8, 600);
-  
+
   console.log('[Weather] Initial weather sources spawned:', state.weather.sources.length);
+  setLoadingProgress(45);
 
   // Log notable history
   if (state.history.events.length > 0) {
@@ -205,6 +221,7 @@ async function regenerateWorld() {
   if (!centerPos) return;
 
   // Spawn dwarves (no placeholder names)
+  addLoadingStatus('entities');
   for (let i = 0; i < INITIAL_DWARVES; i++) {
     let pos = null;
     for (let attempt = 0; attempt < 50; attempt++) {
@@ -225,6 +242,7 @@ async function regenerateWorld() {
       state.dwarves.push(dwarf);
     }
   }
+  setLoadingProgress(50);
 
   // Spawn food sources
   for (let i = 0; i < INITIAL_FOOD_SOURCES; i++) {
@@ -233,6 +251,7 @@ async function regenerateWorld() {
       state.foodSources.push(createFoodSource(pos.x, pos.y, 8 + Math.floor(Math.random() * 6)));
     }
   }
+  setLoadingProgress(55);
 
   // Reinitialize thought system
   stopThoughtSystem();
@@ -344,6 +363,11 @@ async function init() {
   // Show loading screen immediately
   showLoadingScreen();
 
+  // Initialize loading progress system
+  initLoadingProgress();
+  setLoadingProgress(0);
+  addLoadingStatus('init');
+
   const mapContainer = document.getElementById('map-display');
 
   if (!mapContainer) {
@@ -354,6 +378,7 @@ async function init() {
 
   // Inject speech bubble styles
   injectBubbleStyles();
+  setLoadingProgress(5);
 
   // Create renderer
   renderer = createRenderer(mapContainer, MAP_WIDTH, MAP_HEIGHT);
@@ -475,28 +500,44 @@ async function init() {
   // Initialize Game Assistant ("Ask the Game" panel)
   gameAssistant = initGameAssistant(mapContainer, () => state, currentScenario);
   createAssistantToggle(mapContainer, gameAssistant);
+  setLoadingProgress(60);
 
   // Initialize LLM systems
+  addLoadingStatus('llmConnect');
   await initializeLLM();
   await initBiomeGenerator();
+  setLoadingProgress(70);
 
   // Batch generate names for all dwarves in a single LLM call
   console.log('[Init] Batch generating dwarf names...');
+  addLoadingStatus('names');
   try {
     await waitForBatchNameGeneration(state.dwarves, 30000); // 30 second timeout
     console.log('[Init] ✓ All dwarf names ready');
   } catch (error) {
     console.warn('[Init] Name generation timeout, proceeding with available names:', error.message);
   }
+  setLoadingProgress(85);
 
   // Check LLM connection for thought system
-  llmConnected = await checkConnection();
+  const connectionStatus = await checkConnection();
+  llmConnected = connectionStatus.connected;
 
   if (llmConnected) {
-    addLog(state, 'Connected to thought engine (LLM).');
+    const provider = connectionStatus.provider === 'openai' ? 'OpenAI' : 'Ollama';
+    addLog(state, `Connected to thought engine (${provider}).`);
+    addLoadingStatus('llmConnect', `Connected to ${provider} thought engine`);
   } else {
     addLog(state, 'Thought engine offline - using fallback thoughts.');
+    addLoadingStatus('llmConnect', 'Using local fallback thoughts');
   }
+  setLoadingProgress(95);
+
+  // Complete loading
+  completeLoading();
+
+  // Small delay for visual effect
+  await new Promise(resolve => setTimeout(resolve, 500));
 
   // Hide loading screen now that world is ready
   hideLoadingScreen();
