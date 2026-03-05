@@ -50,7 +50,7 @@ async function generateWithGroq(prompt, options = {}) {
         messages: [{ role: 'user', content: prompt }],
         max_tokens: maxTokens,
         temperature,
-        stop: stop || undefined,
+        stop: (stop && stop.length > 0) ? stop : undefined,
       }),
     });
 
