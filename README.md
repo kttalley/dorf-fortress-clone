@@ -26,6 +26,17 @@ The result is a system where **stories emerge from mechanics**, not scripts.
 
 ---
 
+## Key Systems
+
+- **11-step tick loop** — scent diffusion → hunger → drives → decisions → actions → visitors → combat → social → events → history → cleanup
+- **Rich personality system** — 10 traits (0–1 range) feed into 6 archetypes, 8 skills, mood, drives, and relationship affinity
+- **Entity cognition via LLM** — thoughts on meetings, food, hunger, observations; conversations up to 6 turns with cooldowns
+- **Procedural world gen** — Simplex noise for elevation/moisture/temperature → biome classification, cellular automata caves, scent-based pathfinding
+- **Two chat modes** — talk directly to any entity (shaped by their personality/mood/relationships), or talk to the game engine itself for world analysis
+- **Visitor system** — traders, raiders, wanderers with disposition and satisfaction state machines
+
+---
+
 ## Design Philosophy
 
 ### 1. Simulation First, LLM Second
@@ -739,21 +750,19 @@ The palette influences biome color modifiers for unique visual themes on every s
 
 ---
 
-## LLM & Ollama Configuration
+## LLM Configuration
 
-This project assumes a **locally running Ollama server**.
-
-### Example setup
+The project supports **Groq** (primary) with **Ollama** as a local fallback. Configure via environment variables:
 
 ```bash
-ollama serve
+# Groq (primary — fast, cloud-hosted)
+VITE_GROQ_API_KEY=your_key_here
+
+# Ollama (fallback — local, self-hosted)
+VITE_OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-Configure the project to point at your server:
-
-```bash
-export OLLAMA_BASE_URL=http://localhost:11434
-```
+If Groq is unavailable or unconfigured, the system falls back to Ollama automatically. If both are offline, local hardcoded fallbacks keep the simulation running.
 
 Or update `src/ai/llmClient.js` to match your setup.
 
