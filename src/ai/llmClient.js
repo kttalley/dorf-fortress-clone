@@ -1,18 +1,18 @@
 /**
- * LLM Client with Ollama Fallback
- * Async, non-blocking integration with Groq API (primary) and Ollama (fallback)
+ * LLM Client with Groq Fallback
+ * Async, non-blocking integration with Ollama (primary) and Groq API (fallback)
  * Used for generating dwarf thoughts and speech - NEVER in main tick loop
  */
 
-// Primary Groq Configuration
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = import.meta.env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant';
-
-// Ollama Fallback Configuration
+// Primary Ollama Configuration
 const OLLAMA_URL = import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434';
 const MODEL = import.meta.env.VITE_OLLAMA_MODEL || 'llama3.1';
 const REQUEST_TIMEOUT = 5000;
+
+// Groq Fallback Configuration
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = import.meta.env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant';
 
 // Request queue to prevent overwhelming the server
 const requestQueue = [];
@@ -90,14 +90,7 @@ export async function generate(prompt, options = {}) {
     stop = ['\n\n', 'Human:', 'User:'],
   } = options;
 
-  // Try Groq first (primary)
-  if (GROQ_API_KEY) {
-    const groqResult = await generateWithGroq(prompt, options);
-    if (groqResult) return groqResult;
-    console.log('[LLM] Groq failed, attempting Ollama fallback...');
-  }
-
-  // Ollama fallback
+  // Try Ollama first (primary)
   const requestBody = {
     model: MODEL,
     prompt,
@@ -113,28 +106,46 @@ export async function generate(prompt, options = {}) {
   try {
     console.log(`[LLM/Ollama] Using model: ${MODEL}, sending ${prompt.length} char prompt`);
 
-    const response = await fetch(`${OLLAMA_URL}/api/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[LLM/Ollama] Server error ${response.status}:`, errorText);
-      throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
+    try {
+      const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[LLM/Ollama] Server error ${response.status}:`, errorText);
+        throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      const result = data.response?.trim() || '';
+      console.log(`[LLM/Ollama] ✓ Received response (${result.length} chars)`);
+      return result;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data = await response.json();
-    const result = data.response?.trim() || '';
-    console.log(`[LLM/Ollama] ✓ Received response (${result.length} chars)`);
-    return result;
   } catch (error) {
     console.error('[LLM/Ollama] Generation failed:', error.message);
-    return null;
   }
+
+  // Groq fallback
+  if (GROQ_API_KEY) {
+    console.log('[LLM] Ollama failed, attempting Groq fallback...');
+    const groqResult = await generateWithGroq(prompt, options);
+    if (groqResult) return groqResult;
+  }
+
+  return null;
 }
 
 /**
@@ -177,13 +188,7 @@ async function processQueue() {
  * @returns {Promise<{ available: boolean, provider: string }>}
  */
 export async function checkLLMHealth() {
-  // Groq is available if we have an API key — no health check needed
-  if (GROQ_API_KEY) {
-    console.log('[LLM] Groq primary available');
-    return { available: true, provider: 'groq' };
-  }
-
-  // Fall back to Ollama
+  // Try Ollama first (primary)
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
@@ -207,6 +212,12 @@ export async function checkLLMHealth() {
     }
   } catch (error) {
     console.warn('[LLM/Ollama] Health check failed:', error.message);
+  }
+
+  // Fall back to Groq if Ollama is unavailable
+  if (GROQ_API_KEY) {
+    console.log('[LLM] Ollama unavailable, Groq fallback available');
+    return { available: true, provider: 'groq' };
   }
 
   return { available: false, provider: null };
