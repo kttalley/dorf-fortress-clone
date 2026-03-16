@@ -331,8 +331,8 @@ function handleDwarfSpeech(speaker, listener, text) {
   addLog(state, `${speaker.name} to ${listener.name}: "${text}"`);
 }
 
-// Initial world generation
-regenerateWorld();
+// Initial world generation — store promise so init() can await it
+let worldReady = regenerateWorld();
 
 // Wait for DOM
 document.addEventListener('DOMContentLoaded', init);
@@ -467,7 +467,7 @@ async function init() {
       }
 
       // Regenerate world
-      regenerateWorld();
+      worldReady = regenerateWorld();
 
       // Update button text to show mode
       regenBtn.textContent = `New: ${MAP_MODES[currentMapMode]}`;
@@ -506,14 +506,11 @@ async function init() {
   await initBiomeGenerator();
   setLoadingProgress(70);
 
-  // Batch generate names for all dwarves in a single LLM call
-  console.log('[Init] Batch generating dwarf names...');
-  addLoadingStatus('names');
+  // Wait for world generation (map, biome, names) to fully complete
   try {
-    await waitForBatchNameGeneration(state.dwarves, 30000); // 30 second timeout
-    console.log('[Init] ✓ All dwarf names ready');
+    await worldReady;
   } catch (error) {
-    console.warn('[Init] Name generation timeout, proceeding with available names:', error.message);
+    console.warn('[Init] World generation error:', error.message);
   }
   setLoadingProgress(85);
 
