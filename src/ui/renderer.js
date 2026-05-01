@@ -324,11 +324,53 @@ export function createRenderer(containerEl, width, height) {
     scrollToPosition(Math.round(avgX), Math.round(avgY));
   }
 
+  /**
+   * Custom RAF-based animated scroll for a slower, more deliberate pan.
+   * Browser-native smooth scroll is too quick; this lets us tune duration.
+   */
+  function animateScrollToPosition(x, y, duration = 2200) {
+    const currentCellWidth = parseFloat(gridEl.style.gridTemplateColumns.match(/[\d.]+/)?.[0]) || cellWidth;
+    const currentCellHeight = parseFloat(gridEl.style.gridTemplateRows.match(/[\d.]+/)?.[0]) || cellHeight;
+
+    const pixelX = x * currentCellWidth;
+    const pixelY = y * currentCellHeight;
+    const containerRect = containerEl.getBoundingClientRect();
+    const maxScrollX = Math.max(0, containerEl.scrollWidth - containerRect.width);
+    const maxScrollY = Math.max(0, containerEl.scrollHeight - containerRect.height);
+    const targetX = Math.min(maxScrollX, Math.max(0, pixelX - containerRect.width / 2 + currentCellWidth / 2));
+    const targetY = Math.min(maxScrollY, Math.max(0, pixelY - containerRect.height / 2 + currentCellHeight / 2));
+
+    const startX = containerEl.scrollLeft;
+    const startY = containerEl.scrollTop;
+    if (Math.abs(targetX - startX) < 1 && Math.abs(targetY - startY) < 1) return;
+
+    const startTime = performance.now();
+    const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    function step(now) {
+      const t = Math.min(1, (now - startTime) / duration);
+      const e = easeInOutCubic(t);
+      containerEl.scrollLeft = startX + (targetX - startX) * e;
+      containerEl.scrollTop = startY + (targetY - startY) * e;
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function animateScrollToDwarves(dwarves, duration = 2200) {
+    if (!dwarves || dwarves.length === 0) return;
+    const avgX = dwarves.reduce((sum, d) => sum + d.x, 0) / dwarves.length;
+    const avgY = dwarves.reduce((sum, d) => sum + d.y, 0) / dwarves.length;
+    animateScrollToPosition(Math.round(avgX), Math.round(avgY), duration);
+  }
+
   return {
     render,
     destroy,
     scrollToPosition,
     scrollToDwarves,
+    animateScrollToPosition,
+    animateScrollToDwarves,
     /** Expose grid element for styling */
     el: gridEl,
   };

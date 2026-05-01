@@ -222,7 +222,7 @@ function createBubble(dwarf, text, type, target = null) {
     font-size: 14px;
     line-height: 1.3;
     pointer-events: none;
-    z-index: 100;
+    z-index: 99999;
     animation: bubbleFadeIn 0.3s ease-out;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   `;

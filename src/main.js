@@ -544,6 +544,14 @@ async function init() {
   startLoop(renderer);
 
   addLog(state, 'The dwarves begin to explore their surroundings...');
+
+  // Slowly pan the viewport to the dwarves' spawn area on first load.
+  // Especially helpful on mobile where only the upper-left of the map is visible.
+  setTimeout(() => {
+    if (renderer && renderer.animateScrollToDwarves && state.dwarves.length > 0) {
+      renderer.animateScrollToDwarves(state.dwarves, 2400);
+    }
+  }, 600);
 }
 
 function renderFrame(renderer) {

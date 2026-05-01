@@ -5,6 +5,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LLM Fortress v0.2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@200..900&display=swap" rel="stylesheet">
   <link href="styles/tailwind.css" rel="stylesheet">
   <style>
     *,
@@ -24,10 +27,16 @@
       font-family: 'Courier New', Consolas, Monaco, monospace;
     }
 
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
     #game-container {
       position: relative;
-      height: 100vh;
-      width: 100vw;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
     }
 
     #map-display {
@@ -49,6 +58,295 @@
       }
     }
 
+    /* ==================== Global Header (matches homepage) ==================== */
+    #globalnav {
+      flex-shrink: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      background-color: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      z-index: 9000;
+      box-sizing: border-box;
+    }
+
+    .logo {
+      font-family: 'Inconsolata', monospace;
+      transition: 0.4s ease-in-out;
+      flex-shrink: 0;
+      text-decoration: none;
+      color: #fff;
+    }
+
+    .logo:hover {
+      transform: scale(1.05);
+    }
+
+    .logo h2,
+    .logo h3 {
+      color: #fff;
+      margin: 0;
+      background-color: transparent;
+    }
+
+    .logo h2 {
+      font-size: 1.75rem;
+      font-weight: 200;
+    }
+
+    .logo h3 {
+      font-size: 1rem;
+      font-weight: 200;
+      margin-top: 0.25rem;
+    }
+
+    .site-nav {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: nowrap;
+      justify-content: flex-end;
+    }
+
+    .site-nav a {
+      color: #fff;
+      font-family: 'Inconsolata', monospace;
+      font-size: 1rem;
+      text-decoration: none;
+      transition: 0.2s ease-in-out;
+      padding: 0.5rem 0.75rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .site-nav a:hover {
+      color: #c830ff;
+      text-shadow: 0 0 10px rgba(200, 48, 255, 0.6);
+      text-decoration: underline;
+    }
+
+    .site-nav a.nav-link-active {
+      color: #c830ff;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+      text-decoration-thickness: 2px;
+      text-shadow: 0 0 10px rgba(200, 48, 255, 0.4);
+    }
+
+    .site-nav a:focus-visible {
+      outline: 2px solid rgba(117, 255, 48, 1);
+      outline-offset: 2px;
+      border-radius: 4px;
+      box-shadow: 0 0 8px rgba(117, 215, 0, 0.6);
+    }
+
+    /* Hamburger Button - hidden on desktop */
+    .hamburger-btn {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 0.5rem;
+      z-index: 10001;
+      position: relative;
+    }
+
+    .hamburger-line {
+      display: block;
+      width: 24px;
+      height: 2px;
+      background-color: #fff;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    .hamburger-btn.open .hamburger-line:nth-child(1) {
+      transform: translateY(7px) rotate(45deg);
+    }
+
+    .hamburger-btn.open .hamburger-line:nth-child(2) {
+      opacity: 0;
+    }
+
+    .hamburger-btn.open .hamburger-line:nth-child(3) {
+      transform: translateY(-7px) rotate(-45deg);
+    }
+
+    /* Mobile Flyout Menu */
+    .mobile-nav {
+      display: none;
+      position: fixed;
+      top: 0;
+      right: -100%;
+      width: 280px;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.97);
+      backdrop-filter: blur(16px);
+      flex-direction: column;
+      padding: 6rem 2rem 2rem 2rem;
+      gap: 0.5rem;
+      z-index: 10000;
+      transition: right 0.3s ease;
+      border-left: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .mobile-nav.open {
+      right: 0;
+    }
+
+    .mobile-nav a {
+      color: #fff;
+      font-family: 'Inconsolata', monospace;
+      font-size: 1.25rem;
+      text-decoration: none;
+      padding: 1rem;
+      border-radius: 8px;
+      transition: 0.2s ease-in-out;
+      display: block;
+    }
+
+    .mobile-nav a:hover {
+      background: rgba(200, 48, 255, 0.2);
+      color: #c830ff;
+    }
+
+    .mobile-nav a.nav-link-active {
+      color: #c830ff;
+      background: rgba(200, 48, 255, 0.1);
+    }
+
+    .mobile-menu-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+    }
+
+    .mobile-menu-overlay.open {
+      display: block;
+    }
+
+    @media (max-width: 1024px) {
+      .desktop-nav {
+        display: none;
+      }
+
+      .hamburger-btn {
+        display: flex;
+      }
+
+      .mobile-nav {
+        display: flex;
+      }
+    }
+
+    @media (max-width: 540px) {
+      #globalnav {
+        padding: 0.75rem 1rem;
+      }
+
+      .logo h2 {
+        font-size: 1.5rem;
+      }
+
+      .logo h3 {
+        font-size: 0.9rem;
+      }
+    }
+
+    @media (max-width: 397px) {
+      .logo h2 {
+        font-size: 1.25rem;
+      }
+
+      .logo h3 {
+        font-size: 0.8rem;
+      }
+    }
+
+    /* Track header/footer heights so floating widgets can clear them. */
+    :root {
+      --site-header-h: 6rem;
+      --site-footer-h: 3rem;
+    }
+
+    /* ---- Floating widget placement ---- */
+    /* Top-fixed widgets sit just below the header. */
+    #biome-title-widget {
+      top: calc(var(--site-header-h) + 8px) !important;
+      z-index: 400 !important;
+    }
+
+    #thought-widget {
+      top: calc(var(--site-header-h) + 8px) !important;
+    }
+
+    #conversation-toast {
+      top: calc(var(--site-header-h) + 8px) !important;
+    }
+
+    #event-log-widget {
+      top: calc(var(--site-header-h) + 280px) !important;
+    }
+
+    /* Bottom-fixed widgets sit just above the footer. */
+    #controls-widget {
+      bottom: calc(var(--site-footer-h) + 12px) !important;
+    }
+
+    #assistant-toggle-btn {
+      bottom: calc(var(--site-footer-h) + 64px) !important;
+    }
+
+    .game-assistant-panel {
+      bottom: calc(var(--site-footer-h) + 110px) !important;
+    }
+
+    /* ---- z-index tiers ----
+       Invoked / interactive popups must paint above the header, footer,
+       and every passive floating widget. Mobile flyout (10000) and the
+       loading screen (99999) intentionally sit higher. */
+    .stat-panel {
+      z-index: 9500 !important;
+    }
+
+    .game-assistant-panel {
+      z-index: 9500 !important;
+    }
+
+    .info-modal {
+      z-index: 9600 !important;
+    }
+
+    /* ==================== Footer ==================== */
+    .site-footer {
+      flex-shrink: 0;
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background-color: #000;
+      text-align: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .site-footer p {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.5);
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.9rem;
+      letter-spacing: 0.05em;
+    }
+
     /* Loading Screen */
     #loading-screen {
       position: fixed;
@@ -61,7 +359,7 @@
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      z-index: 9999;
+      z-index: 99999;
       gap: 2rem;
     }
 
@@ -104,7 +402,7 @@
 
     /* Controls widget - bottom center */
     #controls-widget {
-      bottom: 12px;
+      bottom: calc(2.75rem + 12px);
       left: 50%;
       transform: translateX(-50%);
       display: flex;
@@ -171,7 +469,6 @@
     /* Mobile adjustments */
     @media (max-width: 728px) {
       #controls-widget {
-        bottom: 8px;
         padding: 8px 12px;
         gap: 6px;
       }
@@ -205,10 +502,74 @@
     <div class="loading-text">Generating World...</div>
   </div>
 
+  <!-- Global Header -->
+  <header id="globalnav" role="banner">
+    <a href="/" class="logo" aria-label="site heading with author's name and role - click to go home">
+      <h2>Kristian Talley</h2>
+      <h3>design engineer</h3>
+    </a>
+
+    <nav class="site-nav desktop-nav" role="navigation" aria-label="Main navigation">
+      <a href="/case-studies">case studies</a>
+      <a href="/projects/llm-fortress" class="nav-link-active" aria-current="page">llm fortress</a>
+      <a href="/projects/index.html">js projects</a>
+      <a href="/i-teach">what I teach</a>
+      <a href="https://www.kristiantalley.com" target="_blank" rel="noopener noreferrer" aria-label="my artwork (opens in new tab)">my artwork</a>
+      <a href="https://github.com/kttalley" target="_blank" rel="noopener noreferrer" aria-label="my github (opens in new tab)">my github</a>
+    </nav>
+
+    <button id="hamburger-btn" class="hamburger-btn" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+      <span class="hamburger-line"></span>
+      <span class="hamburger-line"></span>
+      <span class="hamburger-line"></span>
+    </button>
+
+    <nav id="mobile-menu" class="mobile-nav" role="navigation" aria-label="Mobile navigation" aria-hidden="true">
+      <a href="/case-studies">case studies</a>
+      <a href="/projects/llm-fortress" class="nav-link-active" aria-current="page">llm fortress</a>
+      <a href="/projects/index.html">js projects</a>
+      <a href="/i-teach">what I teach</a>
+      <a href="https://www.kristiantalley.com" target="_blank" rel="noopener noreferrer" aria-label="my artwork (opens in new tab)">my artwork</a>
+      <a href="https://github.com/kttalley" target="_blank" rel="noopener noreferrer" aria-label="my github (opens in new tab)">my github</a>
+    </nav>
+
+    <div id="mobile-menu-overlay" class="mobile-menu-overlay" aria-hidden="true"></div>
+  </header>
+
   <div id="game-container">
     <div id="map-display"></div>
     <!-- All UI is now floating widgets injected by JS -->
   </div>
+
+  <footer class="site-footer" role="contentinfo">
+    <p>handcrafted with care by KTT</p>
+  </footer>
+
+  <script>
+    // Mobile menu toggle
+    (function () {
+      const btn = document.getElementById('hamburger-btn');
+      const menu = document.getElementById('mobile-menu');
+      const overlay = document.getElementById('mobile-menu-overlay');
+      if (!btn || !menu || !overlay) return;
+
+      const setOpen = (open) => {
+        btn.classList.toggle('open', open);
+        menu.classList.toggle('open', open);
+        overlay.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', String(open));
+        btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+        menu.setAttribute('aria-hidden', String(!open));
+      };
+
+      btn.addEventListener('click', () => setOpen(!menu.classList.contains('open')));
+      overlay.addEventListener('click', () => setOpen(false));
+      menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && menu.classList.contains('open')) setOpen(false);
+      });
+    })();
+  </script>
 
   <script type="module" src="src/main.js"></script>
 </body>
