@@ -297,7 +297,9 @@
     }
 
     #event-log-widget {
-      top: calc(var(--site-header-h) + 280px) !important;
+      /* Sits below thought widget (header+8px to header+8px+310px ≈ header+320px)
+         with a comfortable gap. Shortened by ~15% vs original 320px max-height. */
+      top: calc(var(--site-header-h) + 330px) !important;
     }
 
     /* Bottom-fixed widgets sit just above the footer. */
@@ -309,20 +311,30 @@
       bottom: calc(var(--site-footer-h) + 64px) !important;
     }
 
-    .game-assistant-panel {
-      bottom: calc(var(--site-footer-h) + 110px) !important;
-    }
-
     /* ---- z-index tiers ----
-       Invoked / interactive popups must paint above the header, footer,
-       and every passive floating widget. Mobile flyout (10000) and the
-       loading screen (99999) intentionally sit higher. */
+       Speech bubbles (200) → floating widgets (500) → popovers (9500)
+       → info modal (9600) → loading screen (99999). */
     .stat-panel {
       z-index: 9500 !important;
     }
 
     .game-assistant-panel {
       z-index: 9500 !important;
+    }
+
+    .popover-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.05);
+      z-index: 9490;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 220ms ease;
+    }
+
+    .popover-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
     }
 
     .info-modal {
@@ -569,6 +581,15 @@
         if (e.key === 'Escape' && menu.classList.contains('open')) setOpen(false);
       });
     })();
+  </script>
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZX4410GSD3"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-ZX4410GSD3');
   </script>
 
   <script type="module" src="src/main.js"></script>

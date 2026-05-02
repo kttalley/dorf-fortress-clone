@@ -1,98 +1,90 @@
 /**
  * Game Assistant Panel - Chat UI for fortress analysis
  * Read-only conversational interface powered by LLM with fallback heuristics
+ * Renders as a large centered modal popover with markdown support.
  */
 
 import { askGame, clearHistory, getHistory } from '../llm/gameAssistant.js';
 import { EXAMPLE_QUESTIONS } from '../llm/prompts/gameAssistant.js';
 
+// Minimal markdown renderer (safe: escapes HTML first)
+function renderMarkdown(text) {
+  if (!text) return '';
+  let h = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  h = h.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/(?<![*])\*([^*\n]+)\*(?![*])/g, '<em>$1</em>');
+  h = h.replace(/`([^`\n]+)`/g, '<code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px;font-size:0.88em">$1</code>');
+  h = h.replace(/^###\s+(.+)$/gm, '<strong style="color:#ccc">$1</strong>');
+  h = h.replace(/^##\s+(.+)$/gm, '<strong style="font-size:1.05em;color:#ddd">$1</strong>');
+  h = h.replace(/^[-*]\s+(.+)$/gm, '&nbsp;&nbsp;• $1');
+  h = h.replace(/\n\n+/g, '<br><br>');
+  h = h.replace(/\n/g, '<br>');
+  return h;
+}
+
 /**
  * Initialize the game assistant chat panel
- * @param {HTMLElement} containerEl - Container to attach panel to
+ * @param {HTMLElement} containerEl - Unused; panel attaches to document.body
  * @param {function} getWorld - Function that returns current world state
- * @param {object} scenarioContext - Optional scenario data (title, description, parameters, victoryConditions)
+ * @param {object} scenarioContext - Optional scenario data
  * @returns {object} Panel controller with show(), hide(), toggle()
  */
 export function initGameAssistant(containerEl, getWorld, scenarioContext = null) {
-  // Create main panel
+  // Backdrop
+  const backdropEl = document.createElement('div');
+  backdropEl.className = 'popover-backdrop';
+  document.body.appendChild(backdropEl);
+
+  // Panel — centered modal popover (same UI as entity chat)
   const panelEl = document.createElement('div');
   panelEl.className = 'game-assistant-panel';
   panelEl.style.cssText = `
     position: fixed;
-    left: 10px;
-    bottom: 110px;
-    width: 340px;
-    max-height: 480px;
-    background: rgba(15, 15, 20, 0.95);
-    border: 1px solid rgba(100, 100, 120, 0.5);
-    border-radius: 6px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) scale(0.96);
+    width: min(380px, 92vw);
+    max-height: 82vh;
+    background: rgba(12, 12, 18, 0.98);
+    border: 1px solid rgba(100, 100, 120, 0.4);
+    border-radius: 10px;
     font-family: 'Courier New', monospace;
-    font-size: 15px;
+    font-size: 14px;
     color: #ddd;
-    z-index: 999;
     display: flex;
     flex-direction: column;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 200ms ease, transform 200ms ease;
-    transform: translateY(10px);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
+    transition: opacity 220ms ease, transform 220ms ease;
+    box-shadow: 0 16px 56px rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(8px);
   `;
-
-  // Mobile adjustments for panel
-  function checkPanelMobile() {
-    const isMobile = window.innerWidth <= 728;
-    if (isMobile) {
-      panelEl.style.width = '280px';
-      panelEl.style.left = '8px';
-      panelEl.style.bottom = '100px';
-      panelEl.style.maxHeight = '400px';
-    } else {
-      panelEl.style.width = '340px';
-      panelEl.style.left = '10px';
-      panelEl.style.bottom = '110px';
-      panelEl.style.maxHeight = '480px';
-    }
-  }
-
-  checkPanelMobile();
-  window.addEventListener('resize', checkPanelMobile);
+  document.body.appendChild(panelEl);
 
   // Header
   const headerEl = document.createElement('div');
   headerEl.style.cssText = `
-    padding: 10px 12px;
+    padding: 12px 14px;
     border-bottom: 1px solid rgba(100, 100, 120, 0.3);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
   `;
   headerEl.innerHTML = `
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <span style="color: #4aff9e;">🤖</span>
-      <span style="font-weight: bold; color: #fff;">Chat with the game engine</span>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="color:#4aff9e">🤖</span>
+      <span style="font-weight:bold;color:#fff">Chat with the game engine</span>
     </div>
-    <div style="display: flex; gap: 8px;">
-      <button class="info-btn" title="How it works" style="
-        background: none;
-        border: 1px solid rgba(100, 100, 120, 0.5);
-        color: #888;
-        width: 22px;
-        height: 22px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 12px;
+    <div style="display:flex;gap:8px;">
+      <button class="info-btn" title="About" style="
+        background:none;border:1px solid rgba(100,100,120,0.5);
+        color:#888;width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:12px;
       ">i</button>
       <button class="close-btn" style="
-        background: none;
-        border: 1px solid rgba(100, 100, 120, 0.5);
-        color: #888;
-        width: 22px;
-        height: 22px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 20px;
+        background:none;border:1px solid rgba(100,100,120,0.5);
+        color:#888;width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:20px;line-height:1;
       ">×</button>
     </div>
   `;
@@ -103,34 +95,22 @@ export function initGameAssistant(containerEl, getWorld, scenarioContext = null)
   messagesEl.style.cssText = `
     flex: 1;
     overflow-y: auto;
-    padding: 12px;
-    min-height: 200px;
-    max-height: 320px;
+    padding: 10px 12px;
+    min-height: 120px;
   `;
 
   // Example questions (shown when empty)
   const examplesEl = document.createElement('div');
   examplesEl.className = 'examples';
-  examplesEl.style.cssText = `
-    padding: 8px 0;
-  `;
+  examplesEl.style.cssText = 'padding: 4px 0;';
   examplesEl.innerHTML = `
-    <div style="color: #666; margin-bottom: 8px; font-size: 14px;">Try asking:</div>
+    <div style="color:#666;margin-bottom:10px;font-size:14px;">Try asking:</div>
     ${EXAMPLE_QUESTIONS.slice(0, 5).map(q => `
       <button class="example-q" style="
-        display: block;
-        width: 100%;
-        text-align: left;
-        background: rgba(50, 50, 60, 0.4);
-        border: 1px solid rgba(100, 100, 120, 0.3);
-        border-radius: 4px;
-        padding: 6px 10px;
-        margin: 4px 0;
-        color: #aaa;
-        font-family: inherit;
-        font-size: 14px;
-        cursor: pointer;
-        transition: background 150ms;
+        display:block;width:100%;text-align:left;
+        background:rgba(50,50,60,0.4);border:1px solid rgba(100,100,120,0.3);
+        border-radius:4px;padding:7px 12px;margin:5px 0;color:#aaa;
+        font-family:inherit;font-size:14px;cursor:pointer;transition:background 150ms;
       ">${q}</button>
     `).join('')}
   `;
@@ -139,113 +119,71 @@ export function initGameAssistant(containerEl, getWorld, scenarioContext = null)
   // Input area
   const inputAreaEl = document.createElement('div');
   inputAreaEl.style.cssText = `
-    padding: 10px 12px;
+    padding: 12px 14px;
     border-top: 1px solid rgba(100, 100, 120, 0.3);
+    flex-shrink: 0;
   `;
   inputAreaEl.innerHTML = `
-    <div style="display: flex; gap: 8px;">
+    <div style="display:flex;gap:8px;">
       <input type="text" placeholder="Ask about your fortress..." style="
-        flex: 1;
-        background: rgba(30, 30, 40, 0.8);
-        border: 1px solid rgba(100, 100, 120, 0.4);
-        border-radius: 4px;
-        padding: 8px 10px;
-        color: #ddd;
-        font-family: inherit;
-        font-size: 15px;
-        outline: none;
+        flex:1;background:rgba(30,30,40,0.8);border:1px solid rgba(100,100,120,0.4);
+        border-radius:4px;padding:9px 12px;color:#ddd;font-family:inherit;font-size:16px;outline:none;
       " />
       <button class="send-btn" style="
-        background: rgba(74, 158, 255, 0.2);
-        border: 1px solid rgba(74, 158, 255, 0.5);
-        border-radius: 4px;
-        padding: 8px 12px;
-        color: #4a9eff;
-        font-family: inherit;
-        font-size: 15px;
-        cursor: pointer;
-        transition: background 150ms;
+        background:rgba(74,158,255,0.2);border:1px solid rgba(74,158,255,0.5);
+        border-radius:4px;padding:9px 14px;color:#4a9eff;font-family:inherit;
+        font-size:15px;cursor:pointer;transition:background 150ms;white-space:nowrap;
       ">Ask</button>
     </div>
-    <div style="
-      margin-top: 8px;
-      font-size: 13px;
-      color: #555;
-      text-align: center;
-    ">Read-only analysis • No game commands</div>
+    <div style="margin-top:8px;font-size:13px;color:#555;text-align:center;">
+      Read-only analysis • No game commands
+    </div>
   `;
 
-  // Info modal (hidden by default)
+  // Info modal (absolute within panel)
   const infoModalEl = document.createElement('div');
   infoModalEl.className = 'info-modal';
   infoModalEl.style.cssText = `
     position: absolute;
-    top: 40px;
-    left: 12px;
-    right: 12px;
-    background: rgba(25, 25, 35, 0.98);
+    top: 48px;
+    left: 14px;
+    right: 14px;
+    background: rgba(18, 18, 28, 0.99);
     border: 1px solid rgba(100, 100, 120, 0.5);
     border-radius: 6px;
     padding: 16px;
-    z-index: 10;
     display: none;
-    max-height: 600px;
+    max-height: 70vh;
     overflow-y: auto;
   `;
   infoModalEl.innerHTML = `
-
-  <div style="font-weight: bold; color: #fff; margin-bottom: 10px; font-size: 16px;">About this project:</div>
-
-  <p style="margin: 0 0 10px;">an agent-based simulation inspired by Dwarf Fortress emphasizing emergent storytelling through mechanics.</p>
-  
-  <p style="margin: 0 0 10px;"><strong style="color: #88aacc;">Built by:</strong> Kristian Talley.</p>
-      
-    <p style="margin-top: 4px; color: #666; font-size: 13px;">Uses LLM when available, falls back to heuristics offline. Dwarf Fortress and all related creative and intellectual property are property of Bay12 Games</p>  
-  
-  
-
-    <div style="color: #aaa; font-size: 14px; line-height: 1.6;">
-      <p style="margin: 0 0 10px;"><strong style="color: #4aff9e;">📊 Fortress Analysis:</strong><br/>
-      Analyzes your fortress's state and answers questions about dwarves, resources, and relationships. Identifies trends and potential issues.</p>
-      
-      <p style="margin: 0 0 10px;"><strong style="color: #4aff9e;">🌍 World Context:</strong><br/>
-      Understands the current biome, world history, historical events, and inter-racial relations (dwarves, humans, goblins, elves).</p>
-      
-      <p style="margin: 0 0 10px;"><strong style="color: #4aff9e;">🏗️ Architecture & Design:</strong><br/>
-      Can explain how the simulation works, the project's design philosophy (simulation-first, emergent behavior), tech stack (JS/Vite/Ollama), and world generation systems.</p>
-      
-      <p style="margin: 0 0 10px;"><strong style="color: #ff9e4a;">What it won't do:</strong><br/>
-      • Suggest game commands<br/>
-      • Tell you what actions to take<br/>
-      • Modify the game state</p>
-      
-      
+    <div style="font-weight:bold;color:#fff;margin-bottom:10px;font-size:16px;">About this project</div>
+    <p style="margin:0 0 10px">An agent-based simulation inspired by Dwarf Fortress emphasising emergent storytelling.</p>
+    <p style="margin:0 0 10px"><strong style="color:#88aacc">Built by:</strong> Kristian Talley.</p>
+    <div style="color:#aaa;font-size:14px;line-height:1.6;">
+      <p style="margin:0 0 10px"><strong style="color:#4aff9e">📊 Fortress Analysis:</strong><br/>
+      Analyses your fortress's state and answers questions about dwarves, resources, and relationships.</p>
+      <p style="margin:0 0 10px"><strong style="color:#4aff9e">🌍 World Context:</strong><br/>
+      Understands the current biome, world history, and inter-racial relations.</p>
+      <p style="margin:0 0 10px"><strong style="color:#ff9e4a">What it won't do:</strong><br/>
+      Suggest game commands • Tell you what actions to take • Modify the game state</p>
     </div>
+    <p style="color:#666;font-size:13px">Uses LLM when available, heuristics offline. Dwarf Fortress IP belongs to Bay12 Games.</p>
     <button class="close-info" style="
-      margin-top: 12px;
-      background: rgba(100, 100, 120, 0.3);
-      border: 1px solid rgba(100, 100, 120, 0.4);
-      border-radius: 4px;
-      padding: 6px 12px;
-      color: #aaa;
-      font-family: inherit;
-      font-size: 14px;
-      cursor: pointer;
+      margin-top:12px;background:rgba(100,100,120,0.3);border:1px solid rgba(100,100,120,0.4);
+      border-radius:4px;padding:6px 14px;color:#aaa;font-family:inherit;font-size:14px;cursor:pointer;
     ">Got it</button>
   `;
 
-  // Assemble panel
   panelEl.appendChild(headerEl);
   panelEl.appendChild(messagesEl);
   panelEl.appendChild(inputAreaEl);
   panelEl.appendChild(infoModalEl);
-  containerEl.appendChild(panelEl);
 
   // State
   let isVisible = false;
   let isLoading = false;
 
-  // Get elements
   const inputEl = inputAreaEl.querySelector('input');
   const sendBtn = inputAreaEl.querySelector('.send-btn');
   const closeBtn = headerEl.querySelector('.close-btn');
@@ -254,78 +192,115 @@ export function initGameAssistant(containerEl, getWorld, scenarioContext = null)
   const exampleBtns = examplesEl.querySelectorAll('.example-q');
 
   /**
-   * Render a message in the chat
+   * Typewriter reveal with markdown rendered at completion.
    */
-  function renderMessage(role, content, source = null) {
-    // Hide examples after first message
-    if (examplesEl.style.display !== 'none') {
-      examplesEl.style.display = 'none';
-    }
+  function typeOut(targetEl, text) {
+    return new Promise((resolve) => {
+      const baseDelay = text.length > 400 ? 3 : text.length > 200 ? 5 : 8;
+      let i = 0;
+      const cursorEl = document.createElement('span');
+      cursorEl.textContent = '▍';
+      cursorEl.style.cssText = 'opacity:0.7;margin-left:1px';
+      targetEl.textContent = '';
+      targetEl.style.whiteSpace = 'pre-wrap';
+      targetEl.appendChild(cursorEl);
+
+      const wasAtBottom = () =>
+        messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 24;
+      let stickToBottom = true;
+      const onScroll = () => { stickToBottom = wasAtBottom(); };
+      messagesEl.addEventListener('scroll', onScroll);
+
+      const step = () => {
+        if (i >= text.length) {
+          cursorEl.remove();
+          messagesEl.removeEventListener('scroll', onScroll);
+          // Switch to markdown HTML on completion
+          targetEl.style.whiteSpace = '';
+          targetEl.innerHTML = renderMarkdown(text);
+          if (stickToBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+          resolve();
+          return;
+        }
+        const chunk = Math.min(text.length - i, 5);
+        cursorEl.before(document.createTextNode(text.slice(i, i + chunk)));
+        i += chunk;
+        if (stickToBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+        setTimeout(step, baseDelay);
+      };
+      step();
+    });
+  }
+
+  /**
+   * Render a message bubble. Assistant messages use markdown + optional typewriter.
+   */
+  function renderMessage(role, content, source = null, { typewriter = false } = {}) {
+    if (examplesEl.style.display !== 'none') examplesEl.style.display = 'none';
 
     const msgEl = document.createElement('div');
     msgEl.style.cssText = `
       margin: 8px 0;
-      padding: 10px;
+      padding: 10px 12px;
       border-radius: 6px;
       ${role === 'user'
-        ? 'background: rgba(74, 158, 255, 0.15); border: 1px solid rgba(74, 158, 255, 0.3); margin-left: 20px;'
-        : 'background: rgba(50, 50, 60, 0.5); border: 1px solid rgba(100, 100, 120, 0.3); margin-right: 20px;'}
+        ? 'background:rgba(74,158,255,0.15);border:1px solid rgba(74,158,255,0.3);margin-left:20px;'
+        : 'background:rgba(50,50,60,0.5);border:1px solid rgba(100,100,120,0.3);margin-right:20px;'}
     `;
 
     const labelColor = role === 'user' ? '#4a9eff' : '#4aff9e';
     const label = role === 'user' ? 'You' : 'Analyst';
 
     msgEl.innerHTML = `
-      <div style="font-size: 13px; color: ${labelColor}; margin-bottom: 4px;">
-        ${label}
-        ${source === 'fallback' ? '<span style="color: #666; margin-left: 6px;">(offline)</span>' : ''}
+      <div style="font-size:13px;color:${labelColor};margin-bottom:4px;">
+        ${label}${source === 'fallback' ? '<span style="color:#666;margin-left:6px">(offline)</span>' : ''}
       </div>
-      <div style="line-height: 1.4; white-space: pre-wrap;">${escapeHtml(content)}</div>
+      <div class="msg-body" style="line-height:1.5;"></div>
     `;
 
+    const bodyEl = msgEl.querySelector('.msg-body');
     messagesEl.appendChild(msgEl);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    requestAnimationFrame(() => { messagesEl.scrollTop = messagesEl.scrollHeight; });
+
+    if (!typewriter || role === 'user') {
+      if (role === 'user') {
+        bodyEl.textContent = content;
+      } else {
+        bodyEl.innerHTML = renderMarkdown(content);
+      }
+      requestAnimationFrame(() => { messagesEl.scrollTop = messagesEl.scrollHeight; });
+      return Promise.resolve();
+    }
+
+    return typeOut(bodyEl, content);
   }
 
-  /**
-   * Render loading indicator
-   */
   function renderLoading() {
     const loadingEl = document.createElement('div');
     loadingEl.className = 'loading-msg';
     loadingEl.style.cssText = `
       margin: 8px 0;
-      padding: 10px;
-      background: rgba(50, 50, 60, 0.5);
-      border: 1px solid rgba(100, 100, 120, 0.3);
+      padding: 10px 12px;
+      background: rgba(50,50,60,0.5);
+      border: 1px solid rgba(100,100,120,0.3);
       border-radius: 6px;
       margin-right: 20px;
       color: #888;
     `;
     loadingEl.innerHTML = `
-      <div style="font-size: 13px; color: #4aff9e; margin-bottom: 4px;">Analyst</div>
-      <div style="animation: pulse 1s infinite;">Analyzing fortress data...</div>
+      <div style="font-size:13px;color:#4aff9e;margin-bottom:4px;">Analyst</div>
+      <div style="animation:pulse 1s infinite">Analysing fortress data...</div>
     `;
-
     messagesEl.appendChild(loadingEl);
     messagesEl.scrollTop = messagesEl.scrollHeight;
-
     return loadingEl;
   }
 
-  /**
-   * Send a question
-   */
   async function sendQuestion(question) {
     if (!question.trim() || isLoading) return;
-
     const q = question.trim();
     inputEl.value = '';
-
-    // Render user message
     renderMessage('user', q);
-
-    // Show loading
     isLoading = true;
     sendBtn.disabled = true;
     sendBtn.textContent = '...';
@@ -334,142 +309,92 @@ export function initGameAssistant(containerEl, getWorld, scenarioContext = null)
     try {
       const world = getWorld();
       const result = await askGame(q, world, null, scenarioContext);
-
-      // Remove loading
       loadingEl.remove();
-
-      // Render response
-      renderMessage('assistant', result.response, result.source);
+      await renderMessage('assistant', result.response, result.source, { typewriter: true });
     } catch (err) {
       loadingEl.remove();
-      renderMessage('assistant', 'ANALYSIS: Unable to process request. Please try again.', 'fallback');
+      await renderMessage('assistant', 'Unable to process request. Please try again.', 'fallback', { typewriter: true });
       console.error('[GameAssistant] Error:', err);
     } finally {
       isLoading = false;
       sendBtn.disabled = false;
       sendBtn.textContent = 'Ask';
+      requestAnimationFrame(() => { messagesEl.scrollTop = messagesEl.scrollHeight; });
     }
   }
 
-  /**
-   * Escape HTML for safe rendering
-   */
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  // Event handlers
+  // Events
   sendBtn.addEventListener('click', () => sendQuestion(inputEl.value));
-
   inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendQuestion(inputEl.value);
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(inputEl.value); }
   });
-
-  closeBtn.addEventListener('click', () => {
-    controller.hide();
-  });
-
+  closeBtn.addEventListener('click', () => controller.hide());
   infoBtn.addEventListener('click', () => {
     infoModalEl.style.display = infoModalEl.style.display === 'none' ? 'block' : 'none';
   });
+  closeInfoBtn.addEventListener('click', () => { infoModalEl.style.display = 'none'; });
 
-  closeInfoBtn.addEventListener('click', () => {
-    infoModalEl.style.display = 'none';
-  });
-
-  // Example question buttons
   exampleBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      sendQuestion(btn.textContent);
-    });
-
-    btn.addEventListener('mouseenter', () => {
-      btn.style.background = 'rgba(74, 158, 255, 0.2)';
-    });
-
-    btn.addEventListener('mouseleave', () => {
-      btn.style.background = 'rgba(50, 50, 60, 0.4)';
-    });
+    btn.addEventListener('click', () => sendQuestion(btn.textContent));
+    btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(74,158,255,0.2)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(50,50,60,0.4)'; });
   });
 
-  // Controller
   const controller = {
-    /**
-     * Show the panel
-     */
+    /** Called before showing to allow other popovers to close first. */
+    onBeforeShow: null,
+
     show() {
+      if (this.onBeforeShow) this.onBeforeShow();
       isVisible = true;
+      backdropEl.classList.add('active');
       panelEl.style.opacity = '1';
       panelEl.style.pointerEvents = 'auto';
-      panelEl.style.transform = 'translateY(0)';
-      inputEl.focus();
+      panelEl.style.transform = 'translate(-50%, -50%) scale(1)';
+      setTimeout(() => inputEl.focus(), 50);
     },
 
-    /**
-     * Hide the panel
-     */
     hide() {
       isVisible = false;
+      backdropEl.classList.remove('active');
       panelEl.style.opacity = '0';
       panelEl.style.pointerEvents = 'none';
-      panelEl.style.transform = 'translateY(10px)';
+      panelEl.style.transform = 'translate(-50%, -50%) scale(0.96)';
       infoModalEl.style.display = 'none';
     },
 
-    /**
-     * Toggle visibility
-     */
     toggle() {
-      if (isVisible) {
-        this.hide();
-      } else {
-        this.show();
-      }
+      if (isVisible) this.hide(); else this.show();
     },
 
-    /**
-     * Check if visible
-     */
     isVisible() {
       return isVisible;
     },
 
-    /**
-     * Clear chat history
-     */
     clearChat() {
       clearHistory();
-      // Remove all messages except examples
       const messages = messagesEl.querySelectorAll('div:not(.examples)');
       messages.forEach(m => m.remove());
       examplesEl.style.display = 'block';
     },
 
-    /**
-     * Destroy panel
-     */
     destroy() {
       panelEl.remove();
+      backdropEl.remove();
     },
   };
+
+  backdropEl.addEventListener('click', () => controller.hide());
 
   return controller;
 }
 
 /**
- * Create a toggle button for the game assistant
- * @param {HTMLElement} containerEl - Container for button
- * @param {object} assistantController - Controller from initGameAssistant
- * @returns {HTMLElement} The button element
+ * Create the game assistant toggle button (bottom-left).
  */
 export function createAssistantToggle(containerEl, assistantController) {
   const btnEl = document.createElement('button');
-  btnEl.className = 'assistant-toggle';
+  btnEl.className = 'assistant-toggle floating-widget';
   btnEl.id = 'assistant-toggle-btn';
   btnEl.title = 'Ask the Game (?)';
   btnEl.style.cssText = `
@@ -478,12 +403,12 @@ export function createAssistantToggle(containerEl, assistantController) {
     bottom: 64px;
     padding: 8px 14px;
     height: 40px;
-    background: rgba(15, 15, 20, 0.95);
-    border: 1px solid rgba(74, 158, 255, 0.5);
+    background: rgba(15,15,20,0.95);
+    border: 1px solid rgba(74,158,255,0.5);
     border-radius: 6px;
     color: #4a9eff;
     font-family: 'Courier New', monospace;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: bold;
     cursor: pointer;
     z-index: 700;
@@ -491,53 +416,34 @@ export function createAssistantToggle(containerEl, assistantController) {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     backdrop-filter: blur(4px);
   `;
   btnEl.textContent = '🤖 Chat with the game engine';
 
-  // Ensure visibility on mobile
-  function checkMobileVisibility() {
-    const isMobile = window.innerWidth <= 728;
-    if (isMobile) {
-      btnEl.style.left = '8px';
-      btnEl.style.bottom = '60px';
-      btnEl.style.fontSize = '10px';
-      btnEl.style.padding = '6px 10px';
-      btnEl.style.height = '36px';
-    } else {
-      btnEl.style.left = '10px';
-      btnEl.style.bottom = '64px';
-      btnEl.style.fontSize = '11px';
-      btnEl.style.padding = '8px 14px';
-      btnEl.style.height = '40px';
-    }
+  function checkMobile() {
+    const mobile = window.innerWidth <= 728;
+    btnEl.style.left = mobile ? '8px' : '10px';
+    btnEl.style.bottom = mobile ? '60px' : '64px';
+    btnEl.style.fontSize = mobile ? '10px' : '11px';
+    btnEl.style.padding = mobile ? '6px 10px' : '8px 14px';
+    btnEl.style.height = mobile ? '36px' : '40px';
   }
-
-  checkMobileVisibility();
-  window.addEventListener('resize', checkMobileVisibility);
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
 
   btnEl.addEventListener('click', () => {
     assistantController.toggle();
-    // Hide button when panel is shown
     btnEl.style.display = assistantController.isVisible() ? 'none' : 'flex';
   });
+  btnEl.addEventListener('mouseenter', () => { btnEl.style.transform = 'scale(1.05)'; });
+  btnEl.addEventListener('mouseleave', () => { btnEl.style.transform = 'scale(1)'; });
 
-  btnEl.addEventListener('mouseenter', () => {
-    btnEl.style.background = 'rgba(15, 15, 20, 0.95)';
-    btnEl.style.transform = 'scale(1.05)';
-  });
+  document.body.appendChild(btnEl);
 
-  btnEl.addEventListener('mouseleave', () => {
-    btnEl.style.background = 'rgba(15, 15, 20, 0.95)';
-    btnEl.style.transform = 'scale(1)';
-  });
-
-  containerEl.appendChild(btnEl);
-
-  // Update button visibility when panel closes
+  // Restore button when panel closes
   const originalHide = assistantController.hide.bind(assistantController);
-  assistantController.hide = function() {
+  assistantController.hide = function () {
     originalHide();
     btnEl.style.display = 'flex';
   };

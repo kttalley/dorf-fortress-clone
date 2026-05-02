@@ -1,13 +1,14 @@
 /**
  * LLM Client with Groq Fallback
- * Async, non-blocking integration with Ollama (primary) and Groq API (fallback)
+ * Async, non-blocking integration with vLLM (primary, OpenAI-compatible) and Groq API (fallback)
  * Used for generating dwarf thoughts and speech - NEVER in main tick loop
  */
 
-// Primary Ollama Configuration
-const OLLAMA_URL = import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434';
-const MODEL = import.meta.env.VITE_OLLAMA_MODEL || 'llama3.1';
-const REQUEST_TIMEOUT = 5000;
+// Primary vLLM Configuration (OpenAI-compatible chat completions)
+// Endpoint and model MUST be supplied via env vars (see .env / .env.example).
+const VLLM_URL = import.meta.env.VITE_VLLM_URL || '';
+const VLLM_MODEL = import.meta.env.VITE_VLLM_MODEL || '';
+const REQUEST_TIMEOUT = 60000;
 
 // Groq Fallback Configuration
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
@@ -77,7 +78,7 @@ async function generateWithGroq(prompt, options = {}) {
 }
 
 /**
- * Generate text completion from Ollama with OpenAI fallback
+ * Generate text completion from vLLM (primary) with Groq fallback
  * @param {string} prompt - The prompt to send
  * @param {object} options - Generation options
  * @returns {Promise<string>} Generated text
@@ -90,27 +91,27 @@ export async function generate(prompt, options = {}) {
     stop = ['\n\n', 'Human:', 'User:'],
   } = options;
 
-  // Try Ollama first (primary)
-  const requestBody = {
-    model: MODEL,
-    prompt,
-    stream: false,
-    options: {
-      num_predict: maxTokens,
+  // Try vLLM first (primary, OpenAI-compatible chat completions)
+  if (!VLLM_URL || !VLLM_MODEL) {
+    console.warn('[LLM/vLLM] Skipped: VITE_VLLM_URL / VITE_VLLM_MODEL are not configured');
+  } else {
+    const requestBody = {
+      model: VLLM_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: maxTokens,
       temperature,
       top_p: topP,
-      stop,
-    },
-  };
-
-  try {
-    console.log(`[LLM/Ollama] Using model: ${MODEL}, sending ${prompt.length} char prompt`);
+      stop: (stop && stop.length > 0) ? stop : undefined,
+      stream: false,
+    };
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
     try {
-      const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+      console.log(`[LLM/vLLM] Using model: ${VLLM_MODEL}, sending ${prompt.length} char prompt`);
+
+      const response = await fetch(VLLM_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -119,28 +120,31 @@ export async function generate(prompt, options = {}) {
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[LLM/Ollama] Server error ${response.status}:`, errorText);
-        throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
+        console.error(`[LLM/vLLM] Server error ${response.status}:`, errorText);
+        throw new Error(`vLLM API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      const result = data.response?.trim() || '';
-      console.log(`[LLM/Ollama] ✓ Received response (${result.length} chars)`);
+      const result = data.choices?.[0]?.message?.content?.trim() || '';
+
+      if (data.usage) {
+        console.log(`[LLM/vLLM] ✓ Response (${result.length} chars) - Tokens: ${data.usage.total_tokens}`);
+      } else {
+        console.log(`[LLM/vLLM] ✓ Received response (${result.length} chars)`);
+      }
       return result;
+    } catch (error) {
+      console.error('[LLM/vLLM] Generation failed:', error.message);
     } finally {
       clearTimeout(timeoutId);
     }
-  } catch (error) {
-    console.error('[LLM/Ollama] Generation failed:', error.message);
   }
 
   // Groq fallback
   if (GROQ_API_KEY) {
-    console.log('[LLM] Ollama failed, attempting Groq fallback...');
+    console.log('[LLM] vLLM failed, attempting Groq fallback...');
     const groqResult = await generateWithGroq(prompt, options);
     if (groqResult) return groqResult;
   }
@@ -188,35 +192,39 @@ async function processQueue() {
  * @returns {Promise<{ available: boolean, provider: string }>}
  */
 export async function checkLLMHealth() {
-  // Try Ollama first (primary)
-  try {
+  // Try vLLM first (primary). vLLM exposes OpenAI's /v1/models for discovery.
+  // We derive the base URL by stripping the chat/completions suffix.
+  if (!VLLM_URL) {
+    console.warn('[LLM/vLLM] Health check skipped: VITE_VLLM_URL not configured');
+  } else {
+    const baseUrl = VLLM_URL.replace(/\/chat\/completions\/?$/, '');
+    const modelsUrl = `${baseUrl}/models`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     try {
-      console.log('[LLM/Ollama] Health check: connecting to', OLLAMA_URL);
-      const response = await fetch(`${OLLAMA_URL}/api/tags`, {
+      console.log('[LLM/vLLM] Health check: connecting to', modelsUrl);
+      const response = await fetch(modelsUrl, {
         method: 'GET',
         signal: controller.signal,
         mode: 'cors',
         credentials: 'omit',
       });
-      clearTimeout(timeoutId);
-      console.log('[LLM/Ollama] Health check: response', response.status, response.ok ? '✓' : '✗');
+      console.log('[LLM/vLLM] Health check: response', response.status, response.ok ? '✓' : '✗');
 
       if (response.ok) {
-        return { available: true, provider: 'ollama' };
+        return { available: true, provider: 'vllm' };
       }
+    } catch (error) {
+      console.warn('[LLM/vLLM] Health check failed:', error.message);
     } finally {
       clearTimeout(timeoutId);
     }
-  } catch (error) {
-    console.warn('[LLM/Ollama] Health check failed:', error.message);
   }
 
-  // Fall back to Groq if Ollama is unavailable
+  // Fall back to Groq if vLLM is unavailable
   if (GROQ_API_KEY) {
-    console.log('[LLM] Ollama unavailable, Groq fallback available');
+    console.log('[LLM] vLLM unavailable, Groq fallback available');
     return { available: true, provider: 'groq' };
   }
 

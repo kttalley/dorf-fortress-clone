@@ -50,12 +50,11 @@ export function initSpeechBubbles(gameContainer, asciiGrid) {
     overflow: hidden;
   `;
 
-  // Insert after the map display
-  const mapDisplay = document.getElementById('map-display');
-  if (mapDisplay) {
-    mapDisplay.style.position = 'relative';
-    mapDisplay.appendChild(containerEl);
-  }
+  // Append to game container (#game-container), which has position: relative
+  // and NO overflow clipping. Using #map-display would clip bubbles because
+  // it has overflow: auto for scrolling.
+  gameContainer.style.position = 'relative';
+  gameContainer.appendChild(containerEl);
 
   rendererEl = asciiGrid;
 
@@ -222,7 +221,7 @@ function createBubble(dwarf, text, type, target = null) {
     font-size: 14px;
     line-height: 1.3;
     pointer-events: none;
-    z-index: 99999;
+    z-index: 200;
     animation: bubbleFadeIn 0.3s ease-out;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   `;
@@ -264,8 +263,9 @@ function createBubble(dwarf, text, type, target = null) {
 }
 
 /**
- * Position a bubble relative to a dwarf
- * On mobile, bubbles are positioned at top of screen for visibility
+ * Position a bubble relative to a dwarf.
+ * Uses the same anchor-to-character math on desktop and mobile so the
+ * bubble visibly belongs to the dwarf instead of floating at the top.
  * @param {HTMLElement} bubble
  * @param {object} dwarf
  * @param {string} type
@@ -273,43 +273,52 @@ function createBubble(dwarf, text, type, target = null) {
 function positionBubble(bubble, dwarf, type) {
   if (!rendererEl || !containerEl) return;
 
-  // On mobile, use fixed positioning at top of viewport
-  if (isMobile()) {
-    bubble.style.position = 'fixed';
-    bubble.style.left = '50%';
-    bubble.style.transform = 'translateX(-50%)';
-    bubble.style.top = '60px';  // Below biome title
-    bubble.style.maxWidth = 'calc(100vw - 32px)';
-    bubble.style.width = 'auto';
-    bubble.style.zIndex = '500';
-    return;
+  // Recompute cell dimensions if they were never measured (e.g. on mobile,
+  // where the grid may not have laid out by the time first bubble fires).
+  if (!cellWidth || !cellHeight) {
+    updateCellDimensions();
   }
 
-  // Desktop positioning - relative to dwarf
   bubble.style.position = 'absolute';
   bubble.style.transform = 'none';
+  bubble.style.zIndex = '200';
 
   const gridRect = rendererEl.getBoundingClientRect();
   const containerRect = containerEl.getBoundingClientRect();
 
-  // Calculate dwarf position in pixels
+  // Calculate dwarf position in pixels (relative to the grid)
   const dwarfPixelX = dwarf.x * cellWidth;
   const dwarfPixelY = dwarf.y * cellHeight;
 
-  // Offset from grid to container
+  // Offset from grid to bubble container
   const offsetX = gridRect.left - containerRect.left;
   const offsetY = gridRect.top - containerRect.top;
 
-  // Position bubble above dwarf
-  const bubbleX = offsetX + dwarfPixelX - 10;
-  const bubbleY = offsetY + dwarfPixelY - 60;
+  // Constrain bubble width on small viewports so it stays attributable
+  if (isMobile()) {
+    bubble.style.maxWidth = 'min(220px, calc(100vw - 24px))';
+  } else {
+    bubble.style.maxWidth = '200px';
+  }
 
-  // Ensure bubble stays within viewport
   const bubbleWidth = bubble.offsetWidth || 200;
-  const maxX = containerRect.width - bubbleWidth - 5;
+  const bubbleHeight = bubble.offsetHeight || 60;
 
-  bubble.style.left = `${Math.max(5, Math.min(maxX, bubbleX))}px`;
-  bubble.style.top = `${Math.max(5, bubbleY)}px`;
+  // Center bubble horizontally over the dwarf, sit it just above
+  let bubbleX = offsetX + dwarfPixelX + (cellWidth / 2) - (bubbleWidth / 2);
+  let bubbleY = offsetY + dwarfPixelY - bubbleHeight - 6;
+
+  // If clipped above the grid, flip below the dwarf
+  if (bubbleY < offsetY + 4) {
+    bubbleY = offsetY + dwarfPixelY + cellHeight + 6;
+  }
+
+  // Clamp horizontally to the bubble container
+  const maxX = containerRect.width - bubbleWidth - 4;
+  bubbleX = Math.max(4, Math.min(maxX, bubbleX));
+
+  bubble.style.left = `${bubbleX}px`;
+  bubble.style.top = `${bubbleY}px`;
 }
 
 /**

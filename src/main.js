@@ -415,8 +415,9 @@ async function init() {
     }
   );
 
-  // Initialize speech bubbles
-  initSpeechBubbles(mapContainer, renderer.el);
+  // Initialize speech bubbles (use game container to avoid overflow clipping)
+  const gameContainer = document.getElementById('game-container');
+  initSpeechBubbles(gameContainer, renderer.el);
 
   // Initialize floating thought panel widget
   initSidebarThoughts();
@@ -498,6 +499,10 @@ async function init() {
   // Initialize Game Assistant ("Ask the Game" panel)
   gameAssistant = initGameAssistant(mapContainer, () => state, currentScenario);
   createAssistantToggle(mapContainer, gameAssistant);
+
+  // Mutual exclusion: only one popover open at a time
+  gameAssistant.onBeforeShow = () => { if (statPanel && statPanel.isVisible()) statPanel.hide(); };
+  statPanel.onBeforeShow = () => { if (gameAssistant && gameAssistant.isVisible()) gameAssistant.hide(); };
   setLoadingProgress(60);
 
   // Initialize LLM systems
@@ -519,7 +524,8 @@ async function init() {
   llmConnected = connectionStatus.connected;
 
   if (llmConnected) {
-    const provider = connectionStatus.provider === 'openai' ? 'OpenAI' : 'Ollama';
+    const providerLabels = { vllm: 'vLLM', groq: 'Groq', openai: 'OpenAI' };
+    const provider = providerLabels[connectionStatus.provider] || connectionStatus.provider || 'LLM';
     addLog(state, `Connected to thought engine (${provider}).`);
     addLoadingStatus('llmConnect', `Connected to ${provider} thought engine`);
   } else {

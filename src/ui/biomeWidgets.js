@@ -129,7 +129,7 @@ export function initEventLog() {
     top: 340px;
     right: 10px;
     width: 280px;
-    max-height: 320px;
+    max-height: 275px;
     background: rgba(20, 20, 30, 0.95);
     border: 1px solid rgba(100, 100, 120, 0.5);
     border-radius: 8px;
@@ -201,7 +201,7 @@ export function initEventLog() {
   const content = document.createElement('div');
   content.id = 'event-log-content';
   content.style.cssText = `
-    max-height: 260px;
+    max-height: 220px;
     overflow-y: auto;
     padding: 8px;
     transition: max-height 0.3s ease;
@@ -231,7 +231,7 @@ function toggleEventLogMinimize() {
   if (eventLogMinimized) {
     // Expand
     content.style.display = 'block';
-    eventLogEl.style.maxHeight = '320px';
+    eventLogEl.style.maxHeight = '275px';
     if (btn) {
       btn.textContent = '−';
       btn.title = 'Minimize';
@@ -311,7 +311,7 @@ function applyEventLogMobileStyles() {
     eventLogEl.style.height = 'auto';
     eventLogEl.style.borderRadius = '8px';
     eventLogEl.style.right = '10px';
-    eventLogEl.style.top = '340px';
+    eventLogEl.style.top = '340px'; // overridden by CSS !important to header+330px
     if (header) {
       header.style.padding = '10px 12px';
       header.style.justifyContent = 'space-between';
