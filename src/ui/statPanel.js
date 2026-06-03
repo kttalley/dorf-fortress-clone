@@ -14,6 +14,7 @@ import {
   formatTileName
 } from './inspection.js';
 import { chatWithEntity, getEntityHistory, clearEntityHistory } from '../llm/entityChat.js';
+import { getAvatarHtml } from './sprites.js';
 import { ENTITY_CHAT_STARTERS } from '../llm/prompts/entityChat.js';
 
 // Minimal markdown renderer (escapes HTML first)
@@ -305,6 +306,20 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     return { Human: '🧙‍♂️', Goblin: '👹', Elf: '🧝🏻‍♀️' }[race] || '❓';
   }
 
+  // Resolve the procedural sprite key + emoji fallback for an entity.
+  function spriteInfoFor(entityType, race) {
+    if (entityType === 'visitor') {
+      return { key: (race || '').toLowerCase(), fallback: getRaceEmoji(race) };
+    }
+    return { key: 'dwarf', fallback: '🧌' };
+  }
+
+  // Avatar <img> for a stat-panel / chat header (from stats or entity).
+  function avatarFor(entityType, id, race, size = 44) {
+    const { key, fallback } = spriteInfoFor(entityType, race);
+    return getAvatarHtml(key, id, { size, fallbackEmoji: fallback });
+  }
+
   // ── Entity renderers ──────────────────────────────────────────
 
   function renderDwarf(stats) {
@@ -324,7 +339,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     return `
       <div style="padding:16px;">
         <div style="display:flex;align-items:center;margin-bottom:10px;">
-          <span style="font-size:26px;color:#ff0;margin-right:10px">🧌</span>
+          <span style="margin-right:10px;display:inline-flex">${avatarFor('dwarf', stats.id)}</span>
           <div style="flex:1">
             <div style="font-size:20px;font-weight:bold;color:#fff">${stats.generatedName || stats.name}</div>
             <div style="font-size:13px;color:#666">Dwarf #${stats.id}</div>
@@ -366,7 +381,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     return `
       <div style="padding:16px;">
         <div style="display:flex;align-items:center;margin-bottom:10px;">
-          <span style="font-size:22px;margin-right:10px">${getRaceEmoji(stats.race)}</span>
+          <span style="margin-right:10px;display:inline-flex">${avatarFor('visitor', stats.id, stats.race)}</span>
           <div style="flex:1">
             <div style="font-size:20px;font-weight:bold;color:#fff">${stats.name}</div>
             <div style="font-size:13px;color:#666">${stats.race} ${stats.role} #${stats.id}</div>
@@ -453,6 +468,8 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     const name = entity.generatedName || entity.name || 'Entity';
     const history = getEntityHistory(entity, entityType);
     const starters = ENTITY_CHAT_STARTERS[entityType] || ENTITY_CHAT_STARTERS.dwarf;
+    const headerAvatar = avatarFor(entityType, entity.id, entity.race, 36);
+    const msgAvatar = avatarFor(entityType, entity.id, entity.race, 24);
 
     let messagesHtml = '';
     if (history.length === 0) {
@@ -483,7 +500,10 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
         return `
           <div style="margin:6px 0;padding:9px 11px;border-radius:6px;
             background:rgba(74,255,158,0.1);border:1px solid rgba(74,255,158,0.3);margin-right:20px;">
-            <div style="font-size:12px;color:#4aff9e;margin-bottom:3px">${name}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              ${msgAvatar}
+              <span style="font-size:12px;color:#4aff9e">${name}</span>
+            </div>
             <div class="chat-assistant-body" data-raw="${escapeAttr(msg.content)}"
               style="font-size:14px;line-height:1.45">${renderMarkdown(msg.content)}</div>
           </div>
@@ -498,7 +518,10 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
             background:rgba(100,100,120,0.3);border:1px solid rgba(100,100,120,0.4);
             border-radius:4px;padding:5px 10px;color:#888;font-family:inherit;
             font-size:14px;cursor:pointer;">← Back</button>
-          <div style="flex:1;font-size:20px;font-weight:bold;color:#fff">Chat with ${name}</div>
+          <div style="flex:1;display:flex;align-items:center;gap:8px;">
+            ${headerAvatar}
+            <span style="font-size:20px;font-weight:bold;color:#fff">Chat with ${name}</span>
+          </div>
           ${history.length > 0 ? `
             <button class="chat-clear-btn" style="
               background:none;border:1px solid rgba(255,100,100,0.3);border-radius:4px;

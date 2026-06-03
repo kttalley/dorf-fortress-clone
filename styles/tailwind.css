@@ -1,6 +1,18 @@
 /* Tailwind placeholder - inline styles used for MVP */
 /* Add Tailwind build step in v0.2 if needed */
 
+/* Warm illumination glow for speaking sprite entities (filter-based) */
+@keyframes pulse-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 3px rgba(255, 235, 170, 0.7))
+            drop-shadow(0 0 6px rgba(255, 205, 120, 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px rgba(255, 240, 190, 1))
+            drop-shadow(0 0 13px rgba(255, 205, 120, 0.85));
+  }
+}
+
 /* Pulse animation for speaking entities - outline style */
 @keyframes pulse-outline {
   0% {

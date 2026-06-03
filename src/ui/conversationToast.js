@@ -3,6 +3,26 @@
  * Styled to match event log and thought widgets
  */
 
+import { getAvatarHtml } from './sprites.js';
+
+/**
+ * Build a small avatar <img> for a speaker, matching the stat-panel convention:
+ * visitors resolve their sprite from race, everyone else is a dwarf.
+ * @param {object|null} entity - speaking/thinking entity
+ * @param {number} size - avatar edge in px
+ * @returns {string} HTML string ('' when no entity)
+ */
+function avatarHtmlFor(entity, size = 22) {
+  if (!entity) return '';
+  const race = entity.race ? String(entity.race).toLowerCase() : null;
+  const key = race || entity.spriteKey || 'dwarf';
+  const fallback = race
+    ? ({ human: '🧙‍♂️', goblin: '👹', elf: '🧝🏻‍♀️' }[race] || '❓')
+    : '🧌';
+  const seed = entity.seed ?? entity.id ?? key;
+  return getAvatarHtml(key, seed, { size, fallbackEmoji: fallback });
+}
+
 // Container for conversation messages
 let conversationContainer = null;
 let conversationMessages = [];
@@ -279,16 +299,21 @@ export function addConversationMessage(message, type = 'speech', dwarf = null) {
   let formattedMessage = '';
   
   switch (type) {
-    case 'speech':
+    case 'speech': {
       // Split the message into header and content
       const parts = message.split(': ');
+      let textHtml;
       if (parts.length > 1) {
         const header = parts[0];
         const content = parts.slice(1).join(': ');
-        formattedMessage = `<div style="color: #cccc88; font-weight: bold; margin-bottom: 4px; font-size: 13px;">${header}</div><div style="color: #ddddaa;">${content}</div>`;
+        textHtml = `<div style="color: #cccc88; font-weight: bold; margin-bottom: 4px; font-size: 13px;">${header}</div><div style="color: #ddddaa;">${content}</div>`;
       } else {
-        formattedMessage = message;
+        textHtml = message;
       }
+      const avatar = avatarHtmlFor(dwarf);
+      formattedMessage = avatar
+        ? `<div style="display: flex; gap: 8px; align-items: flex-start;">${avatar}<div style="flex: 1; min-width: 0;">${textHtml}</div></div>`
+        : textHtml;
       messageEl.style.cssText = `
         margin: 6px 0;
         padding: 8px 10px;
@@ -298,8 +323,13 @@ export function addConversationMessage(message, type = 'speech', dwarf = null) {
         line-height: 1.3;
       `;
       break;
-    case 'thought':
-      formattedMessage = `<em style="color: #aabbdd;">"${message}"</em>`;
+    }
+    case 'thought': {
+      const thoughtHtml = `<em style="color: #aabbdd;">"${message}"</em>`;
+      const avatar = avatarHtmlFor(dwarf);
+      formattedMessage = avatar
+        ? `<div style="display: flex; gap: 8px; align-items: flex-start;">${avatar}<div style="flex: 1; min-width: 0;">${thoughtHtml}</div></div>`
+        : thoughtHtml;
       messageEl.style.cssText = `
         margin: 6px 0;
         padding: 8px 10px;
@@ -309,6 +339,7 @@ export function addConversationMessage(message, type = 'speech', dwarf = null) {
         line-height: 1.3;
       `;
       break;
+    }
     case 'system':
       formattedMessage = `<span style="color: #88aa66;">${message}</span>`;
       messageEl.style.cssText = `

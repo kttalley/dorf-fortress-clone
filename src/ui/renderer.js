@@ -10,9 +10,15 @@ import { getTile } from '../map/map.js';
 import { getDigDesignations, getBuildProjects, getStructures } from '../sim/construction.js';
 import { composeWeatherTile } from '../ui/weatherRenderer.js';
 import { getActiveSpeakers } from '../ui/speechBubble.js';
+import { getSprite, hasSprite } from '../ui/sprites.js';
 
 // Fixed font size for consistent tile rendering (no scrunching)
 const FIXED_FONT_SIZE = 16;
+
+// Procedural sprites are line-art on a transparent field, so they read smaller
+// than the emoji glyphs they replace. Boost every sprite entity above its base
+// (emoji-tuned) scale so the figures clearly stand off the surrounding tileset.
+const SPRITE_SCALE_BOOST = 1.3;
 
 /**
  * Calculate optimal font size to fill container while maintaining aspect ratio.
@@ -135,6 +141,10 @@ export function createRenderer(containerEl, width, height) {
   // Cache for dirty checking
   let prevState = new Array(width * height).fill(null);
 
+  // Procedural-hybrid sprites are always on; emoji remains the fallback for
+  // entity types that don't have a template yet (via hasSprite()).
+  const spriteMode = true;
+
   /**
    * Builds a lookup of position -> entity with highest zIndex.
    * @param {Array} entities - Array of entity objects
@@ -223,14 +233,55 @@ export function createRenderer(containerEl, width, height) {
         }
 
         // Dirty check: only update DOM if changed
-        const isDwarf = entity && entity.char === '🧌';
+        const isDwarf = entity && entity.spriteKey === 'dwarf';
         const isSpeaking = isDwarf && entity && activeSpeakerIds.has(entity.id);
-        const stateKey = `${char}|${fg}|${bg}|${isDwarf}|${isSpeaking}`;
+
+        // Resolve a procedural-hybrid sprite when enabled and one exists for
+        // this entity type; otherwise fall back to the emoji/ASCII glyph.
+        let spriteUri = null;
+        if (spriteMode && entity && entity.spriteKey && hasSprite(entity.spriteKey)) {
+          spriteUri = getSprite(
+            entity.spriteKey,
+            entity.seed ?? entity.id ?? entity.spriteKey,
+            entity.spriteTint || null
+          );
+        }
+
+        const stateKey = `${spriteUri || char}|${fg}|${bg}|${isDwarf}|${isSpeaking}`;
         if (prevState[idx] !== stateKey) {
-          cell.textContent = char;
-          cell.style.color = fg;
+          if (spriteUri) {
+            // Sprite cell: paint the image, keep tile bg behind transparency
+            cell.textContent = '';
+            cell.style.backgroundImage = `url("${spriteUri}")`;
+            cell.style.backgroundSize = 'contain';
+            cell.style.backgroundRepeat = 'no-repeat';
+            cell.style.backgroundPosition = 'center';
+            cell.style.imageRendering = 'pixelated';
+          } else {
+            cell.textContent = char;
+            cell.style.color = fg;
+            if (cell.style.backgroundImage) cell.style.backgroundImage = '';
+          }
           cell.style.backgroundColor = bg;
-          
+
+          // Sprite entities: scale + drop-shadow depth, glow when speaking.
+          if (spriteUri) {
+            cell.style.transform = `scale(${(entity.scale || 1) * SPRITE_SCALE_BOOST})`;
+            cell.style.fontWeight = 'normal';
+            cell.style.zIndex = '100';
+            cell.style.textShadow = 'none';
+            if (isSpeaking) {
+              // Warm illumination glow — as if lit while speaking
+              cell.style.animation = 'pulse-glow 1.6s ease-in-out infinite';
+              cell.style.filter = 'drop-shadow(0 0 4px rgba(255,235,170,0.95)) drop-shadow(0 0 9px rgba(255,205,120,0.7))';
+            } else {
+              cell.style.animation = 'none';
+              cell.style.filter = 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))';
+            }
+            prevState[idx] = stateKey;
+            continue;
+          }
+
           // Apply visual treatment based on entity type
           if (entity && entity.scale && entity.scale > 1.0) {
             cell.style.transform = `scale(${entity.scale})`;
@@ -539,14 +590,19 @@ export function buildRenderEntities(state) {
   // Dwarves - color indicates hunger/health state
   for (const dwarf of state.dwarves) {
     let glyph = EntityGlyph.DWARF;
+    // Sprite-mode state tint mirrors the emoji color swaps below.
+    let spriteTint = null;
 
     // Health takes priority for coloring
     if (dwarf.hp < dwarf.maxHp * 0.5) {
       glyph = EntityGlyph.DWARF_WOUNDED;
+      spriteTint = { color: '#ff3a3a', amount: 0.4 };
     } else if (dwarf.hunger > 75) {
       glyph = EntityGlyph.DWARF_STARVING;
+      spriteTint = { color: '#ff7a2a', amount: 0.38 };
     } else if (dwarf.hunger > 50) {
       glyph = EntityGlyph.DWARF_HUNGRY;
+      spriteTint = { color: '#ffd24a', amount: 0.18 };
     }
 
     entities.push({
@@ -559,6 +615,10 @@ export function buildRenderEntities(state) {
       scale: glyph.scale,
       shadow: glyph.shadow,
       filter: glyph.filter,
+      // Procedural-hybrid sprite: stable per-dwarf identity from id
+      spriteKey: 'dwarf',
+      seed: dwarf.id,
+      spriteTint,
     });
   }
 
@@ -586,9 +646,13 @@ export function buildRenderEntities(state) {
 
       let fg = glyph.fg;
 
-      // Tint wounded visitors redder
+      // Sprite state tint mirrors the emoji color treatment.
+      let spriteTint = null;
       if (visitor.hp < visitor.maxHp * 0.5) {
         fg = blendColor(fg, '#ff4444', 0.4);
+        spriteTint = { color: '#ff3a3a', amount: 0.4 };
+      } else if (visitor.disposition < -20) {
+        spriteTint = { color: '#cc3333', amount: 0.28 };
       }
 
       entities.push({
@@ -602,6 +666,10 @@ export function buildRenderEntities(state) {
         scale: glyph.scale,
         shadow: glyph.shadow,
         filter: glyph.filter,
+        // Sprite key per race; types without a template fall back to emoji.
+        spriteKey: visitor.race,
+        seed: visitor.id,
+        spriteTint,
       });
     }
   }
@@ -639,8 +707,10 @@ export function buildRenderEntities(state) {
 
       // Tint wounded animals
       let fg = glyph.fg;
+      let spriteTint = null;
       if (animal.hp < animal.maxHp * 0.5) {
         fg = blendColor(fg, '#ff6666', 0.3);
+        spriteTint = { color: '#ff5555', amount: 0.32 };
       }
 
       entities.push({
@@ -652,6 +722,10 @@ export function buildRenderEntities(state) {
         scale: glyph.scale,
         shadow: glyph.shadow,
         filter: glyph.filter,
+        // Sprite key per species; same set as the templates.
+        spriteKey: animal.subtype,
+        seed: animal.id,
+        spriteTint,
       });
     }
   }
