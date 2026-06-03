@@ -524,7 +524,7 @@ async function init() {
   llmConnected = connectionStatus.connected;
 
   if (llmConnected) {
-    const providerLabels = { vllm: 'vLLM', groq: 'Groq', openai: 'OpenAI' };
+    const providerLabels = { ollama: 'Ollama', groq: 'Groq', openai: 'OpenAI' };
     const provider = providerLabels[connectionStatus.provider] || connectionStatus.provider || 'LLM';
     addLog(state, `Connected to thought engine (${provider}).`);
     addLoadingStatus('llmConnect', `Connected to ${provider} thought engine`);

@@ -24,7 +24,7 @@ import { checkLLMHealth } from '../ai/llmClient.js';
 const CONFIG = {
   TIMEOUT_MS: 15000,         // LLM request timeout (increased for queued requests)
   MAX_RETRIES: 1,           // Retry attempts before fallback
-  MODEL: 'gemma3:latest',   // Default model
+  MODEL: 'qwen36-opus',
   MAX_TOKENS: 100,          // Response token limit
   TEMPERATURE: 0.85,        // Creativity level
 };

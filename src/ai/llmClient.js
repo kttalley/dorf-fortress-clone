@@ -1,10 +1,10 @@
 /**
  * LLM Client with Groq Fallback
- * Async, non-blocking integration with vLLM (primary, OpenAI-compatible) and Groq API (fallback)
+ * Async, non-blocking integration with vLLM (primary, local rig) and Groq API (fallback)
  * Used for generating dwarf thoughts and speech - NEVER in main tick loop
  */
 
-// Primary vLLM Configuration (OpenAI-compatible chat completions)
+// Primary Ollama Configuration (OpenAI-compatible chat completions)
 // Endpoint and model MUST be supplied via env vars (see .env / .env.example).
 const VLLM_URL = import.meta.env.VITE_VLLM_URL || '';
 const VLLM_MODEL = import.meta.env.VITE_VLLM_MODEL || '';
@@ -91,7 +91,7 @@ export async function generate(prompt, options = {}) {
     stop = ['\n\n', 'Human:', 'User:'],
   } = options;
 
-  // Try vLLM first (primary, OpenAI-compatible chat completions)
+  // vLLM first (primary, local rig for narration)
   if (!VLLM_URL || !VLLM_MODEL) {
     console.warn('[LLM/vLLM] Skipped: VITE_VLLM_URL / VITE_VLLM_MODEL are not configured');
   } else {
@@ -103,6 +103,7 @@ export async function generate(prompt, options = {}) {
       top_p: topP,
       stop: (stop && stop.length > 0) ? stop : undefined,
       stream: false,
+      think: false,
     };
 
     const controller = new AbortController();
@@ -192,10 +193,10 @@ async function processQueue() {
  * @returns {Promise<{ available: boolean, provider: string }>}
  */
 export async function checkLLMHealth() {
-  // Try vLLM first (primary). vLLM exposes OpenAI's /v1/models for discovery.
+  // Try Ollama first (primary). Ollama exposes OpenAI's /v1/models for discovery.
   // We derive the base URL by stripping the chat/completions suffix.
   if (!VLLM_URL) {
-    console.warn('[LLM/vLLM] Health check skipped: VITE_VLLM_URL not configured');
+    console.warn('[LLM/Ollama] Health check skipped: VITE_VLLM_URL not configured');
   } else {
     const baseUrl = VLLM_URL.replace(/\/chat\/completions\/?$/, '');
     const modelsUrl = `${baseUrl}/models`;
@@ -203,28 +204,28 @@ export async function checkLLMHealth() {
     const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     try {
-      console.log('[LLM/vLLM] Health check: connecting to', modelsUrl);
+      console.log('[LLM/Ollama] Health check: connecting to', modelsUrl);
       const response = await fetch(modelsUrl, {
         method: 'GET',
         signal: controller.signal,
         mode: 'cors',
         credentials: 'omit',
       });
-      console.log('[LLM/vLLM] Health check: response', response.status, response.ok ? '✓' : '✗');
+      console.log('[LLM/Ollama] Health check: response', response.status, response.ok ? '✓' : '✗');
 
       if (response.ok) {
-        return { available: true, provider: 'vllm' };
+        return { available: true, provider: 'ollama' };
       }
     } catch (error) {
-      console.warn('[LLM/vLLM] Health check failed:', error.message);
+      console.warn('[LLM/Ollama] Health check failed:', error.message);
     } finally {
       clearTimeout(timeoutId);
     }
   }
 
-  // Fall back to Groq if vLLM is unavailable
+  // Fall back to Groq if Ollama is unavailable
   if (GROQ_API_KEY) {
-    console.log('[LLM] vLLM unavailable, Groq fallback available');
+    console.log('[LLM] Ollama unavailable, Groq fallback available');
     return { available: true, provider: 'groq' };
   }
 

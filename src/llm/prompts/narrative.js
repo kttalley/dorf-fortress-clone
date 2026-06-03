@@ -16,7 +16,8 @@ Rules:
 - 15-30 words per event
 - No invented facts; only embellish tone
 - Archaic, wry style
-- Output JSON array of strings only`;
+- Output JSON array of strings only
+- Output strings, NOT objects: ["sentence", "sentence"], not [{"event":"sentence"}]`;
 
 // === USER PROMPT TEMPLATE ===
 export const USER_EVENT_NARRATOR = `Chronicle these events from Day {{day}}:
@@ -58,7 +59,17 @@ export function parseNarratorResponse(response, expectedCount = 0) {
     const parsed = JSON.parse(response.trim());
 
     if (Array.isArray(parsed)) {
-      return parsed.map(sanitizeNarration);
+      return parsed.map(item => {
+        if (typeof item === 'string') return sanitizeNarration(item);
+        // Extract first string-valued field matching known keys
+        const stringKeys = /^(event|text|narrated|narration|sentence|prose)$/i;
+        const match = Object.entries(item).find(([k, v]) => typeof v === 'string' && stringKeys.test(k));
+        if (match) return sanitizeNarration(match[1]);
+        // Fallback to first string-valued field
+        const fallback = Object.entries(item).find(([, v]) => typeof v === 'string');
+        if (fallback) return sanitizeNarration(fallback[1]);
+        return sanitizeNarration(String(item));
+      });
     }
   } catch (e) {
     // Try to extract JSON array from markdown code block
@@ -67,7 +78,15 @@ export function parseNarratorResponse(response, expectedCount = 0) {
       try {
         const parsed = JSON.parse(jsonMatch[1]);
         if (Array.isArray(parsed)) {
-          return parsed.map(sanitizeNarration);
+          return parsed.map(item => {
+            if (typeof item === 'string') return sanitizeNarration(item);
+            const stringKeys = /^(event|text|narrated|narration|sentence|prose)$/i;
+            const match = Object.entries(item).find(([k, v]) => typeof v === 'string' && stringKeys.test(k));
+            if (match) return sanitizeNarration(match[1]);
+            const fallback = Object.entries(item).find(([, v]) => typeof v === 'string');
+            if (fallback) return sanitizeNarration(fallback[1]);
+            return sanitizeNarration(String(item));
+          });
         }
       } catch (e2) {
         // Fall through
@@ -80,7 +99,15 @@ export function parseNarratorResponse(response, expectedCount = 0) {
       try {
         const parsed = JSON.parse(rawMatch[0]);
         if (Array.isArray(parsed)) {
-          return parsed.map(sanitizeNarration);
+          return parsed.map(item => {
+            if (typeof item === 'string') return sanitizeNarration(item);
+            const stringKeys = /^(event|text|narrated|narration|sentence|prose)$/i;
+            const match = Object.entries(item).find(([k, v]) => typeof v === 'string' && stringKeys.test(k));
+            if (match) return sanitizeNarration(match[1]);
+            const fallback = Object.entries(item).find(([, v]) => typeof v === 'string');
+            if (fallback) return sanitizeNarration(fallback[1]);
+            return sanitizeNarration(String(item));
+          });
         }
       } catch (e3) {
         // Fall through
