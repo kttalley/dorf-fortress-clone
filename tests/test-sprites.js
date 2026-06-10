@@ -1,7 +1,7 @@
 // Unit tests for the procedural-hybrid sprite engine.
 // Run with: node tests/test-sprites.js
 
-import { getSprite, hasSprite, _internal } from '../src/ui/sprites.js';
+import { getSprite, hasSprite, getIcon, getIconHtml, hasIcon, getAvatarHtml, _internal } from '../src/ui/sprites.js';
 
 let passed = 0;
 let failed = 0;
@@ -62,6 +62,40 @@ assert(getSprite('griffon', 'x') === null, 'unknown sprite key returns null');
 // --- Output is a usable SVG data URI --------------------------------------
 assert(a1.startsWith('data:image/svg+xml,'), 'output is an SVG data URI');
 assert(decodeURIComponent(a1).includes('<svg'), 'decoded URI contains <svg>');
+
+// --- Static UI icons --------------------------------------------------------
+const { ICON_TEMPLATES } = _internal;
+for (const [name, { grid, palette }] of Object.entries(ICON_TEMPLATES)) {
+  assert(grid.length === 12, `icon ${name}: grid has 12 rows (got ${grid.length})`);
+  const widths = new Set(grid.map(r => r.length));
+  assert(widths.size === 1 && widths.has(12), `icon ${name}: every row is 12 wide`);
+  // Every non-transparent cell maps to a palette color
+  const slots = new Set(grid.join('').replace(/\./g, ''));
+  for (const slot of slots) {
+    assert(typeof palette[slot] === 'string', `icon ${name}: slot '${slot}' has a palette color`);
+  }
+  assert(slots.size > 0, `icon ${name}: grid is not empty`);
+}
+
+for (const name of ['sound_on', 'sound_off', 'chat', 'thought', 'wave', 'meat',
+  'hungry', 'map', 'bot', 'chart', 'globe', 'scroll', 'mask', 'unknown']) {
+  assert(hasIcon(name) === true, `hasIcon("${name}") is true`);
+  const uri = getIcon(name);
+  assert(typeof uri === 'string' && uri.startsWith('data:image/svg+xml,'), `icon ${name} renders to SVG data URI`);
+}
+assert(hasIcon('nonexistent') === false, 'hasIcon("nonexistent") is false');
+assert(getIcon('nonexistent') === null, 'unknown icon returns null');
+assert(getIcon('scroll') === getIcon('scroll'), 'icons are cached/deterministic');
+
+const iconHtml = getIconHtml('sound_on', 18);
+assert(iconHtml.includes('<img') && iconHtml.includes('image-rendering:pixelated'), 'getIconHtml returns a pixelated <img>');
+assert(iconHtml.includes('width:18px'), 'getIconHtml honors size');
+assert(getIconHtml('nonexistent') === '', 'getIconHtml for unknown icon returns empty string');
+
+// Avatar fallback for unknown creatures uses the pixel 'unknown' icon, not emoji
+const fallbackAvatar = getAvatarHtml('griffon', 'g-1', { size: 24 });
+assert(fallbackAvatar.includes('<img'), 'avatar fallback is an <img> icon');
+assert(!/[\u{1F300}-\u{1FAFF}]/u.test(fallbackAvatar), 'avatar fallback contains no emoji');
 
 console.log(`\nSprite tests: ${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

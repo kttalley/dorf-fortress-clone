@@ -303,7 +303,7 @@ Brief thought about your hunger (1-2 sentences, first person):`;
   THOUGHT_OBSERVATION: (dwarf, context) => {
     const traits = formatTraits(dwarf.personality);
     const mood = describeMood(dwarf.mood);
-    const location = context.tilegeneratedName || 'somewhere';
+    const location = context.tileName || 'somewhere';
     const nearby = context.nearbyDwarves?.length > 0
       ? `You can see: ${context.nearbyDwarves.map(d => `${d.generatedName} (${d.state})`).join(', ')}.`
       : 'You are alone.';

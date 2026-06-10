@@ -8,7 +8,7 @@ import { VISITOR_STATE, shouldFlee, isSatisfied, addSatisfaction } from '../sim/
 import { VISITOR_ROLE, RACE } from '../sim/races.js';
 import { findFortressCenter, findExitPosition, isNearEdge } from '../sim/edges.js';
 import { findNearestDwarf, inAttackRange, attemptAttack } from '../sim/combat.js';
-import { executeSmartMovement, moveToward } from '../sim/movement.js';
+import { isPassable, canAffordMove } from '../sim/movement.js';
 import { emit, EVENTS } from '../events/eventBus.js';
 
 // Configuration
@@ -402,17 +402,8 @@ function moveTowardTarget(visitor, state) {
 }
 
 function tryMove(visitor, newX, newY, state) {
-  const { map } = state;
-
-  // Bounds check
-  if (newX < 0 || newX >= map.width || newY < 0 || newY >= map.height) {
-    return false;
-  }
-
-  // Walkability check
-  const tile = map.tiles[newY * map.width + newX];
-  const tileDef = getTileDef(tile);
-  if (!tileDef?.walkable) {
+  // Single walkability source (movement.js, backed by tile defs)
+  if (!isPassable(state, newX, newY)) {
     return false;
   }
 
@@ -422,22 +413,15 @@ function tryMove(visitor, newX, newY, state) {
   );
   if (collision) return false;
 
+  // Honor terrain moveCost (marsh/snow slow visitors too)
+  if (!canAffordMove(visitor, state, newX, newY)) {
+    return false;
+  }
+
   // Move
   visitor.x = newX;
   visitor.y = newY;
   return true;
-}
-
-// Import getTileDef at module level
-import { getTileDef as getTileDefinition } from '../map/tiles.js';
-
-function getTileDef(tile) {
-  try {
-    return getTileDefinition(tile);
-  } catch {
-    // Fallback
-    return tile ? { walkable: true } : { walkable: false };
-  }
 }
 
 function findGroupMerchant(guard, state) {

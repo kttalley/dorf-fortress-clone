@@ -102,8 +102,11 @@ export function buildUserPrompt(worldSummary, question, chatHistory = [], worldC
     if (worldContext.scenario.description) {
       prompt += `**Description:** ${worldContext.scenario.description}\n`;
     }
-    if (worldContext.scenario.victoryConditions && worldContext.scenario.victoryConditions.length > 0) {
-      prompt += `**Victory Conditions:** ${worldContext.scenario.victoryConditions.join(', ')}\n`;
+    // Scenario objects use snake_case `victory_conditions` (see src/scenarios/scenarioSchema.js);
+    // support camelCase too in case a normalized object is ever passed.
+    const victoryConditions = worldContext.scenario.victory_conditions || worldContext.scenario.victoryConditions;
+    if (victoryConditions && victoryConditions.length > 0) {
+      prompt += `**Victory Conditions:** ${victoryConditions.join(', ')}\n`;
     }
     if (worldContext.scenario.parameters) {
       const params = worldContext.scenario.parameters;

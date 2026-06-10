@@ -4,6 +4,8 @@
  */
 
 import { distance } from './entities.js';
+import { getTile, inBounds } from '../map/map.js';
+import { getTileDef } from '../map/tiles.js';
 
 // === MOVEMENT CONFIGURATION ===
 const CONFIG = {
@@ -268,7 +270,7 @@ export function vectorToMovement(dwarf, vector, state) {
     const ny = dwarf.y + move.dy;
 
     // Check passability
-    if (!isPassable(nx, ny, state)) continue;
+    if (!isPassable(state, nx, ny)) continue;
 
     // Score by alignment with desired vector
     const alignment = move.dx * vector.dx + move.dy * vector.dy;
@@ -297,6 +299,16 @@ export function executeSmartMovement(dwarf, state, options = {}) {
   const vector = calculateMovementVector(dwarf, state, options);
   const move = vectorToMovement(dwarf, vector, state);
 
+  // Staying put costs nothing
+  if (move.dx === 0 && move.dy === 0) {
+    return move;
+  }
+
+  // Honor terrain moveCost: expensive tiles throttle how often a step lands
+  if (!canAffordMove(dwarf, state, dwarf.x + move.dx, dwarf.y + move.dy)) {
+    return { dx: 0, dy: 0 };
+  }
+
   // Update position
   dwarf.x += move.dx;
   dwarf.y += move.dy;
@@ -321,32 +333,60 @@ export function moveToward(dwarf, target, state) {
 }
 
 /**
- * Check if tile is passable
+ * Single walkability source for ALL entity classes (dwarves, visitors, animals).
+ * Backed by getTileDef(...).walkable from the tile definitions.
  */
-function isPassable(x, y, state) {
-  if (x < 0 || x >= state.map.width || y < 0 || y >= state.map.height) {
+export function isPassable(state, x, y) {
+  if (!state?.map || !inBounds(state.map, x, y)) {
     return false;
   }
 
-  const index = y * state.map.width + x;
-  const tile = state.map.tiles[index];
-
+  const tile = getTile(state.map, x, y);
   if (!tile) return false;
 
-  // Handle object tiles
-  if (typeof tile === 'object') {
-    if (tile.walkable === false) return false;
-    const walkable = [
-      'grass', 'tall_grass', 'dirt', 'forest_floor', 'cave_floor',
-      'river_bank', 'sand', 'mountain_slope', 'marsh', 'moss',
-      'shrub', 'flower', 'mushroom', 'berry_bush', 'food_plant',
-      'rocky_ground', 'snow', 'mud', 'crystal', 'path',
-      'floor', 'workshop_floor', 'dwelling_floor',
-    ];
-    return walkable.includes(tile.type);
+  return getTileDef(tile).walkable === true;
+}
+
+/**
+ * Movement cost of the tile at (x, y).
+ * 1 = normal, 2 = half speed, Infinity = impassable.
+ */
+export function getMoveCost(state, x, y) {
+  if (!state?.map) return 1;
+  const tile = getTile(state.map, x, y);
+  if (!tile) return Infinity;
+
+  const def = getTileDef(tile);
+  if (!def.walkable) return Infinity;
+
+  const cost = def.moveCost;
+  return Number.isFinite(cost) && cost > 0 ? cost : 1;
+}
+
+// Highest finite tile moveCost; caps idle banking to at most one expensive step
+const MAX_MOVE_BUDGET = 2;
+
+/**
+ * Terrain moveCost throttling (deterministic per-entity fractional budget).
+ * An entity accrues 1 movement point per tick; stepping onto a tile spends
+ * that tile's moveCost. Cost 2 terrain → effectively half speed.
+ * Returns true (and spends the budget) if the entity may step onto (x, y)
+ * this tick, false if it must wait.
+ */
+export function canAffordMove(entity, state, x, y) {
+  const cost = getMoveCost(state, x, y);
+  if (!Number.isFinite(cost)) return false;
+
+  // Accrue once per tick, even if multiple candidate steps are tested
+  if (state.tick == null || entity._moveBudgetTick !== state.tick) {
+    entity._moveBudgetTick = state.tick;
+    entity._moveBudget = Math.min((entity._moveBudget || 0) + 1, MAX_MOVE_BUDGET);
   }
 
-  return tile !== '#' && tile !== '~';
+  if (entity._moveBudget < cost) return false;
+
+  entity._moveBudget -= cost;
+  return true;
 }
 
 /**
@@ -393,7 +433,7 @@ export function findPath(startX, startY, endX, endY, state, maxSteps = 50) {
       const nKey = key(nx, ny);
 
       if (closedSet.has(nKey)) continue;
-      if (!isPassable(nx, ny, state)) continue;
+      if (!isPassable(state, nx, ny)) continue;
 
       const tentativeG = current.g + (dx !== 0 && dy !== 0 ? 1.4 : 1);
 

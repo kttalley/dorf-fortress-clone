@@ -11,8 +11,11 @@
  * Sprites are rendered to inline SVG and returned as `data:` URIs, cached by
  * (spriteKey | seed | tint) so each unique appearance is generated once.
  *
- * First slice: dwarf only. Other entity types fall back to their emoji glyph
+ * Entity types without a template fall back to their ASCII roguelike glyph
  * (renderer skips sprite mode when `hasSprite(key)` is false).
+ *
+ * The same pipeline also powers fixed-palette static UI icons (ICON_TEMPLATES
+ * / getIcon / getIconHtml) so panel titles and buttons match the sprite art.
  */
 
 // --- Hashing -----------------------------------------------------------------
@@ -298,6 +301,269 @@ const TEMPLATES = {
 
 const GRID_SIZE = 12;
 
+// --- Static UI icons ----------------------------------------------------------
+// Fixed-palette 12x12 pixel icons for UI chrome (panel titles, buttons,
+// badges), rendered through the same grid -> SVG -> data-URI pipeline as the
+// entity sprites so the whole interface shares one 8-bit visual language.
+// Unlike entity sprites these have no per-seed variation: each template
+// carries its own literal palette. Designed to stay legible at 14-20px:
+// bold silhouettes, 2-3 colors, strong contrast on dark backgrounds.
+
+const ICON_TEMPLATES = {
+  // Speaker with sound waves (music on)
+  sound_on: {
+    palette: { s: '#e8d8a0', w: '#7ac4e8' },
+    grid: [
+      '............',
+      '.....s......',
+      '....ss...w..',
+      '...sss.w..w.',
+      '.sssss..w.w.',
+      '.sssss..w.w.',
+      '.sssss..w.w.',
+      '.sssss..w.w.',
+      '...sss.w..w.',
+      '....ss...w..',
+      '.....s......',
+      '............',
+    ],
+  },
+  // Speaker with an X (muted)
+  sound_off: {
+    palette: { s: '#8a8478', x: '#e85a5a' },
+    grid: [
+      '............',
+      '.....s......',
+      '....ss......',
+      '...sss......',
+      '.sssss.x..x.',
+      '.sssss..xx..',
+      '.sssss..xx..',
+      '.sssss.x..x.',
+      '...sss......',
+      '....ss......',
+      '.....s......',
+      '............',
+    ],
+  },
+  // Speech bubble with text dots (conversations)
+  chat: {
+    palette: { b: '#9ec4ee', d: '#1c2a40' },
+    grid: [
+      '............',
+      '.bbbbbbbbbb.',
+      'bbbbbbbbbbbb',
+      'bbdbbdbbdbbb',
+      'bbbbbbbbbbbb',
+      'bbbbbbbbbbbb',
+      '.bbbbbbbbbb.',
+      '...bbb......',
+      '..bb........',
+      '............',
+      '............',
+      '............',
+    ],
+  },
+  // Thought cloud with trailing dots (dwarf thoughts / mood)
+  thought: {
+    palette: { b: '#bcd0e8' },
+    grid: [
+      '............',
+      '..bbbbbbb...',
+      '.bbbbbbbbbb.',
+      'bbbbbbbbbbbb',
+      'bbbbbbbbbbbb',
+      '.bbbbbbbbbb.',
+      '..bbbbbbb...',
+      '............',
+      '....bb......',
+      '............',
+      '..b.........',
+      '............',
+    ],
+  },
+  // Waving hand (meeting)
+  wave: {
+    palette: { s: '#e8b890', w: '#ffe9a0' },
+    grid: [
+      '............',
+      '...s.s.s....',
+      '...s.s.s.s..',
+      'w..sssssss..',
+      '.w.sssssss..',
+      'w..ssssssss.',
+      '...ssssssss.',
+      '....ssssss..',
+      '....ssssss..',
+      '.....ssss...',
+      '............',
+      '............',
+    ],
+  },
+  // Meat on the bone (food found)
+  meat: {
+    palette: { m: '#b8552e', l: '#d8845a', h: '#e8e0d0' },
+    grid: [
+      '............',
+      '...mmmm.....',
+      '..mmmmmm....',
+      '.mmmlmmmm...',
+      '.mmllmmmm...',
+      '.mmmmmmmm...',
+      '..mmmmmm....',
+      '...mmmmh....',
+      '.......hh...',
+      '........hh..',
+      '.......h.hh.',
+      '............',
+    ],
+  },
+  // Face with tongue out (hunger / tasty)
+  hungry: {
+    palette: { y: '#f2c84b', e: '#2a2218', m: '#7a3c2a', t: '#e06a6a' },
+    grid: [
+      '............',
+      '...yyyyyy...',
+      '..yyyyyyyy..',
+      '.yyyyyyyyyy.',
+      '.yyeyyyyeyy.',
+      '.yyyyyyyyyy.',
+      '.yymmmmmmyy.',
+      '..ymmmmmmy..',
+      '..yyymmyyy..',
+      '...yyttyy...',
+      '.....tt.....',
+      '............',
+    ],
+  },
+  // Folded map with a marker (terrain)
+  map: {
+    palette: { p: '#d8c89a', m: '#b8a87a', x: '#c84a3a' },
+    grid: [
+      '............',
+      '.ppp....ppp.',
+      '.pppmmmmppp.',
+      '.pppmmmmppp.',
+      '.pppmxxmppp.',
+      '.pppmxxmppp.',
+      '.pppmmmmppp.',
+      '.pppmmmmppp.',
+      '.pppmmmmppp.',
+      '....mmmm....',
+      '............',
+      '............',
+    ],
+  },
+  // Robot head (game assistant)
+  bot: {
+    palette: { g: '#9ab0c0', e: '#4aff9e', d: '#27343c', a: '#e8d8a0' },
+    grid: [
+      '.....aa.....',
+      '.....aa.....',
+      '..gggggggg..',
+      '.gggggggggg.',
+      '.ggeeggeegg.',
+      '.gggggggggg.',
+      '.ggddddddgg.',
+      '.gggggggggg.',
+      '..gggggggg..',
+      '............',
+      '............',
+      '............',
+    ],
+  },
+  // Bar chart (fortress analysis)
+  chart: {
+    palette: { u: '#4a9eff', v: '#4aff9e', w: '#ffd24a', x: '#aab4c0' },
+    grid: [
+      '............',
+      '............',
+      '........ww..',
+      '........ww..',
+      '.....vv.ww..',
+      '.....vv.ww..',
+      '..uu.vv.ww..',
+      '..uu.vv.ww..',
+      '..uu.vv.ww..',
+      '..uu.vv.ww..',
+      '.xxxxxxxxxx.',
+      '............',
+    ],
+  },
+  // Globe (world context)
+  globe: {
+    palette: { o: '#3a78c8', g: '#5ab04a' },
+    grid: [
+      '...oooooo...',
+      '..ogggggoo..',
+      '.oogggggoog.',
+      '.ooogggooog.',
+      'ooooooooogg.',
+      'ooggooooooo.',
+      'oggggoooggoo',
+      'ogggggoogggo',
+      '.ogggoooggg.',
+      '.oooooooog..',
+      '..oogggoo...',
+      '...oooooo...',
+    ],
+  },
+  // Parchment scroll (event log)
+  scroll: {
+    palette: { r: '#b09660', p: '#e0cfa0', t: '#7a6840' },
+    grid: [
+      '............',
+      '.rrrrrrrrrr.',
+      '.rppppppppr.',
+      '..pppppppp..',
+      '..pttttttp..',
+      '..pppppppp..',
+      '..pttttttp..',
+      '..pppppppp..',
+      '..pttttttp..',
+      '.rppppppppr.',
+      '.rrrrrrrrrr.',
+      '............',
+    ],
+  },
+  // Theater mask (narrator / chronicle mode)
+  mask: {
+    palette: { m: '#e8d8b0', d: '#2a2218' },
+    grid: [
+      '............',
+      '..mmmmmmmm..',
+      '.mmmmmmmmmm.',
+      '.mddmmmmddm.',
+      '.mmmmmmmmmm.',
+      '.mmmmmmmmmm.',
+      '.mdmmmmmmdm.',
+      '.mmddddddmm.',
+      '..mmmmmmmm..',
+      '...mmmmmm...',
+      '............',
+      '............',
+    ],
+  },
+  // Chunky question mark (unknown entity / fallback)
+  unknown: {
+    palette: { q: '#b0a0e0' },
+    grid: [
+      '............',
+      '...qqqqqq...',
+      '..qqqqqqqq..',
+      '..qq....qq..',
+      '........qq..',
+      '.......qq...',
+      '.....qqq....',
+      '.....qq.....',
+      '............',
+      '.....qq.....',
+      '.....qq.....',
+      '............',
+    ],
+  },
+};
+
 // --- SVG / data-URI generation ----------------------------------------------
 
 /**
@@ -370,20 +636,59 @@ export function getSprite(spriteKey, seed, tint = null) {
   return uri;
 }
 
+/** Whether a static UI icon exists for the given name. */
+export function hasIcon(name) {
+  return Object.prototype.hasOwnProperty.call(ICON_TEMPLATES, name);
+}
+
 /**
- * Build an `<img>` (or emoji fallback) HTML string for an entity avatar,
- * suitable for stat panels and chat. Pixelated, on a dark rounded chip.
+ * Get a cached `data:` URI for a static UI icon (fixed palette, no seed).
+ * @param {string} name - key in ICON_TEMPLATES (e.g. 'sound_on', 'scroll')
+ * @returns {string|null} data URI, or null if no such icon
+ */
+export function getIcon(name) {
+  if (!hasIcon(name)) return null;
+  const cacheKey = `icon|${name}`;
+  const hit = cache.get(cacheKey);
+  if (hit) return hit;
+  const { grid, palette } = ICON_TEMPLATES[name];
+  const uri = 'data:image/svg+xml,' + encodeURIComponent(renderSvg(grid, palette));
+  cache.set(cacheKey, uri);
+  return uri;
+}
+
+/**
+ * Build an inline `<img>` HTML string for a static UI icon, sized to sit in
+ * running text/titles (pixelated, baseline-aligned).
+ * @param {string} name - icon name (see ICON_TEMPLATES)
+ * @param {number} [size] - edge length in px (default 16)
+ * @param {{title?:string, style?:string}} [opts] - extra title / inline style
+ * @returns {string} HTML string ('' if the icon doesn't exist)
+ */
+export function getIconHtml(name, size = 16, opts = {}) {
+  const uri = getIcon(name);
+  if (!uri) return '';
+  const title = opts.title ? ` title="${opts.title}"` : '';
+  const extra = opts.style || '';
+  return `<img src="${uri}" alt="${opts.title || name}" width="${size}" height="${size}"${title} style="`
+    + `width:${size}px;height:${size}px;image-rendering:pixelated;object-fit:contain;`
+    + `display:inline-block;vertical-align:-0.18em;${extra}" />`;
+}
+
+/**
+ * Build an `<img>` HTML string for an entity avatar, suitable for stat
+ * panels and chat. Pixelated, on a dark rounded chip. Entities without a
+ * sprite template fall back to the pixel-art 'unknown' icon (no emoji).
  * @param {string} spriteKey
  * @param {string|number} seed
- * @param {{size?:number, tint?:object, fallbackEmoji?:string, bg?:string}} [opts]
+ * @param {{size?:number, tint?:object, bg?:string}} [opts]
  * @returns {string} HTML string
  */
 export function getAvatarHtml(spriteKey, seed, opts = {}) {
   const size = opts.size || 40;
   const uri = getSprite(spriteKey, seed, opts.tint || null);
   if (!uri) {
-    if (!opts.fallbackEmoji) return '';
-    return `<span style="font-size:${Math.round(size * 0.72)}px;line-height:${size}px;display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;">${opts.fallbackEmoji}</span>`;
+    return getIconHtml('unknown', size, { title: 'unknown' });
   }
   const bg = opts.bg || 'rgba(20,18,14,0.55)';
   return `<img src="${uri}" alt="" width="${size}" height="${size}" style="`
@@ -393,4 +698,4 @@ export function getAvatarHtml(spriteKey, seed, opts = {}) {
 }
 
 /** Exposed for tests/debugging. */
-export const _internal = { hashSeed, buildPalette, TEMPLATES, RAMPS, PALETTE_SPEC };
+export const _internal = { hashSeed, buildPalette, TEMPLATES, RAMPS, PALETTE_SPEC, ICON_TEMPLATES };

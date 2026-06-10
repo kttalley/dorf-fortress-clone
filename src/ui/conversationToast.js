@@ -3,11 +3,12 @@
  * Styled to match event log and thought widgets
  */
 
-import { getAvatarHtml } from './sprites.js';
+import { getAvatarHtml, getIconHtml } from './sprites.js';
 
 /**
  * Build a small avatar <img> for a speaker, matching the stat-panel convention:
- * visitors resolve their sprite from race, everyone else is a dwarf.
+ * visitors resolve their sprite from race, everyone else is a dwarf. Unknown
+ * races fall back to the pixel-art 'unknown' icon inside getAvatarHtml.
  * @param {object|null} entity - speaking/thinking entity
  * @param {number} size - avatar edge in px
  * @returns {string} HTML string ('' when no entity)
@@ -16,11 +17,8 @@ function avatarHtmlFor(entity, size = 22) {
   if (!entity) return '';
   const race = entity.race ? String(entity.race).toLowerCase() : null;
   const key = race || entity.spriteKey || 'dwarf';
-  const fallback = race
-    ? ({ human: '🧙‍♂️', goblin: '👹', elf: '🧝🏻‍♀️' }[race] || '❓')
-    : '🧌';
   const seed = entity.seed ?? entity.id ?? key;
-  return getAvatarHtml(key, seed, { size, fallbackEmoji: fallback });
+  return getAvatarHtml(key, seed, { size });
 }
 
 // Container for conversation messages
@@ -80,7 +78,7 @@ export function initConversationToast(parentElement) {
     text-transform: uppercase;
     letter-spacing: 1px;
   `;
-  title.innerHTML = '<span style="margin-right: 6px;">💬</span> Conversations';
+  title.innerHTML = `<span style="margin-right: 6px;">${getIconHtml('chat', 14)}</span> Conversations`;
 
   // Minimize button (matching other widgets)
   const minimizeButton = document.createElement('button');
@@ -184,7 +182,7 @@ function applyMobileStyles() {
         header.style.borderBottom = 'none';
       }
       if (title) {
-        title.innerHTML = '💬';
+        title.innerHTML = getIconHtml('chat', 14);
         title.style.fontSize = '18px';
         title.style.letterSpacing = '0';
       }
@@ -203,7 +201,7 @@ function applyMobileStyles() {
         header.style.borderBottom = '1px solid rgba(100, 100, 120, 0.3)';
       }
       if (title) {
-        title.innerHTML = '<span style="margin-right: 6px;">💬</span> Conversations';
+        title.innerHTML = `<span style="margin-right: 6px;">${getIconHtml('chat', 14)}</span> Conversations`;
         title.style.fontSize = '15px';
         title.style.letterSpacing = '1px';
       }
@@ -222,7 +220,7 @@ function applyMobileStyles() {
       header.style.borderBottom = '1px solid rgba(100, 100, 120, 0.3)';
     }
     if (title) {
-      title.innerHTML = '<span style="margin-right: 6px;">💬</span> Conversations';
+      title.innerHTML = `<span style="margin-right: 6px;">${getIconHtml('chat', 14)}</span> Conversations`;
       title.style.fontSize = '15px';
       title.style.letterSpacing = '1px';
     }

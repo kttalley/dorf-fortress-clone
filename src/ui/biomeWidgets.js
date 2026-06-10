@@ -4,6 +4,8 @@
  * - Event log widget on the right (below thought widget)
  */
 
+import { getIconHtml } from './sprites.js';
+
 let titleEl = null;
 let eventLogEl = null;
 let eventLogMinimized = false;
@@ -163,7 +165,7 @@ export function initEventLog() {
     text-transform: uppercase;
     letter-spacing: 1px;
   `;
-  title.innerHTML = '<span style="margin-right: 6px;">📜</span> Event Log';
+  title.innerHTML = `<span style="margin-right: 6px;">${getIconHtml('scroll', 14)}</span> Event Log`;
 
   const minimizeBtn = document.createElement('button');
   minimizeBtn.id = 'event-log-minimize-btn';
@@ -280,7 +282,7 @@ function applyEventLogMobileStyles() {
         header.style.borderBottom = 'none';
       }
       if (title) {
-        title.innerHTML = '📜';
+        title.innerHTML = getIconHtml('scroll', 14);
         title.style.fontSize = '18px';
         title.style.letterSpacing = '0';
       }
@@ -299,7 +301,7 @@ function applyEventLogMobileStyles() {
         header.style.borderBottom = '1px solid rgba(100, 100, 120, 0.3)';
       }
       if (title) {
-        title.innerHTML = '<span style="margin-right: 6px;">📜</span> Event Log';
+        title.innerHTML = `<span style="margin-right: 6px;">${getIconHtml('scroll', 14)}</span> Event Log`;
         title.style.fontSize = '15px';
         title.style.letterSpacing = '1px';
       }
@@ -318,7 +320,7 @@ function applyEventLogMobileStyles() {
       header.style.borderBottom = '1px solid rgba(100, 100, 120, 0.3)';
     }
     if (title) {
-      title.innerHTML = '<span style="margin-right: 6px;">📜</span> Event Log';
+      title.innerHTML = `<span style="margin-right: 6px;">${getIconHtml('scroll', 14)}</span> Event Log`;
       title.style.fontSize = '12px';
       title.style.letterSpacing = '1px';
     }

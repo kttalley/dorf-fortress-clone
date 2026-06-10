@@ -553,25 +553,25 @@ export function createRenderer(containerEl, width, height) {
  */
 export const EntityGlyph = Object.freeze({
   // Dwarves - yellow/gold like traditional roguelike @
-  DWARF: { char: '🧌', fg: '#ff0', zIndex: 10, scale: 1.75, shadow: '0 0 10px rgba(255, 255, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.8)', filter: 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))' },
-  DWARF_HUNGRY: { char: '🧌', fg: '#ffa500', zIndex: 10, scale: 1.75, shadow: '0 0 10px rgba(255, 165, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.8)', filter: 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))' },
-  DWARF_STARVING: { char: '🧌', fg: '#ff4444', zIndex: 10, scale: 1.75, shadow: '0 0 10px rgba(255, 68, 68, 0.4), 0 2px 4px rgba(0, 0, 0, 0.8)', filter: 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))' },
-  DWARF_WOUNDED: { char: '🧌', fg: '#ff6666', zIndex: 10, scale: 1.75, shadow: '0 0 10px rgba(255, 102, 102, 0.4), 0 2px 4px rgba(0, 0, 0, 0.8)', filter: 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))' },
+  DWARF: { char: '@', fg: '#ff0', zIndex: 10, scale: 1.75, shadow: '0 0 10px rgba(255, 255, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.8)', filter: 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))' },
+  DWARF_HUNGRY: { char: '@', fg: '#ffa500', zIndex: 10, scale: 1.75, shadow: '0 0 10px rgba(255, 165, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.8)', filter: 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))' },
+  DWARF_STARVING: { char: '@', fg: '#ff4444', zIndex: 10, scale: 1.75, shadow: '0 0 10px rgba(255, 68, 68, 0.4), 0 2px 4px rgba(0, 0, 0, 0.8)', filter: 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))' },
+  DWARF_WOUNDED: { char: '@', fg: '#ff6666', zIndex: 10, scale: 1.75, shadow: '0 0 10px rgba(255, 102, 102, 0.4), 0 2px 4px rgba(0, 0, 0, 0.8)', filter: 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))' },
 
   // Visitors - external races
-  HUMAN: { char: '🧙‍♂️', fg: '#ddcc88', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(221, 204, 136, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
-  HUMAN_HOSTILE: { char: '🧙‍♂️', fg: '#cc8844', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(204, 136, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
-  GOBLIN: { char: '👹', fg: '#88cc44', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(136, 204, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
-  GOBLIN_HOSTILE: { char: '👹', fg: '#cc4444', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(204, 68, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
-  ELF: { char: '🧝🏻‍♀️', fg: '#aaddff', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(170, 221, 255, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
+  HUMAN: { char: 'H', fg: '#ddcc88', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(221, 204, 136, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
+  HUMAN_HOSTILE: { char: 'H', fg: '#cc8844', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(204, 136, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
+  GOBLIN: { char: 'g', fg: '#88cc44', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(136, 204, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
+  GOBLIN_HOSTILE: { char: 'g', fg: '#cc4444', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(204, 68, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
+  ELF: { char: 'e', fg: '#aaddff', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(170, 221, 255, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
 
-  // Animals - different species with thematic emojis
-  DEER: { char: '🦌', fg: '#dd9944', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(221, 153, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
-  RABBIT: { char: '🐰', fg: '#bb9966', zIndex: 9, scale: 1.75, shadow: '0 0 4px rgba(187, 153, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
-  WOLF: { char: '🐺', fg: '#888888', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(136, 136, 136, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
-  BOAR: { char: '🐗', fg: '#664422', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(102, 68, 34, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
-  FROG: { char: '🐸', fg: '#66cc66', zIndex: 9, scale: 1.75, shadow: '0 0 4px rgba(102, 204, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
-  BEAR: { char: '🐻', fg: '#664444', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(102, 68, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  // Animals - different species as roguelike letters
+  DEER: { char: 'd', fg: '#dd9944', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(221, 153, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  RABBIT: { char: 'r', fg: '#bb9966', zIndex: 9, scale: 1.75, shadow: '0 0 4px rgba(187, 153, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
+  WOLF: { char: 'w', fg: '#888888', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(136, 136, 136, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  BOAR: { char: 'b', fg: '#664422', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(102, 68, 34, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  FROG: { char: 'f', fg: '#66cc66', zIndex: 9, scale: 1.75, shadow: '0 0 4px rgba(102, 204, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
+  BEAR: { char: 'B', fg: '#664444', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(102, 68, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
 
   // Food - green percent sign (traditional roguelike food)
   FOOD: { char: '%', fg: '#32cd32', zIndex: 5, scale: 1.1, shadow: '0 0 3px rgba(50, 205, 50, 0.2), 0 1px 1px rgba(0, 0, 0, 0.4)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2))' },

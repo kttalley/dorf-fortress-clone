@@ -8,11 +8,13 @@
  * Build system prompt for entity roleplay
  * @param {object} entity - The entity to roleplay as
  * @param {string} entityType - 'dwarf' or 'visitor'
+ * @param {object} [context] - Optional context {dwarves: Array} used to resolve
+ *   relationship IDs to display names
  * @returns {string} System prompt
  */
-export function buildEntitySystemPrompt(entity, entityType) {
+export function buildEntitySystemPrompt(entity, entityType, context = {}) {
   if (entityType === 'dwarf') {
-    return buildDwarfSystemPrompt(entity);
+    return buildDwarfSystemPrompt(entity, context);
   } else if (entityType === 'visitor') {
     return buildVisitorSystemPrompt(entity);
   }
@@ -22,7 +24,7 @@ export function buildEntitySystemPrompt(entity, entityType) {
 /**
  * Build system prompt for a dwarf character
  */
-function buildDwarfSystemPrompt(dwarf) {
+function buildDwarfSystemPrompt(dwarf, context = {}) {
   const name = dwarf.generatedName || dwarf.name;
   const bio = dwarf.generatedBio || 'A dwarf of quiet determination.';
   const traits = formatTraits(dwarf.personality);
@@ -30,7 +32,7 @@ function buildDwarfSystemPrompt(dwarf) {
   const state = describeState(dwarf.state);
   const fulfillment = describeFulfillment(dwarf.fulfillment);
   const memories = formatMemories(dwarf.memory);
-  const relationships = formatRelationships(dwarf.relationships);
+  const relationships = formatRelationships(dwarf.relationships, context.dwarves);
 
   return `You are ${name}, a dwarf in a fantasy fortress simulation. Stay completely in character.
 
@@ -233,7 +235,7 @@ function formatMemories(memory) {
   return parts.length > 0 ? parts.join('\n') : 'Nothing notable has happened recently.';
 }
 
-function formatRelationships(relationships) {
+function formatRelationships(relationships, dwarves) {
   if (!relationships || Object.keys(relationships).length === 0) {
     return 'You don\'t know the other dwarves well yet.';
   }
@@ -247,13 +249,20 @@ function formatRelationships(relationships) {
     return 'You\'re still getting to know everyone.';
   }
 
+  // Resolve relationship IDs to display names (mirrors getDisplayName in src/sim/entities.js)
+  const resolveName = (id) => {
+    const other = dwarves?.find(d => String(d.id) === String(id));
+    return other ? (other.generatedName || other.name || `Dwarf #${id}`) : `Dwarf #${id}`;
+  };
+
   const descriptions = entries.map(([id, rel]) => {
+    const name = resolveName(id);
     const aff = rel.affinity || 0;
-    if (aff > 50) return `Dwarf #${id}: good friend`;
-    if (aff > 20) return `Dwarf #${id}: friendly acquaintance`;
-    if (aff > -20) return `Dwarf #${id}: neutral`;
-    if (aff > -50) return `Dwarf #${id}: somewhat disliked`;
-    return `Dwarf #${id}: strongly disliked`;
+    if (aff > 50) return `${name}: good friend`;
+    if (aff > 20) return `${name}: friendly acquaintance`;
+    if (aff > -20) return `${name}: neutral`;
+    if (aff > -50) return `${name}: somewhat disliked`;
+    return `${name}: strongly disliked`;
   });
 
   return descriptions.join('\n');

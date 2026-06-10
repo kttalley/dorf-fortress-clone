@@ -6,9 +6,8 @@
 
 import { distance } from '../sim/entities.js';
 import { getTile } from '../map/map.js';
-import { getTileDef } from '../map/tiles.js';
 import { satisfyDrive, stimulateDrive, decayDrives } from '../sim/drives.js';
-import { executeSmartMovement, moveToward, findPath } from '../sim/movement.js';
+import { executeSmartMovement, moveToward, findPath, isPassable } from '../sim/movement.js';
 import {
   shouldHunt,
   isFleeing,
@@ -149,9 +148,9 @@ export function actAnimal(animal, state) {
  */
 function actGrazing(animal, state) {
   // Check if on grass
-  const tile = getTile(animal.x, animal.y, state.map);
+  const tile = getTile(state.map, animal.x, animal.y);
 
-  if (tile.type === 'grass' || tile.type === 'shrub') {
+  if (tile?.type === 'grass' || tile?.type === 'shrub') {
     // Eating! Satisfy hunger
     satisfyDrive(animal, 'hunger', 5);
     return;
@@ -161,11 +160,8 @@ function actGrazing(animal, state) {
   if (animal.drives.hunger > 50) {
     const grassTile = findNearestTile(animal, state.map, state, t => t.type === 'grass' || t.type === 'shrub');
     if (grassTile) {
-      const nextTile = executeSmartMovement(animal, grassTile, state);
-      if (nextTile) {
-        animal.x = nextTile.x;
-        animal.y = nextTile.y;
-      }
+      // executeSmartMovement mutates animal.x/y itself (one step max)
+      executeSmartMovement(animal, state, { targetPos: grassTile });
     }
   }
 }
@@ -186,13 +182,9 @@ function actHunting(animal, state) {
 
   const dist = distance(animal, prey);
 
-  // CHASE PHASE: move toward prey
+  // CHASE PHASE: move toward prey (mutates animal.x/y, one step max)
   if (dist > 1) {
-    const nextTile = executeSmartMovement(animal, prey, state);
-    if (nextTile) {
-      animal.x = nextTile.x;
-      animal.y = nextTile.y;
-    }
+    executeSmartMovement(animal, state, { targetPos: { x: prey.x, y: prey.y } });
     return;
   }
 
@@ -238,17 +230,14 @@ function actFleeing(animal, state) {
     return;
   }
 
-  // Move away from threat
+  // Move away from threat (moveToward expects the full state and
+  // mutates animal.x/y itself, one step max)
   const away = {
     x: animal.x + (animal.x - threat.entity.x) * 2,
     y: animal.y + (animal.y - threat.entity.y) * 2,
   };
 
-  const nextTile = moveToward(animal, away, state.map);
-  if (nextTile) {
-    animal.x = nextTile.x;
-    animal.y = nextTile.y;
-  }
+  moveToward(animal, away, state);
 }
 
 /**
@@ -263,12 +252,8 @@ function actSeekingMate(animal, state) {
     return;
   }
 
-  // Move toward mate
-  const nextTile = executeSmartMovement(animal, mate, state);
-  if (nextTile) {
-    animal.x = nextTile.x;
-    animal.y = nextTile.y;
-  }
+  // Move toward mate (mutates animal.x/y, one step max)
+  executeSmartMovement(animal, state, { targetPos: { x: mate.x, y: mate.y } });
 
   // If in range, transition to mating
   if (distance(animal, mate) < 2) {
@@ -329,7 +314,7 @@ function actWandering(animal, state) {
     const nextX = animal.x + dir.x;
     const nextY = animal.y + dir.y;
 
-    if (isWalkable(nextX, nextY, state.map)) {
+    if (isPassable(state, nextX, nextY)) {
       animal.x = nextX;
       animal.y = nextY;
     }
@@ -427,8 +412,8 @@ function findNearestTile(animal, map, state, predicate) {
 
       if (nx < 0 || nx >= map.width || ny < 0 || ny >= map.height) continue;
 
-      const tile = getTile(nx, ny, map);
-      if (predicate(tile)) {
+      const tile = getTile(map, nx, ny);
+      if (tile && predicate(tile)) {
         const dist = Math.abs(dx) + Math.abs(dy);
         if (dist < nearestDist) {
           nearest = { x: nx, y: ny };
@@ -439,16 +424,4 @@ function findNearestTile(animal, map, state, predicate) {
   }
 
   return nearest;
-}
-
-/**
- * Check if tile is walkable
- */
-function isWalkable(x, y, map) {
-  if (x < 0 || x >= map.width || y < 0 || y >= map.height) return false;
-
-  const tile = getTile(x, y, map);
-  const tileDef = getTileDef(tile.type);
-
-  return !tileDef?.obstruction;
 }

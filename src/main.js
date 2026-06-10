@@ -18,7 +18,7 @@ import { waitForBatchNameGeneration } from './llm/nameGenerationEvents.js';
 import { on, EVENTS } from './events/eventBus.js';
 import { initConversationToast } from './ui/conversationToast.js';
 import { initGameAssistant, createAssistantToggle } from './ui/gameAssistantPanel.js';
-import { initControlsWidget } from './ui/controlsWidget.js';
+import { initControlsWidget, setSoundButtonIcon } from './ui/controlsWidget.js';
 import { initMusic, isMusicMuted, toggleMusicMuted } from './ui/music.js';
 import { initBiomeTitle, updateBiomeTitle, initEventLog, updateEventLog } from './ui/biomeWidgets.js';
 import { initLoadingProgress, setLoadingProgress, addLoadingStatus, setLoadingText, completeLoading, resetLoadingProgress } from './ui/loadingProgress.js';
@@ -493,9 +493,7 @@ async function init() {
     },
     onToggleSound: (btn) => {
       const nowMuted = toggleMusicMuted();
-      btn.textContent = nowMuted ? '🔇' : '🔊';
-      btn.title = nowMuted ? 'Unmute music' : 'Mute music';
-      btn.setAttribute('aria-label', btn.title);
+      setSoundButtonIcon(btn, nowMuted);
     },
   });
 
@@ -510,9 +508,7 @@ async function init() {
   initMusic();
   const soundBtn = controlsWidget.getButton('btn-sound');
   if (soundBtn && isMusicMuted()) {
-    soundBtn.textContent = '🔇';
-    soundBtn.title = 'Unmute music';
-    soundBtn.setAttribute('aria-label', 'Unmute music');
+    setSoundButtonIcon(soundBtn, true);
   }
 
   // Initialize Game Assistant ("Ask the Game" panel)

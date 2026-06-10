@@ -3,6 +3,8 @@
  * Bottom-center game controls with compact status display
  */
 
+import { getIconHtml } from './sprites.js';
+
 let controlsEl = null;
 let statusEl = null;
 
@@ -41,10 +43,10 @@ export function initControlsWidget(parentElement, callbacks = {}) {
   const regenBtn = createButton('btn-regen', 'New Map');
   const zoomBtn = createButton('btn-zoom', 'Center');
   zoomBtn.title = 'Center view on dwarves';
-  // Icon-only music toggle; main.js sets the icon to match the mute state.
-  const soundBtn = createButton('btn-sound', '🔊');
-  soundBtn.title = 'Mute music';
-  soundBtn.setAttribute('aria-label', 'Mute music');
+  // Icon-only music toggle; main.js syncs the icon to the mute state via
+  // setSoundButtonIcon.
+  const soundBtn = createButton('btn-sound', '');
+  setSoundButtonIcon(soundBtn, false);
 
   // Create compact status display
   statusEl = document.createElement('div');
@@ -92,6 +94,19 @@ export function initControlsWidget(parentElement, callbacks = {}) {
   });
 
   return getController();
+}
+
+/**
+ * Set the sound toggle button's pixel-art icon + accessible labels to match
+ * the given mute state. Exported so main.js can sync it on toggle/init.
+ * @param {HTMLButtonElement} btn - the sound button
+ * @param {boolean} muted - whether music is currently muted
+ */
+export function setSoundButtonIcon(btn, muted) {
+  if (!btn) return;
+  btn.innerHTML = getIconHtml(muted ? 'sound_off' : 'sound_on', 16);
+  btn.title = muted ? 'Unmute music' : 'Mute music';
+  btn.setAttribute('aria-label', btn.title);
 }
 
 /**

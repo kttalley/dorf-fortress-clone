@@ -713,41 +713,46 @@ function decideCombatResponse(dwarf, threat, state) {
 
   // Check if we should flee
   if (shouldFlee(dwarf) || (hpRatio < 0.4 && bravery < 0.4)) {
-    const safePos = findSafePosition(dwarf, state);
-    dwarf.currentTask = null;
-    dwarf.target = safePos;
-    return {
-      state: AI_STATE.FLEEING_COMBAT,
-      target: safePos,
-    };
+    return fleeFromThreat(dwarf, state);
   }
 
   // Decide based on personality
   // Brave dwarves fight, cowardly flee
   if (bravery > 0.6 || hpRatio > 0.6) {
-    // Fight!
-    dwarf.currentTask = null;
-    dwarf.target = threat;
-    return {
-      state: AI_STATE.FIGHTING,
-      target: { x: threat.x, y: threat.y, entity: threat },
-    };
+    return engageThreat(dwarf, threat, state);
   }
 
   // Moderate bravery - fight if winning
   const threatHpRatio = threat.hp / threat.maxHp;
   if (hpRatio > threatHpRatio) {
-    dwarf.currentTask = null;
-    dwarf.target = threat;
-    return {
-      state: AI_STATE.FIGHTING,
-      target: { x: threat.x, y: threat.y, entity: threat },
-    };
+    return engageThreat(dwarf, threat, state);
   }
 
   // Otherwise flee
+  return fleeFromThreat(dwarf, state);
+}
+
+/**
+ * Engage a threat: workFighting attacks in range or moves one step closer
+ * via the movement.js system (single mover, see world.js act())
+ */
+function engageThreat(dwarf, threat, state) {
+  dwarf.currentTask = null;
+  dwarf.target = { x: threat.x, y: threat.y, entity: threat };
+  return workFighting(dwarf, state);
+}
+
+/**
+ * Flee from combat toward a safe position (moves via movement.js)
+ */
+function fleeFromThreat(dwarf, state) {
   const safePos = findSafePosition(dwarf, state);
   dwarf.currentTask = null;
+
+  if (safePos) {
+    executeSmartMovement(dwarf, state, { targetPos: safePos, avoidSocial: true });
+  }
+
   return {
     state: AI_STATE.FLEEING_COMBAT,
     target: safePos,

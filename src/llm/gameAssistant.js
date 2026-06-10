@@ -47,9 +47,9 @@ export async function askGame(question, world, history = null, scenarioContext =
       name: world.map.biome.name,
       description: world.map.biome.description,
       climate: {
-        avgTemperature: world.map.biome.avgTemperature,
-        avgMoisture: world.map.biome.avgMoisture,
-        avgElevation: world.map.biome.avgElevation,
+        avgTemperature: world.map.biome.climate?.avgTemperature ?? world.map.biome.avgTemperature,
+        avgMoisture: world.map.biome.climate?.avgMoisture ?? world.map.biome.avgMoisture,
+        avgElevation: world.map.biome.climate?.avgElevation ?? world.map.biome.avgElevation,
       },
       resources: world.map.biome.resources || [],
     } : null,

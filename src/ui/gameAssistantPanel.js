@@ -6,6 +6,7 @@
 
 import { askGame, clearHistory, getHistory } from '../llm/gameAssistant.js';
 import { EXAMPLE_QUESTIONS } from '../llm/prompts/gameAssistant.js';
+import { getIconHtml } from './sprites.js';
 
 // Minimal markdown renderer (safe: escapes HTML first)
 function renderMarkdown(text) {
@@ -74,7 +75,7 @@ export function initGameAssistant(containerEl, getWorld, scenarioContext = null)
   `;
   headerEl.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;">
-      <span style="color:#4aff9e">🤖</span>
+      <span style="display:inline-flex">${getIconHtml('bot', 16)}</span>
       <span style="font-weight:bold;color:#fff">Chat with the game engine</span>
     </div>
     <div style="display:flex;gap:8px;">
@@ -161,9 +162,9 @@ export function initGameAssistant(containerEl, getWorld, scenarioContext = null)
     <p style="margin:0 0 10px">An agent-based simulation inspired by Dwarf Fortress emphasising emergent storytelling.</p>
     <p style="margin:0 0 10px"><strong style="color:#88aacc">Built by:</strong> Kristian Talley.</p>
     <div style="color:#aaa;font-size:14px;line-height:1.6;">
-      <p style="margin:0 0 10px"><strong style="color:#4aff9e">📊 Fortress Analysis:</strong><br/>
+      <p style="margin:0 0 10px"><strong style="color:#4aff9e">${getIconHtml('chart', 14)} Fortress Analysis:</strong><br/>
       Analyses your fortress's state and answers questions about dwarves, resources, and relationships.</p>
-      <p style="margin:0 0 10px"><strong style="color:#4aff9e">🌍 World Context:</strong><br/>
+      <p style="margin:0 0 10px"><strong style="color:#4aff9e">${getIconHtml('globe', 14)} World Context:</strong><br/>
       Understands the current biome, world history, and inter-racial relations.</p>
       <p style="margin:0 0 10px"><strong style="color:#ff9e4a">What it won't do:</strong><br/>
       Suggest game commands • Tell you what actions to take • Modify the game state</p>
@@ -419,7 +420,7 @@ export function createAssistantToggle(containerEl, assistantController) {
     box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     backdrop-filter: blur(4px);
   `;
-  btnEl.textContent = '🤖 Chat with the game engine';
+  btnEl.innerHTML = `${getIconHtml('bot', 14, { style: 'margin-right:6px;' })}Chat with the game engine`;
 
   function checkMobile() {
     const mobile = window.innerWidth <= 728;

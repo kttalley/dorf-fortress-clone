@@ -5,8 +5,6 @@
  */
 
 import { addLog } from '../state/store.js';
-import { getTile, inBounds } from '../map/map.js';
-import { getTileDef } from '../map/tiles.js';
 import { isCritical, createFoodSource } from './entities.js';
 import { decide as aiDecide, workFighting } from '../ai/dwarfAI.js';
 import { applyHunger, processDeath, processEat, maybeSpawnFood, updateFoodProduction } from './rules.js';
@@ -169,7 +167,10 @@ function decide(dwarf, state) {
 }
 
 /**
- * Execute dwarf action
+ * Execute dwarf action.
+ * Movement happens exclusively inside decide() via the movement.js system
+ * (executeSmartMovement), so dwarves move at most one tile per tick.
+ * act() only resolves arrival effects: eating and target completion.
  */
 function act(dwarf, state) {
   if (dwarf.target === null) {
@@ -178,45 +179,25 @@ function act(dwarf, state) {
   }
 
   const atTarget = dwarf.x === dwarf.target.x && dwarf.y === dwarf.target.y;
+  const nearTarget =
+    Math.abs(dwarf.x - dwarf.target.x) <= 1 &&
+    Math.abs(dwarf.y - dwarf.target.y) <= 1;
 
-  if (atTarget) {
-    if (dwarf.state === 'seeking_food') {
-      eat(dwarf, state);
-    } else {
-      // Arrived at wander destination
-      dwarf.state = 'idle';
-      dwarf.target = null;
-    }
-  } else {
-    moveToward(dwarf, dwarf.target, state);
+  if ((dwarf.state === 'seeking_food' || dwarf.state === 'eating') && nearTarget) {
+    eat(dwarf, state);
+  } else if (atTarget) {
+    // Arrived at destination
+    dwarf.state = 'idle';
+    dwarf.target = null;
   }
 }
 
 /**
- * Move one step toward target
- */
-function moveToward(dwarf, target, state) {
-  const dx = Math.sign(target.x - dwarf.x);
-  const dy = Math.sign(target.y - dwarf.y);
-
-  // Try horizontal first, then vertical
-  const newX = dwarf.x + dx;
-  const newY = dwarf.y + dy;
-
-  if (dx !== 0 && isPassable(newX, dwarf.y, state)) {
-    dwarf.x = newX;
-  } else if (dy !== 0 && isPassable(dwarf.x, newY, state)) {
-    dwarf.y = newY;
-  }
-  // If blocked, dwarf stays put this tick
-}
-
-/**
- * Eat at current position
+ * Eat food at or adjacent to current position
  */
 function eat(dwarf, state) {
   const food = state.foodSources.find(
-    f => f.x === dwarf.x && f.y === dwarf.y && f.amount > 0
+    f => Math.abs(f.x - dwarf.x) <= 1 && Math.abs(f.y - dwarf.y) <= 1 && f.amount > 0
   );
 
   if (food) {
@@ -243,18 +224,4 @@ function eat(dwarf, state) {
   // Done eating, reset
   dwarf.target = null;
   dwarf.state = 'idle';
-}
-
-/**
- * Check if a tile is passable
- */
-function isPassable(x, y, state) {
-  if (!inBounds(state.map, x, y)) {
-    return false;
-  }
-
-  const tile = getTile(state.map, x, y);
-  if (!tile) return false;
-
-  return getTileDef(tile).walkable;
 }

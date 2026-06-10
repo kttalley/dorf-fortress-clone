@@ -22,9 +22,11 @@ const CHECK_INTERVAL = 30000;
  * @param {string} message - Player's message
  * @param {object} entity - The entity to chat with
  * @param {string} entityType - 'dwarf' or 'visitor'
+ * @param {object} [context] - Optional context {dwarves: Array} used to resolve
+ *   relationship IDs to display names in the system prompt
  * @returns {Promise<{response: string, source: 'llm'|'fallback'}>}
  */
-export async function chatWithEntity(message, entity, entityType) {
+export async function chatWithEntity(message, entity, entityType, context = {}) {
   const historyKey = `${entityType}_${entity.id}`;
   const history = conversationHistories.get(historyKey) || [];
 
@@ -39,7 +41,7 @@ export async function chatWithEntity(message, entity, entityType) {
   }
 
   // Build prompts
-  const systemPrompt = buildEntitySystemPrompt(entity, entityType);
+  const systemPrompt = buildEntitySystemPrompt(entity, entityType, context);
   const userPrompt = buildEntityUserPrompt(message, history);
   const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
 

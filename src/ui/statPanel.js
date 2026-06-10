@@ -207,7 +207,7 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
     let result = null;
     try {
-      result = await chatWithEntity(message, entity, entityType);
+      result = await chatWithEntity(message, entity, entityType, { dwarves: worldState?.dwarves });
     } catch (err) {
       console.error('[EntityChat] Error:', err);
     }
@@ -302,22 +302,18 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
     ">Chat with this ${entityType}</button>`;
   }
 
-  function getRaceEmoji(race) {
-    return { Human: '🧙‍♂️', Goblin: '👹', Elf: '🧝🏻‍♀️' }[race] || '❓';
-  }
-
-  // Resolve the procedural sprite key + emoji fallback for an entity.
-  function spriteInfoFor(entityType, race) {
+  // Resolve the procedural sprite key for an entity. Unknown races fall back
+  // to the pixel-art 'unknown' icon inside getAvatarHtml.
+  function spriteKeyFor(entityType, race) {
     if (entityType === 'visitor') {
-      return { key: (race || '').toLowerCase(), fallback: getRaceEmoji(race) };
+      return (race || '').toLowerCase();
     }
-    return { key: 'dwarf', fallback: '🧌' };
+    return 'dwarf';
   }
 
   // Avatar <img> for a stat-panel / chat header (from stats or entity).
   function avatarFor(entityType, id, race, size = 44) {
-    const { key, fallback } = spriteInfoFor(entityType, race);
-    return getAvatarHtml(key, id, { size, fallbackEmoji: fallback });
+    return getAvatarHtml(spriteKeyFor(entityType, race), id, { size });
   }
 
   // ── Entity renderers ──────────────────────────────────────────

@@ -4,6 +4,7 @@
  * Includes sidebar panel for thought history
  */
 import { addSpeechMessage } from './conversationToast.js';
+import { getIconHtml } from './sprites.js';
 
 
 // Active bubbles
@@ -475,7 +476,7 @@ export function initSidebarThoughts() {
     text-transform: uppercase;
     letter-spacing: 1px;
   `;
-  title.innerHTML = '<span style="margin-right: 6px;">💭</span> Dwarf Thoughts';
+  title.innerHTML = `<span style="margin-right: 6px;">${getIconHtml('thought', 14)}</span> Dwarf Thoughts`;
 
   const minimizeBtn = document.createElement('button');
   minimizeBtn.id = 'thought-minimize-btn';
@@ -591,7 +592,7 @@ function applyMobileStyles() {
         header.style.borderBottom = 'none';
       }
       if (title) {
-        title.innerHTML = '💭';
+        title.innerHTML = getIconHtml('thought', 14);
         title.style.fontSize = '18px';
         title.style.letterSpacing = '0';
       }
@@ -612,7 +613,7 @@ function applyMobileStyles() {
         header.style.borderBottom = '1px solid rgba(100, 100, 120, 0.3)';
       }
       if (title) {
-        title.innerHTML = '<span style="margin-right: 6px;">💭</span> Dwarf Thoughts';
+        title.innerHTML = `<span style="margin-right: 6px;">${getIconHtml('thought', 14)}</span> Dwarf Thoughts`;
         title.style.fontSize = '12px';
         title.style.letterSpacing = '1px';
       }
@@ -633,7 +634,7 @@ function applyMobileStyles() {
       header.style.borderBottom = '1px solid rgba(100, 100, 120, 0.3)';
     }
     if (title) {
-      title.innerHTML = '<span style="margin-right: 6px;">💭</span> Dwarf Thoughts';
+      title.innerHTML = `<span style="margin-right: 6px;">${getIconHtml('thought', 14)}</span> Dwarf Thoughts`;
       title.style.fontSize = '12px';
       title.style.letterSpacing = '1px';
     }
@@ -751,16 +752,16 @@ export function updateSidebarThoughts(thoughts = []) {
 }
 
 /**
- * Get icon for thought type
+ * Get pixel-art icon HTML for thought type
  */
 function getThoughtTypeIcon(type) {
   switch (type) {
-    case 'meeting': return '👋';
-    case 'food_found': return '🍖';
-    case 'hunger': return '😋';
-    case 'terrain': return '🗺';
-    case 'mood': return '💭';
-    default: return '💬';
+    case 'meeting': return getIconHtml('wave', 13);
+    case 'food_found': return getIconHtml('meat', 13);
+    case 'hunger': return getIconHtml('hungry', 13);
+    case 'terrain': return getIconHtml('map', 13);
+    case 'mood': return getIconHtml('thought', 13);
+    default: return getIconHtml('chat', 13);
   }
 }
 

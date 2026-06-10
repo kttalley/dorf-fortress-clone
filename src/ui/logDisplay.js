@@ -8,13 +8,16 @@
  * - Tooltip reveals source when hovering narrated text
  */
 
+import { getIconHtml } from './sprites.js';
+
 // === STATE ===
 let narratorMode = false;
 let containerEl = null;
 
 // === CONSTANTS ===
 const MAX_VISIBLE_ENTRIES = 30;
-const NARRATOR_BADGE = '\u{1F3AD}'; // 🎭
+// Pixel-art theater mask, inline <img> HTML (replaces the theater-mask emoji)
+const NARRATOR_BADGE = getIconHtml('mask', 14, { title: 'Narrator' });
 
 /**
  * Initialize log display
@@ -185,7 +188,7 @@ export function createNarratorToggle(onChange) {
 
   const badge = document.createElement('span');
   badge.className = 'narrator-toggle__badge';
-  badge.textContent = NARRATOR_BADGE;
+  badge.innerHTML = NARRATOR_BADGE;
 
   checkbox.addEventListener('change', () => {
     narratorMode = checkbox.checked;
