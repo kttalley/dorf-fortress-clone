@@ -65,7 +65,8 @@ export function attemptFish(dwarf, state) {
   // Weather modifier
   const weather = state.weather?.getWeatherAt(dwarf.x, dwarf.y);
   let weatherMod = 1.0;
-  if (weather?.rain || weather?.dominant === 'RAIN') {
+  // Field ids are lowercase; rain density > 0.05 means it's actually raining here
+  if ((weather?.rain || 0) > 0.05 || weather?.type === 'rain') {
     weatherMod = FISHING_CONFIG.WEATHER_RAIN_BONUS;
   }
 

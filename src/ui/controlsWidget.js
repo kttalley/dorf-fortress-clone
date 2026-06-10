@@ -12,11 +12,12 @@ let onStep = null;
 let onSpeed = null;
 let onRegen = null;
 let onZoomToDwarves = null;
+let onToggleSound = null;
 
 /**
  * Initialize the floating controls widget
  * @param {HTMLElement} parentElement - Parent to attach widget to
- * @param {object} callbacks - { onPause, onStep, onSpeed, onRegen, onZoomToDwarves }
+ * @param {object} callbacks - { onPause, onStep, onSpeed, onRegen, onZoomToDwarves, onToggleSound }
  * @returns {object} Controller with updateStatus method
  */
 export function initControlsWidget(parentElement, callbacks = {}) {
@@ -27,6 +28,7 @@ export function initControlsWidget(parentElement, callbacks = {}) {
   onSpeed = callbacks.onSpeed;
   onRegen = callbacks.onRegen;
   onZoomToDwarves = callbacks.onZoomToDwarves;
+  onToggleSound = callbacks.onToggleSound;
 
   controlsEl = document.createElement('div');
   controlsEl.id = 'controls-widget';
@@ -39,6 +41,10 @@ export function initControlsWidget(parentElement, callbacks = {}) {
   const regenBtn = createButton('btn-regen', 'New Map');
   const zoomBtn = createButton('btn-zoom', 'Center');
   zoomBtn.title = 'Center view on dwarves';
+  // Icon-only music toggle; main.js sets the icon to match the mute state.
+  const soundBtn = createButton('btn-sound', '🔊');
+  soundBtn.title = 'Mute music';
+  soundBtn.setAttribute('aria-label', 'Mute music');
 
   // Create compact status display
   statusEl = document.createElement('div');
@@ -55,6 +61,7 @@ export function initControlsWidget(parentElement, callbacks = {}) {
   controlsEl.appendChild(speedBtn);
   controlsEl.appendChild(regenBtn);
   controlsEl.appendChild(zoomBtn);
+  controlsEl.appendChild(soundBtn);
   controlsEl.appendChild(statusEl);
 
   parentElement.appendChild(controlsEl);
@@ -78,6 +85,10 @@ export function initControlsWidget(parentElement, callbacks = {}) {
 
   zoomBtn.addEventListener('click', () => {
     if (onZoomToDwarves) onZoomToDwarves();
+  });
+
+  soundBtn.addEventListener('click', () => {
+    if (onToggleSound) onToggleSound(soundBtn);
   });
 
   return getController();

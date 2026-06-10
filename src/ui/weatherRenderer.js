@@ -23,30 +23,44 @@ export function initWeatherRendering(simulator) {
 }
 
 /**
- * Get composite rendering info for a tile
- * Combines terrain tile with weather overlay
- * 
+ * Per-type animation period: ticks per frame. Rain streaks fast,
+ * cloud masses billow slowly.
+ */
+const WEATHER_ANIM_PERIOD = {
+  rain: 2,
+  sandstorm: 2,
+  smoke: 4,
+  snow: 5,
+  spores: 6,
+  mist: 7,
+  fog: 8,
+  miasma: 8,
+  clouds: 10,
+};
+
+/**
+ * Get composite rendering info for a tile.
+ * Blends the weather overlay into the terrain proportionally to intensity
+ * (instead of replacing the tile), so front edges fade in as they sweep
+ * across the map. Entities are never occluded: when hasEntity is true only
+ * the background is tinted.
+ *
  * @param {number} x, y - Grid coordinates
- * @param {object} terrain - Existing terrain tile
+ * @param {object} terrain - Existing composed tile { char, fg, bg }
  * @param {number} tick - Current simulation tick
  * @param {object} simulator - Optional weather simulator (if not provided, uses global)
- * @returns {object} { char, fg, bg, animated }
+ * @param {boolean} hasEntity - True when an entity glyph occupies this tile
+ * @returns {object} { char, fg, bg, animated, intensity }
  */
-export function composeWeatherTile(x, y, terrain, tick, simulator = null) {
+export function composeWeatherTile(x, y, terrain, tick, simulator = null, hasEntity = false) {
   const sim = simulator || weatherSimulator;
   if (!sim) {
-    return { char: terrain.char, fg: terrain.fg, bg: terrain.bg };
+    return { char: terrain.char, fg: terrain.fg, bg: terrain.bg, animated: false };
   }
 
   const weather = sim.getRenderingAt(x, y);
-  
-  // DEBUG: Log for specific positions
-  if ((x === 10 || x === 71) && (y === 10 || y === 20) && tick % 60 === 0) {
-    console.log(`[WeatherRenderer] Pos(${x},${y}) tick=${tick} weather=`, weather);
-  }
-  
-  // Lower threshold to 0.05 for better visibility
-  if (!weather || weather.intensity < 0.05) {
+
+  if (!weather || weather.intensity < 0.15) {
     // No significant weather; return terrain as-is
     return {
       char: terrain.char,
@@ -56,33 +70,39 @@ export function composeWeatherTile(x, y, terrain, tick, simulator = null) {
     };
   }
 
-  // For clouds and other solid weather: only render if substantial enough (3+ grouped)
-  if (weather.intensity < 0.3) {
-    // Too sparse - don't render
+  const intensity = Math.min(1, weather.intensity);
+
+  // Intensity-proportional background tint: light weather is a faint wash,
+  // a storm core darkens/colors the whole tile.
+  const bg = blendColors(weather.bgColor || '#444444', terrain.bg, Math.min(0.7, intensity * 0.75));
+
+  // Sparse weather, or an entity underneath: tint only, keep the glyph.
+  if (hasEntity || intensity < 0.3) {
     return {
       char: terrain.char,
       fg: terrain.fg,
-      bg: terrain.bg,
+      bg,
       animated: false,
+      intensity,
     };
   }
 
-  // Weather overlay: select animated character
-  const phase = Math.floor((tick / 4) % weather.chars.length);
+  // Weather overlay glyph: per-type animation speed, with a per-tile phase
+  // offset so the whole front doesn't blink in unison.
+  const period = WEATHER_ANIM_PERIOD[weather.type] || 4;
+  const jitter = (x * 7 + y * 13) % weather.chars.length;
+  const phase = (Math.floor(tick / period) + jitter) % weather.chars.length;
   const char = weather.chars[phase];
 
-  // Keep clouds stark white for maximum visibility
-  const weatherFg = '#FFFFFF';
-  
-  // SOLID GREY BACKGROUND for entire tile when weather is present
-  const weatherBg = weather.bgColor || '#444444';
+  // Glyph color leans into the weather color as intensity rises
+  const fg = blendColors(weather.color || '#FFFFFF', terrain.fg, Math.min(1, 0.45 + intensity * 0.55));
 
   return {
     char,
-    fg: weatherFg,
-    bg: weatherBg,
+    fg,
+    bg,
     animated: true,
-    intensity: weather.intensity,
+    intensity,
   };
 }
 

@@ -58,6 +58,18 @@ const WEATHER_MOOD_MAP = {
     thoughtFlavors: ['irritating', 'toxic', 'allergic'],
     intensityEffect: true,
   },
+  clouds: {
+    base: -1,
+    description: 'overcast skies',
+    thoughtFlavors: ['grey', 'dim', 'heavy'],
+    intensityEffect: false,
+  },
+  sandstorm: {
+    base: -10,
+    description: 'stinging sandstorm',
+    thoughtFlavors: ['gritty', 'blinding', 'abrasive'],
+    intensityEffect: true,
+  },
 };
 
 // ============================================================
@@ -260,6 +272,8 @@ export function updateWeatherFulfillment(dwarf, weather, intensity) {
     smoke: { tranquility: -8 },
     mist: { creativity: 1 },
     spores: { tranquility: -7, creativity: -2 },
+    clouds: { tranquility: -1 },
+    sandstorm: { tranquility: -9, exploration: -6 },
   };
 
   const mods = changes[weather] || {};

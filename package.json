@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "rot-js": "^2.2.1"
   }
 }

@@ -27,6 +27,10 @@ export const EVENTS = Object.freeze({
   DWARF_SPAWN: 'dwarf:spawn',
   TICK: 'world:tick',                       // Emitted every simulation tick
 
+  // Weather events (emitted by WeatherSimulator, consumed by cognition)
+  WEATHER_CHANGE: 'weather:change',         // Notable weather at a dwarf's position
+  THOUGHT: 'dwarf:thought',                 // Generated thought (weather, etc.)
+
   // Name generation events (LLM pipeline)
   DWARF_NAME_PENDING: 'dwarf:name_pending',     // Name generation started
   DWARF_NAME_GENERATED: 'dwarf:name_generated', // Name generation complete

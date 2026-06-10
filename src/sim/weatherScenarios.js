@@ -164,44 +164,88 @@ export function triggerSnowStorm(state, intensity = 0.6, durationTicks = 200) {
   console.log(`[Weather] Snow storm triggered`);
 }
 
+/**
+ * Trigger a sandstorm (arid biomes, high wind)
+ */
+export function triggerSandstorm(state, intensity = 0.7, durationTicks = 350) {
+  if (!state.weather) return;
+
+  const x = Math.random() * state.map.width | 0;
+  const y = Math.random() * state.map.height | 0;
+
+  state.weather.addSource(x, y, 'SANDSTORM', intensity, durationTicks);
+  console.log(`[Weather] Sandstorm triggered`);
+}
+
 // ============================================================
 // TIME-BASED WEATHER CYCLES
 // ============================================================
 
 /**
- * Weather varies by season/time
- * Call this every ~100 ticks to introduce variation
+ * Per-season storm profiles: how intense and long-lived a triggered
+ * weather event is in each season (build/peak/decay envelope is applied
+ * by the simulator's applySources()).
+ */
+const SEASON_PROFILES = [
+  { name: 'spring', rain: 0.55, intensity: [0.4, 0.75], duration: [200, 450] },
+  { name: 'summer', rain: 0.15, intensity: [0.6, 0.95], duration: [120, 280] },  // rare but violent
+  { name: 'autumn', rain: 0.35, intensity: [0.35, 0.6], duration: [250, 500] },
+  { name: 'winter', rain: 0.05, intensity: [0.5, 0.85], duration: [300, 600] },
+];
+
+function rollRange([min, max]) {
+  return min + Math.random() * (max - min);
+}
+
+/**
+ * Biome/season-aware weather director.
+ * Reads the map's climate (avgTemperature / avgMoisture) and the current
+ * season to pick appropriate events: snow when cold, sandstorms when arid,
+ * rain when moist, fog in damp autumns. The macro front field in
+ * WeatherSimulator supplies ambient drifting weather; this adds the
+ * occasional named storm on top.
+ * Call this every ~100 ticks to introduce variation.
  */
 export function updateSeasonalWeather(state) {
   if (!state.weather) return;
+  // No sky on underground maps: skip surface storms entirely
+  if (!state.map?.elevation || !state.map?.moisture) return;
 
   const tick = state.tick || 0;
   const dayLength = 1200;  // Ticks per in-game day
   const seasonLength = dayLength * 30;  // 30 days per season
-
-  const dayOfYear = (tick % (seasonLength * 4)) / dayLength | 0;
   const season = (tick % (seasonLength * 4)) / seasonLength | 0;
+  const profile = SEASON_PROFILES[season];
 
-  // 1/100 chance per tick of weather event
-  if (Math.random() > 0.99) {
-    switch (season) {
-      case 0:  // Spring
-        if (Math.random() > 0.5) {
-          triggerRainStorm(state, 0.6, 200);
-        }
-        break;
-      case 1:  // Summer
-        // Rare rain, possible fires
-        break;
-      case 2:  // Autumn
-        if (Math.random() > 0.7) {
-          triggerFogInCavern(state, null, 0.3);
-        }
-        break;
-      case 3:  // Winter
-        triggerSnowStorm(state, 0.7, 300);
-        break;
-    }
+  const climate = state.map?.biome?.climate || {};
+  const avgTemp = climate.avgTemperature ?? 0.5;
+  const avgMoist = climate.avgMoisture ?? 0.5;
+  const cold = avgTemp < 0.35 || season === 3;
+  const arid = avgMoist < 0.35;
+
+  // Roughly one event roll per in-game day (called every 100 ticks)
+  if (Math.random() < 0.92) return;
+
+  const intensity = rollRange(profile.intensity);
+  const duration = rollRange(profile.duration) | 0;
+
+  if (cold) {
+    // Cold climates / winter: precipitation falls as snow
+    triggerSnowStorm(state, Math.min(1, intensity + avgMoist * 0.2), duration);
+    return;
+  }
+
+  if (arid && (season === 1 || Math.random() < 0.5)) {
+    // Arid climates: dust and sand instead of rain, worst in summer
+    triggerSandstorm(state, intensity, duration);
+    return;
+  }
+
+  if (Math.random() < profile.rain + avgMoist * 0.3) {
+    triggerRainStorm(state, intensity, duration);
+  } else if (season === 2 && avgMoist > 0.45) {
+    // Damp autumn mornings: fog banks
+    triggerFogInCavern(state, null, Math.min(0.6, 0.25 + avgMoist * 0.3));
   }
 }
 
@@ -272,7 +316,7 @@ export const WEATHER_SCENARIO_PRESETS = {
 
   foggy_valley: {
     name: 'Foggy Valley',
-    description: 'Thick fog obscures vision and disorientsLocally.',
+    description: 'Thick fog obscures vision and disorients locally.',
     weather: {
       type: 'FOG',
       intensity: 0.7,
@@ -471,6 +515,7 @@ export default {
   triggerRainStorm,
   triggerFogInCavern,
   triggerSnowStorm,
+  triggerSandstorm,
   updateSeasonalWeather,
   WEATHER_SCENARIO_PRESETS,
   triggerComplexWeather,

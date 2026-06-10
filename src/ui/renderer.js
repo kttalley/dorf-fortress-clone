@@ -175,9 +175,6 @@ export function createRenderer(containerEl, width, height) {
     // Get biome color modifiers if available
     const biomeColorMod = map.biome?.colorMod || null;
 
-    // DEBUG: Log weather availability
-    let weatherDebugLogged = false;
-
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
@@ -191,41 +188,48 @@ export function createRenderer(containerEl, width, height) {
         // Check for entity at this position
         const entity = entityLookup.get(`${x},${y}`);
 
-        // Determine what to render
-        let char, fg, bg;
+        // Determine what to render. The tile underlay is always resolved so
+        // sprite entities can leave the terrain glyph visible beneath their
+        // transparent pixels.
+        let tileChar = ' ';
+        let tileFg = '#fff';
+        if (tileDef) {
+          // Tile - check if it has animation frames
+          if (tileDef.animated && tileDef.chars && map.state) {
+            // Animate the character. Each tile type can set its own
+            // animPeriod (ticks per frame) so flowers sway slower than
+            // water ripples; a per-position phase offset keeps neighboring
+            // tiles out of lockstep for an organic shimmer.
+            const period = tileDef.animPeriod || 4;
+            const offset = (x * 7 + y * 13) % tileDef.chars.length;
+            const phase = (Math.floor(map.state.tick / period) + offset) % tileDef.chars.length;
+            tileChar = tileDef.chars[phase];
+          } else {
+            tileChar = tileDef.char;
+          }
+          tileFg = tileDef.fg;
+        }
 
+        let char, fg;
+        let bg = tileDef?.bg ?? '#000';
         if (entity) {
           // Entity overlays tile
           char = entity.char;
           fg = entity.fg ?? '#fff';
-          bg = tileDef?.bg ?? '#000';
-        } else if (tileDef) {
-          // Tile - check if it has animation frames
-          if (tileDef.animated && tileDef.chars && map.state) {
-            // Animate the character
-            const phase = Math.floor((map.state.tick / 4) % tileDef.chars.length);
-            char = tileDef.chars[phase];
-          } else {
-            char = tileDef.char;
-          }
-          fg = tileDef.fg;
-          bg = tileDef.bg ?? '#000';
         } else {
-          // Empty/undefined
-          char = ' ';
-          fg = '#fff';
-          bg = '#000';
+          char = tileChar;
+          fg = tileFg;
         }
 
-        // Phase 3: Apply weather rendering if available
+        // Phase 3: Apply weather rendering if available.
+        // Weather blends with the tile proportionally to intensity and
+        // never replaces an entity glyph (only tints its background).
         const weatherSimulator = map.weather || (map.state && map.state.weather);
         if (weatherSimulator) {
-          if (!weatherDebugLogged) {
-            console.log('[Renderer] Weather simulator found, tick:', map.state?.tick, 'sources:', weatherSimulator.sources?.length);
-            weatherDebugLogged = true;
-          }
-          const weatherComposed = composeWeatherTile(x, y, { char, fg, bg }, map.state?.tick || 0, weatherSimulator);
-          if (weatherComposed && weatherComposed.char !== char) {
+          const weatherComposed = composeWeatherTile(
+            x, y, { char, fg, bg }, map.state?.tick || 0, weatherSimulator, !!entity
+          );
+          if (weatherComposed) {
             char = weatherComposed.char;
             fg = weatherComposed.fg;
             bg = weatherComposed.bg;
@@ -247,40 +251,54 @@ export function createRenderer(containerEl, width, height) {
           );
         }
 
-        const stateKey = `${spriteUri || char}|${fg}|${bg}|${isDwarf}|${isSpeaking}`;
+        const stateKey = spriteUri
+          ? `${spriteUri}|${tileChar}|${tileFg}|${bg}|${isSpeaking}`
+          : `${char}|${fg}|${bg}|${isDwarf}|${isSpeaking}`;
         if (prevState[idx] !== stateKey) {
           if (spriteUri) {
-            // Sprite cell: paint the image, keep tile bg behind transparency
-            cell.textContent = '';
-            cell.style.backgroundImage = `url("${spriteUri}")`;
-            cell.style.backgroundSize = 'contain';
-            cell.style.backgroundRepeat = 'no-repeat';
-            cell.style.backgroundPosition = 'center';
-            cell.style.imageRendering = 'pixelated';
-          } else {
-            cell.textContent = char;
-            cell.style.color = fg;
-            if (cell.style.backgroundImage) cell.style.backgroundImage = '';
-          }
-          cell.style.backgroundColor = bg;
-
-          // Sprite entities: scale + drop-shadow depth, glow when speaking.
-          if (spriteUri) {
-            cell.style.transform = `scale(${(entity.scale || 1) * SPRITE_SCALE_BOOST})`;
+            // Sprite cell: the tile keeps rendering in the cell itself
+            // (glyph + bg), while the sprite floats above it in a
+            // transparent overlay child. Scaling the overlay instead of the
+            // cell keeps the cell's bg square from covering neighbor tiles.
+            cell.textContent = tileChar;
+            cell.style.color = tileFg;
+            cell.style.backgroundImage = '';
+            cell.style.backgroundColor = bg;
+            const overlay = document.createElement('span');
+            overlay.style.cssText =
+              'position:absolute;inset:0;pointer-events:none;'
+              + `background-image:url("${spriteUri}");`
+              + 'background-size:contain;background-repeat:no-repeat;'
+              + 'background-position:center;image-rendering:pixelated;'
+              + `transform:scale(${(entity.scale || 1) * SPRITE_SCALE_BOOST});`;
+            if (isSpeaking) {
+              // Warm illumination glow — as if lit while speaking
+              overlay.style.animation = 'pulse-glow 1.6s ease-in-out infinite';
+              overlay.style.filter = 'drop-shadow(0 0 4px rgba(255,235,170,0.95)) drop-shadow(0 0 9px rgba(255,205,120,0.7))';
+            } else {
+              overlay.style.filter = 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))';
+            }
+            cell.appendChild(overlay);
+            cell.style.position = 'relative';
+            cell.style.overflow = 'visible';
+            cell.style.transform = 'scale(1)';
             cell.style.fontWeight = 'normal';
             cell.style.zIndex = '100';
             cell.style.textShadow = 'none';
-            if (isSpeaking) {
-              // Warm illumination glow — as if lit while speaking
-              cell.style.animation = 'pulse-glow 1.6s ease-in-out infinite';
-              cell.style.filter = 'drop-shadow(0 0 4px rgba(255,235,170,0.95)) drop-shadow(0 0 9px rgba(255,205,120,0.7))';
-            } else {
-              cell.style.animation = 'none';
-              cell.style.filter = 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))';
-            }
+            cell.style.animation = 'none';
+            cell.style.filter = 'none';
             prevState[idx] = stateKey;
             continue;
           }
+
+          // Setting textContent also drops any sprite overlay child left
+          // from a previous frame.
+          cell.textContent = char;
+          cell.style.color = fg;
+          if (cell.style.backgroundImage) cell.style.backgroundImage = '';
+          cell.style.position = '';
+          cell.style.overflow = 'hidden';
+          cell.style.backgroundColor = bg;
 
           // Apply visual treatment based on entity type
           if (entity && entity.scale && entity.scale > 1.0) {
@@ -332,17 +350,73 @@ export function createRenderer(containerEl, width, height) {
    */
   function destroy() {
     window.removeEventListener('resize', handleResize);
+    // Cancel any in-flight pan animation and pending return-to-dwarves pan
+    animToken++;
+    panSeq++;
+    if (returnTimerId !== null) {
+      clearTimeout(returnTimerId);
+      returnTimerId = null;
+    }
     gridEl.remove();
     cells.length = 0;
     prevState = [];
   }
 
+  // --- Camera pan sequencing --------------------------------------------
+  // Rule: every pan that targets something other than the dwarves must
+  // conclude by panning back to the dwarves' average position. Each pan
+  // bumps `panSeq`; a queued return-pan only fires if no newer pan has
+  // started during its dwell, which prevents pan loops and races.
+  let dwarvesProvider = null;    // () => current dwarf list (set by main.js)
+  let lastDwarves = null;        // Fallback: last dwarf list explicitly panned to
+  let panSeq = 0;                // Incremented at the start of every pan
+  let returnTimerId = null;      // Pending return-to-dwarves dwell timer
+  let animToken = 0;             // Cancels superseded RAF pan animations
+  const RETURN_DWELL_MS = 2000;  // Let the player see the event before returning
+  const RETURN_PAN_MS = 2200;    // Duration of the chained return pan
+  const NATIVE_SCROLL_MS = 500;  // Approx. duration of browser-native smooth scroll
+
   /**
-   * Scroll to center on a specific position
-   * @param {number} x - X coordinate
-   * @param {number} y - Y coordinate
+   * Register a getter for the live dwarf list so non-dwarf pans can chain
+   * a return pan even if no dwarf pan has happened yet.
    */
-  function scrollToPosition(x, y) {
+  function setDwarvesProvider(fn) {
+    dwarvesProvider = fn;
+  }
+
+  function getReturnDwarves() {
+    const live = typeof dwarvesProvider === 'function' ? dwarvesProvider() : null;
+    if (live && live.length > 0) return live;
+    if (lastDwarves && lastDwarves.length > 0) return lastDwarves;
+    return null;
+  }
+
+  /** Marks the start of any pan: cancels a pending return pan. */
+  function beginPan() {
+    panSeq++;
+    if (returnTimerId !== null) {
+      clearTimeout(returnTimerId);
+      returnTimerId = null;
+    }
+  }
+
+  /**
+   * After a non-dwarf pan settles, wait `delay` ms then pan back to the
+   * dwarves. Cancels itself if any other pan starts during the dwell.
+   */
+  function scheduleReturnToDwarves(delay) {
+    const seqAtSchedule = panSeq;
+    if (returnTimerId !== null) clearTimeout(returnTimerId);
+    returnTimerId = setTimeout(() => {
+      returnTimerId = null;
+      if (seqAtSchedule !== panSeq) return; // a newer pan superseded us
+      const dwarves = getReturnDwarves();
+      if (dwarves) animateScrollToDwarves(dwarves, RETURN_PAN_MS);
+    }, delay);
+  }
+
+  /** Internal: browser-native smooth scroll centering (x, y). */
+  function panToPosition(x, y) {
     const currentCellWidth = parseFloat(gridEl.style.gridTemplateColumns.match(/[\d.]+/)?.[0]) || cellWidth;
     const currentCellHeight = parseFloat(gridEl.style.gridTemplateRows.match(/[\d.]+/)?.[0]) || cellHeight;
 
@@ -362,24 +436,44 @@ export function createRenderer(containerEl, width, height) {
   }
 
   /**
+   * Scroll to center on a specific (non-dwarf) position.
+   * Always chains a return pan back to the dwarves after a short dwell.
+   * @param {number} x - X coordinate
+   * @param {number} y - Y coordinate
+   */
+  function scrollToPosition(x, y) {
+    beginPan();
+    panToPosition(x, y);
+    // Native smooth scroll exposes no completion callback; approximate its
+    // duration, then dwell so the player can see the target before returning.
+    scheduleReturnToDwarves(NATIVE_SCROLL_MS + RETURN_DWELL_MS);
+  }
+
+  /**
    * Scroll to center on the average position of all dwarves
    * @param {Array} dwarves - Array of dwarf entities
    */
   function scrollToDwarves(dwarves) {
     if (!dwarves || dwarves.length === 0) return;
+    beginPan();
+    lastDwarves = dwarves;
 
     // Calculate average position
     const avgX = dwarves.reduce((sum, d) => sum + d.x, 0) / dwarves.length;
     const avgY = dwarves.reduce((sum, d) => sum + d.y, 0) / dwarves.length;
 
-    scrollToPosition(Math.round(avgX), Math.round(avgY));
+    panToPosition(Math.round(avgX), Math.round(avgY));
   }
 
   /**
-   * Custom RAF-based animated scroll for a slower, more deliberate pan.
+   * Internal RAF-based animated scroll for a slower, more deliberate pan.
    * Browser-native smooth scroll is too quick; this lets us tune duration.
+   * @param {Function} [onComplete] - Invoked when the pan finishes naturally
+   *   (or immediately if no movement is needed). Not invoked if a newer pan
+   *   supersedes this one mid-flight.
    */
-  function animateScrollToPosition(x, y, duration = 2200) {
+  function animatePanToPosition(x, y, duration, onComplete) {
+    const token = ++animToken;
     const currentCellWidth = parseFloat(gridEl.style.gridTemplateColumns.match(/[\d.]+/)?.[0]) || cellWidth;
     const currentCellHeight = parseFloat(gridEl.style.gridTemplateRows.match(/[\d.]+/)?.[0]) || cellHeight;
 
@@ -393,31 +487,57 @@ export function createRenderer(containerEl, width, height) {
 
     const startX = containerEl.scrollLeft;
     const startY = containerEl.scrollTop;
-    if (Math.abs(targetX - startX) < 1 && Math.abs(targetY - startY) < 1) return;
+    if (Math.abs(targetX - startX) < 1 && Math.abs(targetY - startY) < 1) {
+      if (typeof onComplete === 'function') onComplete();
+      return;
+    }
 
     const startTime = performance.now();
     const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
     function step(now) {
+      if (token !== animToken) return; // superseded by a newer animated pan
       const t = Math.min(1, (now - startTime) / duration);
       const e = easeInOutCubic(t);
       containerEl.scrollLeft = startX + (targetX - startX) * e;
       containerEl.scrollTop = startY + (targetY - startY) * e;
-      if (t < 1) requestAnimationFrame(step);
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else if (typeof onComplete === 'function') {
+        onComplete();
+      }
     }
     requestAnimationFrame(step);
   }
 
+  /**
+   * Animated pan to a specific (non-dwarf) position.
+   * When the pan completes, dwells briefly and then chains a return pan
+   * back to the dwarves' average position.
+   * @param {Function} [onComplete] - Optional completion callback, invoked
+   *   before the return pan is scheduled.
+   */
+  function animateScrollToPosition(x, y, duration = 2200, onComplete) {
+    beginPan();
+    animatePanToPosition(x, y, duration, () => {
+      if (typeof onComplete === 'function') onComplete();
+      scheduleReturnToDwarves(RETURN_DWELL_MS);
+    });
+  }
+
   function animateScrollToDwarves(dwarves, duration = 2200) {
     if (!dwarves || dwarves.length === 0) return;
+    beginPan();
+    lastDwarves = dwarves;
     const avgX = dwarves.reduce((sum, d) => sum + d.x, 0) / dwarves.length;
     const avgY = dwarves.reduce((sum, d) => sum + d.y, 0) / dwarves.length;
-    animateScrollToPosition(Math.round(avgX), Math.round(avgY), duration);
+    animatePanToPosition(Math.round(avgX), Math.round(avgY), duration);
   }
 
   return {
     render,
     destroy,
+    setDwarvesProvider,
     scrollToPosition,
     scrollToDwarves,
     animateScrollToPosition,
@@ -439,19 +559,19 @@ export const EntityGlyph = Object.freeze({
   DWARF_WOUNDED: { char: '🧌', fg: '#ff6666', zIndex: 10, scale: 1.75, shadow: '0 0 10px rgba(255, 102, 102, 0.4), 0 2px 4px rgba(0, 0, 0, 0.8)', filter: 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5))' },
 
   // Visitors - external races
-  HUMAN: { char: '🧙‍♂️', fg: '#ddcc88', zIndex: 10, scale: 1.3, shadow: '0 0 6px rgba(221, 204, 136, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
-  HUMAN_HOSTILE: { char: '🧙‍♂️', fg: '#cc8844', zIndex: 10, scale: 1.3, shadow: '0 0 6px rgba(204, 136, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
-  GOBLIN: { char: '👹', fg: '#88cc44', zIndex: 10, scale: 1.3, shadow: '0 0 6px rgba(136, 204, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
-  GOBLIN_HOSTILE: { char: '👹', fg: '#cc4444', zIndex: 10, scale: 1.3, shadow: '0 0 6px rgba(204, 68, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
-  ELF: { char: '🧝🏻‍♀️', fg: '#aaddff', zIndex: 10, scale: 1.3, shadow: '0 0 6px rgba(170, 221, 255, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
+  HUMAN: { char: '🧙‍♂️', fg: '#ddcc88', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(221, 204, 136, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
+  HUMAN_HOSTILE: { char: '🧙‍♂️', fg: '#cc8844', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(204, 136, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
+  GOBLIN: { char: '👹', fg: '#88cc44', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(136, 204, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
+  GOBLIN_HOSTILE: { char: '👹', fg: '#cc4444', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(204, 68, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
+  ELF: { char: '🧝🏻‍♀️', fg: '#aaddff', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(170, 221, 255, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
 
   // Animals - different species with thematic emojis
-  DEER: { char: '🦌', fg: '#dd9944', zIndex: 9, scale: 1.25, shadow: '0 0 5px rgba(221, 153, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
-  RABBIT: { char: '🐰', fg: '#bb9966', zIndex: 9, scale: 1.2, shadow: '0 0 4px rgba(187, 153, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
-  WOLF: { char: '🐺', fg: '#888888', zIndex: 9, scale: 1.25, shadow: '0 0 5px rgba(136, 136, 136, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
-  BOAR: { char: '🐗', fg: '#664422', zIndex: 9, scale: 1.25, shadow: '0 0 5px rgba(102, 68, 34, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
-  FROG: { char: '🐸', fg: '#66cc66', zIndex: 9, scale: 1.15, shadow: '0 0 4px rgba(102, 204, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
-  BEAR: { char: '🐻', fg: '#664444', zIndex: 9, scale: 1.3, shadow: '0 0 5px rgba(102, 68, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  DEER: { char: '🦌', fg: '#dd9944', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(221, 153, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  RABBIT: { char: '🐰', fg: '#bb9966', zIndex: 9, scale: 1.75, shadow: '0 0 4px rgba(187, 153, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
+  WOLF: { char: '🐺', fg: '#888888', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(136, 136, 136, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  BOAR: { char: '🐗', fg: '#664422', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(102, 68, 34, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  FROG: { char: '🐸', fg: '#66cc66', zIndex: 9, scale: 1.75, shadow: '0 0 4px rgba(102, 204, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
+  BEAR: { char: '🐻', fg: '#664444', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(102, 68, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
 
   // Food - green percent sign (traditional roguelike food)
   FOOD: { char: '%', fg: '#32cd32', zIndex: 5, scale: 1.1, shadow: '0 0 3px rgba(50, 205, 50, 0.2), 0 1px 1px rgba(0, 0, 0, 0.4)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2))' },

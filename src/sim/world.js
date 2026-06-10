@@ -21,7 +21,6 @@ import { perceiveWorld } from './perception.js';
 import { processVisitors } from '../ai/visitorAI.js';
 import { maybeSpawnVisitors, resetSpawner } from './visitorSpawner.js';
 import { processCombat, cleanupDeadEntities, tickCooldowns } from './combat.js';
-import { applyWeatherMood, getWeatherBehaviorModifier, updateWeatherFulfillment, getWeatherHealthEffects } from './weatherCognition.js';
 
 let systemsInitialized = false;
 

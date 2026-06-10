@@ -237,33 +237,36 @@ export const TILE_DEFS = Object.freeze({
   // === WATER ===
   [TileType.WATER_SHALLOW]: {
     char: '~',
-    chars: ['~', '≈', '~', 'ˉ'],  // Animated rippling frames
+    chars: ['~', '≈', '∿', '≈', '~', 'ˉ'],  // Lapping ripple cycle
     fg: '#4488cc',
     bg: '#112233',
     walkable: false,
     harvestable: false,
     moveCost: Infinity,
     animated: true,
+    animPeriod: 3,   // Quick ripples
   },
   [TileType.WATER_DEEP]: {
     char: '≈',
-    chars: ['≈', '~', '≈', '⋮'],  // Animated flowing frames
+    chars: ['≈', '≋', '≈', '~', '≋', '∿'],  // Rolling swells
     fg: '#2266aa',
     bg: '#0a1520',
     walkable: false,
     harvestable: false,
     moveCost: Infinity,
     animated: true,
+    animPeriod: 5,   // Slower, heavier swell
   },
   [TileType.RIVER]: {
     char: '~',
-    chars: ['~', '≈', '~', 'ˉ'],  // Animated flowing frames
+    chars: ['~', '≈', '∿', '≈', '~', '≋'],  // Fast flowing current
     fg: '#55aadd',
     bg: '#0a2030',
     walkable: false,
     harvestable: false,
     moveCost: Infinity,
     animated: true,
+    animPeriod: 2,   // Fastest water animation
   },
   [TileType.RIVER_BANK]: {
     char: '.',
@@ -293,11 +296,14 @@ export const TILE_DEFS = Object.freeze({
   },
   [TileType.MUSHROOM]: {
     char: '♦',
+    chars: ['♦', '◆'],  // "Breathing" pulse: cap swells and relaxes
     fg: '#cc88aa',
     bg: '#1a1410',
     walkable: true,
     harvestable: true,
     moveCost: 1,
+    animated: true,
+    animPeriod: 26,  // Very slow inhale/exhale
   },
   [TileType.BERRY_BUSH]: {
     char: '♥',
@@ -309,11 +315,14 @@ export const TILE_DEFS = Object.freeze({
   },
   [TileType.FLOWER]: {
     char: '*',
+    chars: ['*', '✻', '✽', '✻'],  // Undulating sway: petals open and tilt
     fg: '#ffcc44',
     bg: '#0f1a10',
     walkable: true,
     harvestable: false,
     moveCost: 1,
+    animated: true,
+    animPeriod: 14,  // Lazy dance, much slower than water
   },
   [TileType.MOSS]: {
     char: '`',

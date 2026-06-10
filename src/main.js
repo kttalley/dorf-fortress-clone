@@ -19,6 +19,7 @@ import { on, EVENTS } from './events/eventBus.js';
 import { initConversationToast } from './ui/conversationToast.js';
 import { initGameAssistant, createAssistantToggle } from './ui/gameAssistantPanel.js';
 import { initControlsWidget } from './ui/controlsWidget.js';
+import { initMusic, isMusicMuted, toggleMusicMuted } from './ui/music.js';
 import { initBiomeTitle, updateBiomeTitle, initEventLog, updateEventLog } from './ui/biomeWidgets.js';
 import { initLoadingProgress, setLoadingProgress, addLoadingStatus, setLoadingText, completeLoading, resetLoadingProgress } from './ui/loadingProgress.js';
 
@@ -380,6 +381,8 @@ async function init() {
 
   // Create renderer
   renderer = createRenderer(mapContainer, MAP_WIDTH, MAP_HEIGHT);
+  // Non-dwarf camera pans chain a return pan to the live dwarf positions.
+  renderer.setDwarvesProvider(() => state.dwarves);
 
   // Create stat panel (for detailed entity inspection) - needs grid element for positioning
   statPanel = createStatPanel(mapContainer, renderer.el, MAP_WIDTH, MAP_HEIGHT);
@@ -488,12 +491,28 @@ async function init() {
         renderer.scrollToDwarves(state.dwarves);
       }
     },
+    onToggleSound: (btn) => {
+      const nowMuted = toggleMusicMuted();
+      btn.textContent = nowMuted ? '🔇' : '🔊';
+      btn.title = nowMuted ? 'Unmute music' : 'Mute music';
+      btn.setAttribute('aria-label', btn.title);
+    },
   });
 
   // Set initial regen button text
   const regenBtn = controlsWidget.getButton('btn-regen');
   if (regenBtn) {
     regenBtn.textContent = `New: ${MAP_MODES[(currentMapMode + 1) % MAP_MODES.length]}`;
+  }
+
+  // Background music: starts on load (or first interaction if the browser
+  // blocks autoplay); the sound button reflects the persisted mute state.
+  initMusic();
+  const soundBtn = controlsWidget.getButton('btn-sound');
+  if (soundBtn && isMusicMuted()) {
+    soundBtn.textContent = '🔇';
+    soundBtn.title = 'Unmute music';
+    soundBtn.setAttribute('aria-label', 'Unmute music');
   }
 
   // Initialize Game Assistant ("Ask the Game" panel)
@@ -566,15 +585,7 @@ function renderFrame(renderer) {
   // Pass weather simulator and state to map for rendering (Phase 3)
   state.map.weather = state.weather;
   state.map.state = state;
-  
-  // Debug: log weather info every 60 frames
-  if (state.tick % 60 === 0) {
-    if (state.weather && state.weather.sources.length > 0) {
-      const sample = state.weather.getWeatherAt(71, 20);
-      console.log(`[Render] Tick ${state.tick}: Rain=${sample.rain.toFixed(3)}, Fog=${sample.fog.toFixed(3)}, Sources=${state.weather.sources.length}`);
-    }
-  }
-  
+
   renderer.render(state.map, entities);
   updateBubblePositions();
 

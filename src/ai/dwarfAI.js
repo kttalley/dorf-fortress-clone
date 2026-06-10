@@ -99,34 +99,36 @@ export function decide(dwarf, state) {
   // Phase 2: Apply weather effects to mood and behavior
   if (state.weather) {
     const weather = state.weather.getWeatherAt(dwarf.x, dwarf.y);
-    if (weather.dominant) {
-      // Determine dominant weather type
-      const weatherTypes = ['RAIN', 'SNOW', 'FOG', 'CLOUDS', 'MIST', 'MIASMA', 'SMOKE', 'SPORES'];
-      let dominantType = weatherTypes[0];
-      let maxIntensity = weather.rain || 0;
-      
-      for (const type of weatherTypes) {
-        const intensity = weather[type.toLowerCase()] || 0;
-        if (intensity > maxIntensity) {
-          maxIntensity = intensity;
-          dominantType = type;
-        }
-      }
-      
+    // getWeatherAt already computes the dominant field (lowercase ids,
+    // matching WEATHER_MOOD_MAP / fulfillment keys)
+    if (weather.type && weather.dominant > 0.05) {
+      const dominantType = weather.type;
+      const maxIntensity = weather.dominant;
+
       // Apply weather mood effects
       applyWeatherMood(dwarf, dominantType, maxIntensity, state);
-      
+
       // Update fulfillment based on weather
-      updateWeatherFulfillment(dwarf, dominantType, maxIntensity, state);
-      
-      // Track health effects
-      const healthEffects = getWeatherHealthEffects(dwarf, dominantType, maxIntensity, state);
-      if (healthEffects) {
-        dwarf._weatherStress = (dwarf._weatherStress || 0) + healthEffects.stressIncrease;
-        if (healthEffects.sicknessProbability > Math.random()) {
-          dwarf._sickTicks = (dwarf._sickTicks || 0) + 1;
-        }
+      updateWeatherFulfillment(dwarf, dominantType, maxIntensity);
+
+      // Track chronic exposure: health effects scale with ticks spent in
+      // the same weather, not with instantaneous intensity
+      if (dwarf._weatherType === dominantType) {
+        dwarf._weatherExposure = (dwarf._weatherExposure || 0) + 1;
+      } else {
+        dwarf._weatherType = dominantType;
+        dwarf._weatherExposure = 1;
       }
+
+      const healthEffects = getWeatherHealthEffects(dwarf, dominantType, dwarf._weatherExposure) || {};
+      dwarf._weatherStress = (dwarf._weatherStress || 0) + (healthEffects.stress || 0) * 0.01;
+      if ((healthEffects.sickness || 0) * 0.005 > Math.random()) {
+        dwarf._sickTicks = (dwarf._sickTicks || 0) + 1;
+      }
+    } else {
+      // Clear skies: exposure resets
+      dwarf._weatherType = null;
+      dwarf._weatherExposure = 0;
     }
   }
 

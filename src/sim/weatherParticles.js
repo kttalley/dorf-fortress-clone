@@ -194,6 +194,15 @@ export class ParticleField {
         x: swirl * this.flowFieldStrength * 0.7,
         y: (downwardSwirl + 0.5) * this.flowFieldStrength * 0.8,
       };
+    } else if (this.type.driftPattern === 'horizontal') {
+      // SANDSTORM: hard lateral streaking with turbulent vertical jitter;
+      // the high windInfluence makes the streaks follow the prevailing wind
+      const gust = Math.sin(x * scale * 1.5 + phase * 2.5) * 0.4 + 0.6;
+      const churn = Math.sin(y * scale * 2 + phase * 1.5) * Math.cos(x * scale - phase);
+      return {
+        x: gust * this.flowFieldStrength,
+        y: churn * this.flowFieldStrength * 0.35,
+      };
     }
 
     // Standard organic undulation for other weather types
@@ -376,6 +385,21 @@ export const PARTICLE_WEATHER_TYPES = {
     flowScale: 0.05,            // Medium waves
     flowStrength: 0.35,         // Turbulent
     maxParticles: 200,
+  },
+  SANDSTORM: {
+    id: 'sandstorm',
+    realm: 'surface',
+    char: '≋',
+    chars: ['≋', '∿', '~', '≈', '∴', '≋'],
+    color: '#E8C97A',           // Pale sand
+    bgColor: '#6B5A2E',         // Dusty ochre wall of sand
+    decay: 0.03,                // Gusts dissipate fairly fast
+    gravity: 0.0,               // Carried, not falling
+    windInfluence: 0.95,        // Almost entirely wind-driven
+    flowScale: 0.07,            // Tight streaks
+    flowStrength: 0.7,          // Violent lateral motion
+    maxParticles: 320,
+    driftPattern: 'horizontal', // Streaking sideways sweep
   },
   SPORES: {
     id: 'spores',
