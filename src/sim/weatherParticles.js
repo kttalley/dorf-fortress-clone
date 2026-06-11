@@ -292,7 +292,7 @@ export const PARTICLE_WEATHER_TYPES = {
     char: '|',
     chars: ['|', '/', '\\', '|'],
     color: '#44DDFF',           // Bright cyan
-    bgColor: '#444444',         // SOLID GREY - entire tile
+    bgColor: '#2E4A66',         // Rain-slick blue-grey tint (translucent wash)
     decay: 0.02,                // Much lower - rain stays organized
     gravity: 0.12,              // Falls down strongly
     windInfluence: 0.3,         // Some wind drift
@@ -307,7 +307,7 @@ export const PARTICLE_WEATHER_TYPES = {
     char: '*',
     chars: ['*', '+', '*', '.'],
     color: '#FFFFFF',           // Bright white
-    bgColor: '#444444',         // SOLID GREY - entire tile
+    bgColor: '#A8BCD0',         // Pale steel-blue tint (translucent wash)
     decay: 0.01,                // Very low - snow stays fluffy
     gravity: 0.04,              // Drifts slowly down
     windInfluence: 0.7,         // Very affected by wind
@@ -322,7 +322,7 @@ export const PARTICLE_WEATHER_TYPES = {
     char: '~',
     chars: ['~', '≈', '~', '-'],
     color: '#CCDDFF',           // Bright light blue
-    bgColor: '#444444',         // SOLID GREY - entire tile
+    bgColor: '#8E9DAE',         // Soft grey-blue haze tint (translucent wash)
     decay: 0.015,               // Low - fog stays cohesive
     gravity: 0.002,             // Barely falls
     windInfluence: 0.4,         // Moderate wind response
@@ -335,8 +335,8 @@ export const PARTICLE_WEATHER_TYPES = {
     realm: 'surface',
     char: '^',
     chars: ['^', 'v', '^', 'o'],
-    color: '#FFFF99',           // Bright yellow
-    bgColor: '#E1E1E1',         // LIGHT GREY (225,225,225) - entire tile
+    color: '#E8EDF2',           // Soft white (cloud wisps, not yellow noise)
+    bgColor: '#B9C3CE',         // Light grey-blue cloud-shadow tint (translucent wash)
     decay: 0.001,               // Extreme low - clouds stay intact
     gravity: 0.0,               // Floats
     windInfluence: 0.4,         // Minimal wind response
@@ -350,7 +350,7 @@ export const PARTICLE_WEATHER_TYPES = {
     char: '≈',
     chars: ['≈', '~', 'ˉ', '≈'],
     color: '#AADDFF',           // Bright light blue
-    bgColor: '#333333',         // Dark grey for underground
+    bgColor: '#46606E',         // Cool damp-air tint (translucent wash)
     decay: 0.012,               // Low decay
     gravity: 0.005,             // Very slight drift down
     windInfluence: 0.2,         // Cave winds weak
@@ -364,7 +364,7 @@ export const PARTICLE_WEATHER_TYPES = {
     char: '☁',
     chars: ['☁', '≈', '~', '∿'],
     color: '#FFAA00',           // Bright orange
-    bgColor: '#333333',         // Dark grey for underground
+    bgColor: '#56481E',         // Putrid ochre tint (translucent wash)
     decay: 0.008,               // Very low - miasma pools
     gravity: 0.008,             // Sinks slowly
     windInfluence: 0.1,         // Very resistant to wind
@@ -378,7 +378,7 @@ export const PARTICLE_WEATHER_TYPES = {
     char: '∿',
     chars: ['∿', '~', '≈', '~'],
     color: '#CCCCCC',           // Bright light gray
-    bgColor: '#333333',         // Dark grey for underground
+    bgColor: '#4A4A4A',         // Sooty grey tint (translucent wash)
     decay: 0.06,                // Moderate fade
     gravity: -0.08,             // Rises
     windInfluence: 0.5,         // Moderately pushed
@@ -392,7 +392,7 @@ export const PARTICLE_WEATHER_TYPES = {
     char: '≋',
     chars: ['≋', '∿', '~', '≈', '∴', '≋'],
     color: '#E8C97A',           // Pale sand
-    bgColor: '#6B5A2E',         // Dusty ochre wall of sand
+    bgColor: '#8A6F3A',         // Dusty ochre tint (translucent wash)
     decay: 0.03,                // Gusts dissipate fairly fast
     gravity: 0.0,               // Carried, not falling
     windInfluence: 0.95,        // Almost entirely wind-driven
@@ -407,7 +407,7 @@ export const PARTICLE_WEATHER_TYPES = {
     char: '·',
     chars: ['·', '°', '·', 'o'],
     color: '#FF88FF',           // Bright magenta
-    bgColor: '#333333',         // Dark grey for underground
+    bgColor: '#4E3A52',         // Faint violet tint (translucent wash)
     decay: 0.03,                // Moderate decay
     gravity: 0.02,              // Light drift
     windInfluence: 0.3,         // Particles are small

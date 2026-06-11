@@ -1,100 +1,129 @@
-/**
- * Test Weather System Integration
- * 
- * Quick verification that:
- * 1. Weather simulator initializes
- * 2. Weather ticks without errors
- * 3. Dwarves receive weather mood effects
- * 4. Rendering can compose weather tiles
- */
+// Weather system integration test — rewritten for the rot.js front/particle
+// rewrite (b110889). The old version poked pre-rewrite internals
+// (weather.layers.RAIN.intensity) that no longer exist; this one exercises
+// only the public surface: constructor, addSource, tick, getWeatherAt,
+// getRenderingAt, and the translucent composeWeatherTile compositing.
+// Run with: node tests/test-weather-integration.js
 
 import { WeatherSimulator } from '../src/sim/weather.js';
 import { createWorldState } from '../src/state/store.js';
-import { createDwarf } from '../src/sim/entities.js';
+import { applyWeatherMood } from '../src/sim/weatherCognition.js';
 import { composeWeatherTile } from '../src/ui/weatherRenderer.js';
 
-console.log('\n=== WEATHER SYSTEM INTEGRATION TEST ===\n');
-
-// Test 1: Weather Simulator Initialization
-console.log('✓ Test 1: Weather Simulator Initialization');
-const weather = new WeatherSimulator(142, 40, 12345);
-console.log(`  - Created simulator: ${weather.constructor.name}`);
-console.log(`  - Width: ${weather.width}, Height: ${weather.height}`);
-console.log(`  - Layers: ${Object.keys(weather.layers).length}`);
-console.assert(weather.width === 142, 'Width should be 142');
-console.assert(weather.height === 40, 'Height should be 40');
-console.assert(Object.keys(weather.layers).length === 8, 'Should have 8 weather layers');
-
-// Test 2: Weather Tick
-console.log('\n✓ Test 2: Weather Tick Execution');
-const state = createWorldState(142, 40);
-state.weather = weather;
-for (let i = 0; i < 10; i++) {
-  state.tick++;
-  weather.tick(state);
+let passed = 0;
+let failed = 0;
+function assert(cond, label) {
+  if (cond) {
+    passed++;
+    console.log(`  PASS  ${label}`);
+  } else {
+    failed++;
+    console.error(`  FAIL  ${label}`);
+  }
 }
-console.log(`  - Executed 10 weather ticks`);
-console.log(`  - Current tick: ${state.tick}`);
-console.assert(state.tick === 10, 'Tick should be 10');
 
-// Test 3: Weather Source
-console.log('\n✓ Test 3: Weather Source (Rain)');
-weather.addSource(70, 20, 'RAIN', 0.8, 100);
-console.log(`  - Added RAIN source at (70, 20)`);
-const rainyPos = weather.getWeatherAt(70, 20);
-console.log(`  - Rain intensity at source: ${rainyPos.rain?.toFixed(2) || 'undefined'}`);
-console.assert(rainyPos.rain > 0.5, 'Rain should be significant at source');
+const WIDTH = 60;
+const HEIGHT = 30;
 
-// Test 4: Dwarf Weather Effects
-console.log('\n✓ Test 4: Dwarf Weather Mood Effects');
-const dwarf = createDwarf(70, 20);
-dwarf.mood = 50;
-const moodBefore = dwarf.mood;
-console.log(`  - Dwarf initial mood: ${moodBefore}`);
+function makeState() {
+  const state = createWorldState(WIDTH, HEIGHT);
+  state.map.tiles = Array.from({ length: WIDTH * HEIGHT }, () => ({ type: 'grass' }));
+  return state;
+}
 
-// Simulate weather cognition effect
-import { applyWeatherMood } from '../src/sim/weatherCognition.js';
-applyWeatherMood(dwarf, 'RAIN', 0.8, state);
-const moodAfter = dwarf.mood;
-console.log(`  - Dwarf mood after rain effect: ${moodAfter.toFixed(1)}`);
-console.log(`  - Mood delta: ${(moodAfter - moodBefore).toFixed(2)}`);
+// --- (1) construction + public shape ---
+console.log('\n(1) simulator construction');
 
-// Test 5: Weather Rendering
-console.log('\n✓ Test 5: Weather Tile Composition');
-const terrainTile = {
-  char: '.',
-  fg: '#888888',
-  bg: '#000000',
-};
-const weatherComposed = composeWeatherTile(70, 20, terrainTile, 0, weather);
-console.log(`  - Original char: '${terrainTile.char}'`);
-console.log(`  - Weather composed char: '${weatherComposed.char}'`);
-console.log(`  - Composed intensity: ${weatherComposed.intensity?.toFixed(2)}`);
-console.log(`  - Composed is animated: ${weatherComposed.animated}`);
+const weather = new WeatherSimulator(WIDTH, HEIGHT, 12345);
+assert(weather.width === WIDTH && weather.height === HEIGHT, 'dimensions stored');
+assert(Array.isArray(weather.sources) && weather.sources.length === 0, 'starts with no sources');
 
-// Test 6: Multiple Weather Layers
-console.log('\n✓ Test 6: Multiple Weather Layers');
-weather.addSource(50, 15, 'MIASMA', 0.6, 100);
-weather.addSource(60, 10, 'FOG', 0.5, 100);
-weather.tick(state);
-const multiPos = weather.getWeatherAt(55, 12);
-console.log(`  - Position (55, 12) weather:`);
-console.log(`    - Rain: ${multiPos.rain?.toFixed(2) || '0.00'}`);
-console.log(`    - Miasma: ${multiPos.miasma?.toFixed(2) || '0.00'}`);
-console.log(`    - Fog: ${multiPos.fog?.toFixed(2) || '0.00'}`);
+const empty = weather.getWeatherAt(10, 10);
+assert(typeof empty.dominant === 'number' && 'rain' in empty && 'fog' in empty, 'getWeatherAt returns the field aggregate');
 
-// Test 7: Weather Physics (Diffusion)
-console.log('\n✓ Test 7: Weather Diffusion/Spreading');
-weather.layers.RAIN.intensity.fill(0);  // Clear field
-const centerIdx = 20 * weather.width + 71;
-weather.layers.RAIN.intensity[centerIdx] = 1.0;
-console.log(`  - Set RAIN to 1.0 at center (71, 20)`);
-weather.layers.RAIN.update(state, 0, 0, true);
-const neighbor1 = weather.layers.RAIN.intensity[centerIdx + 1];
-const neighbor2 = weather.layers.RAIN.intensity[centerIdx - 1];
-console.log(`  - Neighbor (72, 20) intensity: ${neighbor1.toFixed(3)}`);
-console.log(`  - Neighbor (70, 20) intensity: ${neighbor2.toFixed(3)}`);
-console.assert(neighbor1 > 0, 'Rain should diffuse to right neighbor');
-console.assert(neighbor2 > 0, 'Rain should diffuse to left neighbor');
+// --- (2) ticking + sources ---
+console.log('\n(2) ticking with an active rain source');
 
-console.log('\n=== ALL TESTS PASSED ===\n');
+const state = makeState();
+state.weather = weather;
+
+weather.addSource(30, 15, 'RAIN', 0.9, 200);
+assert(weather.sources.length === 1, 'addSource accepts an uppercase WEATHER_TYPES key');
+weather.addSource(30, 15, 'NOT_A_TYPE', 0.9, 200);
+assert(weather.sources.length === 1, 'unknown weather types are rejected');
+
+let tickError = null;
+try {
+  for (let i = 0; i < 30; i++) {
+    state.tick++;
+    weather.tick(state);
+  }
+} catch (error) {
+  tickError = error;
+}
+assert(!tickError, `30 ticks run clean${tickError ? ` (threw: ${tickError.message})` : ''}`);
+
+const atSource = weather.getWeatherAt(30, 15);
+assert(atSource.rain > 0, `rain present at the source (${atSource.rain.toFixed(2)})`);
+assert(atSource.dominant >= atSource.rain - 1e-9, 'dominant >= each field');
+
+// Sources expire
+const shortLived = new WeatherSimulator(WIDTH, HEIGHT, 99);
+shortLived.addSource(5, 5, 'FOG', 0.5, 3);
+const s2 = makeState();
+s2.weather = shortLived;
+for (let i = 0; i < 6; i++) {
+  s2.tick++;
+  shortLived.tick(s2);
+}
+assert(shortLived.sources.length === 0, 'sources expire after their duration');
+
+// --- (3) weather cognition uses lowercase field ids ---
+console.log('\n(3) dwarf mood coupling');
+
+const dwarf = { id: 1, type: 'dwarf', x: 30, y: 15, mood: 50, personality: {} };
+applyWeatherMood(dwarf, 'rain', 0.8, state);
+assert(dwarf.mood !== 50, `rain moves mood (50 -> ${dwarf.mood.toFixed(1)})`);
+
+// --- (4) translucent compositing: terrain stays legible ---
+console.log('\n(4) compositing never blankets the terrain');
+
+const terrain = { char: '.', fg: '#88aa66', bg: '#1a2a1a' };
+
+// No simulator -> terrain unchanged
+const bare = composeWeatherTile(10, 10, terrain, 0, null);
+assert(bare.char === terrain.char && bare.fg === terrain.fg, 'no weather -> terrain passes through');
+
+// Saturate a wide area, then verify weather glyphs stay sparse: most cells
+// must keep their terrain glyph even inside an active front (the old
+// renderer replaced 100% of cells above intensity 0.3)
+const stormy = new WeatherSimulator(WIDTH, HEIGHT, 7);
+const s3 = makeState();
+s3.weather = stormy;
+for (let x = 20; x <= 40; x += 5) {
+  for (let y = 8; y <= 22; y += 7) {
+    stormy.addSource(x, y, 'RAIN', 1.0, 500);
+  }
+}
+for (let i = 0; i < 40; i++) {
+  s3.tick++;
+  stormy.tick(s3);
+}
+
+let cells = 0;
+let replacedGlyphs = 0;
+let weatherSeen = 0;
+for (let y = 8; y <= 22; y++) {
+  for (let x = 20; x <= 40; x++) {
+    cells++;
+    if (stormy.getWeatherAt(x, y).dominant > 0.1) weatherSeen++;
+    const composed = composeWeatherTile(x, y, terrain, s3.tick, stormy);
+    if (composed.char !== terrain.char) replacedGlyphs++;
+  }
+}
+assert(weatherSeen > 0, `storm actually covers the sampled area (${weatherSeen}/${cells} cells active)`);
+assert(replacedGlyphs / cells < 0.5, `weather glyphs are sparse, not a blanket (${replacedGlyphs}/${cells} replaced)`);
+
+// --- summary ---
+console.log(`\n${passed} passed, ${failed} failed`);
+if (failed > 0) process.exit(1);

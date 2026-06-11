@@ -1,10 +1,14 @@
 /**
  * Weather Rendering Pipeline
  * Converts weather fields to ASCII visuals with animation
- * 
- * Renders as an overlay layer above terrain
- * Character cycling for animation
- * Color/brightness modulation based on intensity
+ *
+ * Renders as a TRANSLUCENT atmosphere above terrain: the terrain glyph,
+ * color and background always stay legible. Weather only tints them —
+ * opacity is capped low and modulated per-tile by a drifting value-noise
+ * "marble" field, so cloud masses read as oil-on-water patterns with soft
+ * dissipating edges instead of solid tile blankets. Weather glyphs (rain
+ * streaks, snowflakes, fog wisps) appear only on a sparse stochastic
+ * subset of cells with Brownian time-jitter, never as a wall of symbols.
  */
 
 // ============================================================
@@ -38,12 +42,91 @@ const WEATHER_ANIM_PERIOD = {
   clouds: 10,
 };
 
+// ---- Translucency tuning ---------------------------------------------
+// Hard ceiling on how much the weather tint may displace the terrain bg.
+// Even a storm core keeps ~2/3 of the terrain background color.
+const MAX_BG_OPACITY = 0.34;
+// Ceiling on terrain-glyph color tinting; the glyph always dominates.
+const MAX_FG_TINT = 0.22;
+// How strongly the weather glyph (when it appears) leans into the weather
+// color vs the terrain fg underneath it.
+const GLYPH_FG_BLEND = 0.62;
+// Ticks per marble-drift step. Quantized so the tint doesn't force a DOM
+// write on every weather cell every tick.
+const MARBLE_STEP = 4;
+
+// Max fraction of cells inside a full-intensity mass that show a weather
+// glyph at any instant. Precipitation reads denser than vapor; clouds are
+// almost pure tint.
+const GLYPH_DENSITY = {
+  rain: 0.34,
+  snow: 0.30,
+  sandstorm: 0.32,
+  smoke: 0.20,
+  spores: 0.18,
+  miasma: 0.18,
+  mist: 0.14,
+  fog: 0.14,
+  clouds: 0.07,
+};
+
+// ---- Organic noise (marbling + Brownian flicker) ----------------------
+
+/** Deterministic integer hash -> [0, 1). Math.imul keeps 32-bit exactness. */
+function hash2(x, y) {
+  let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = h ^ (h >>> 16);
+  return (h >>> 0) / 4294967296;
+}
+
+/** Smoothly interpolated 2D value noise -> [0, 1]. */
+function valueNoise(x, y) {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const a = hash2(xi, yi);
+  const b = hash2(xi + 1, yi);
+  const c = hash2(xi, yi + 1);
+  const d = hash2(xi + 1, yi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+/**
+ * Two-octave drifting marble field -> [0, 1].
+ * The octaves scroll in different directions over time, so the tint
+ * swirls and breaks apart like smoke/oil instead of pulsing in place.
+ */
+function marble(x, y, t) {
+  const n1 = valueNoise(x * 0.42 + t * 0.06, y * 0.42 - t * 0.045);
+  const n2 = valueNoise(x * 0.13 - t * 0.025, y * 0.13 + t * 0.033);
+  return n1 * 0.6 + n2 * 0.4;
+}
+
+function smoothstep(edge0, edge1, x) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
 /**
  * Get composite rendering info for a tile.
- * Blends the weather overlay into the terrain proportionally to intensity
- * (instead of replacing the tile), so front edges fade in as they sweep
- * across the map. Entities are never occluded: when hasEntity is true only
- * the background is tinted.
+ *
+ * Compositing model:
+ * - The terrain glyph/fg/bg are ALWAYS the base layer. Weather never
+ *   blanks them out.
+ * - Background: blended toward the weather tint by
+ *   opacity = MAX_BG_OPACITY * edgeEnvelope(intensity) * marble(x, y, t),
+ *   so masses are translucent, marbled cell-to-cell, and dissipate
+ *   smoothly at front edges (no hard cutoff).
+ * - Terrain glyph color: nudged toward the weather color by a small
+ *   fraction of the same opacity, keeping the glyph fully legible.
+ * - Weather glyphs: drawn only on a sparse stochastic subset of cells
+ *   (per-tile hash re-rolled every animation step = Brownian flicker),
+ *   denser where the local marbled intensity is high, and never over
+ *   entities.
  *
  * @param {number} x, y - Grid coordinates
  * @param {object} terrain - Existing composed tile { char, fg, bg }
@@ -60,7 +143,7 @@ export function composeWeatherTile(x, y, terrain, tick, simulator = null, hasEnt
 
   const weather = sim.getRenderingAt(x, y);
 
-  if (!weather || weather.intensity < 0.15) {
+  if (!weather || weather.intensity < 0.04) {
     // No significant weather; return terrain as-is
     return {
       char: terrain.char,
@@ -72,38 +155,53 @@ export function composeWeatherTile(x, y, terrain, tick, simulator = null, hasEnt
 
   const intensity = Math.min(1, weather.intensity);
 
-  // Intensity-proportional background tint: light weather is a faint wash,
-  // a storm core darkens/colors the whole tile.
-  const bg = blendColors(weather.bgColor || '#444444', terrain.bg, Math.min(0.7, intensity * 0.75));
+  // Soft dissipation envelope across the front edge: opacity ramps in
+  // gradually from the first wisp instead of gating at a threshold.
+  const edge = smoothstep(0.04, 0.6, intensity);
 
-  // Sparse weather, or an entity underneath: tint only, keep the glyph.
-  if (hasEntity || intensity < 0.3) {
-    return {
-      char: terrain.char,
-      fg: terrain.fg,
-      bg,
-      animated: false,
-      intensity,
-    };
+  // Marbled local density: each cell sits at a different point of a
+  // slowly drifting noise field, so the tint varies like oil on water.
+  const tQ = Math.floor(tick / MARBLE_STEP);
+  const m = marble(x, y, tQ);
+  const local = 0.25 + 0.75 * m;
+
+  const opacity = MAX_BG_OPACITY * edge * local;
+  if (opacity < 0.02) {
+    return { char: terrain.char, fg: terrain.fg, bg: terrain.bg, animated: false, intensity };
   }
 
-  // Weather overlay glyph: per-type animation speed, with a per-tile phase
-  // offset so the whole front doesn't blink in unison.
+  // Translucent atmosphere: terrain bg always dominates the blend.
+  const bg = blendColors(weather.bgColor || '#444444', terrain.bg, opacity);
+
+  // Entities are never occluded and never re-tinted: bg wash only.
+  if (hasEntity) {
+    return { char: terrain.char, fg: terrain.fg, bg, animated: true, intensity };
+  }
+
+  // Terrain glyph keeps its identity, lightly hazed toward the weather.
+  let fg = blendColors(weather.color || '#FFFFFF', terrain.fg, Math.min(MAX_FG_TINT, opacity * 0.8));
+  let char = terrain.char;
+  let animated = false;
+
+  // Sparse weather glyphs with Brownian flicker: a per-tile coin re-rolled
+  // each animation step decides whether this cell briefly carries a rain
+  // streak / snowflake / wisp. Probability scales with the locally marbled
+  // intensity, so glyphs cluster in dense cores and thin out at edges.
   const period = WEATHER_ANIM_PERIOD[weather.type] || 4;
-  const jitter = (x * 7 + y * 13) % weather.chars.length;
-  const phase = (Math.floor(tick / period) + jitter) % weather.chars.length;
-  const char = weather.chars[phase];
+  const slot = Math.floor(tick / period);
+  const density = GLYPH_DENSITY[weather.type] ?? 0.15;
+  const glyphChance = density * smoothstep(0.15, 1, intensity * local);
 
-  // Glyph color leans into the weather color as intensity rises
-  const fg = blendColors(weather.color || '#FFFFFF', terrain.fg, Math.min(1, 0.45 + intensity * 0.55));
+  if (hash2(x * 31 + slot * 7, y * 17 - slot * 13) < glyphChance) {
+    const jitter = (x * 7 + y * 13) % weather.chars.length;
+    char = weather.chars[(slot + jitter) % weather.chars.length];
+    // The glyph itself reads in the weather color but stays anchored to
+    // the terrain palette underneath.
+    fg = blendColors(weather.color || '#FFFFFF', terrain.fg, GLYPH_FG_BLEND);
+    animated = true;
+  }
 
-  return {
-    char,
-    fg,
-    bg,
-    animated: true,
-    intensity,
-  };
+  return { char, fg, bg, animated, intensity };
 }
 
 /**
