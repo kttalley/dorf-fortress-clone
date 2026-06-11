@@ -445,6 +445,12 @@ export async function generateEventThought(dwarf, eventType, context = {}) {
       break;
   }
 
+  // L2 local senses (worldContext.buildLocalContext) lead the user message —
+  // volatile content stays out of the cached system prefix
+  if (context.localCtx) {
+    prompt = `Right now:\n${context.localCtx}\n\n${prompt}`;
+  }
+
   const thought = await queueGeneration(prompt, {
     maxTokens: 80,
     temperature: 0.9,
@@ -476,6 +482,11 @@ export async function generateConversationSpeech(speaker, listener, speakerThoug
     prompt = PROMPT_TEMPLATES.SPEECH_INITIATE(
       speaker, listener, speakerThought, relationship
     );
+  }
+
+  // L2 local senses for the speaker (see generateEventThought)
+  if (context.localCtx) {
+    prompt = `Right now:\n${context.localCtx}\n\n${prompt}`;
   }
 
   const speech = await queueGeneration(prompt, {

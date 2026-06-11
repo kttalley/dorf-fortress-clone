@@ -4,6 +4,8 @@
  * Target: ~1000 tokens max
  */
 
+import { summarizeBehavior } from '../sim/behaviorTrace.js';
+
 /**
  * Compress world state for LLM context
  * @param {object} world - World state
@@ -64,11 +66,12 @@ function compressDwarves(dwarves = []) {
     const traits = getTopTraits(d.personality);
     const fulfillment = getFulfillmentSummary(d.fulfillment);
     const state = d.state || 'idle';
+    const trace = summarizeBehavior(d);
 
     lines.push(
       `- ${d.name} [id:${d.id}]: hunger=${d.hunger || 0}, mood=${d.mood || 50}, state="${state}"` +
       `\n  traits: ${traits} | needs: ${fulfillment}` +
-      `\n  pos: (${d.x},${d.y})${d.currentThought ? ` | thinking: "${truncate(d.currentThought, 40)}"` : ''}`
+      `\n  pos: (${d.x},${d.y})${trace ? ` | lately: ${trace}` : ''}${d.currentThought ? ` | thinking: "${truncate(d.currentThought, 40)}"` : ''}`
     );
   }
 

@@ -15,6 +15,7 @@ import { initCrafting } from './crafting.js';
 import { decayDrives, getDominantDrive } from './drives.js';
 import { perceiveWorld } from './perception.js';
 import { getCalendar } from './clock.js';
+import { sampleBehavior } from './behaviorTrace.js';
 
 // External forces imports
 import { processVisitors } from '../ai/visitorAI.js';
@@ -112,6 +113,15 @@ export function tick(state) {
   // 3. Execute actions
   for (const dwarf of state.dwarves) {
     act(dwarf, state);
+  }
+
+  // 3.2 Sample behavior traces after movement resolves (ring buffer feeding
+  // LLM prompts — audit WALK R3)
+  for (const dwarf of state.dwarves) {
+    sampleBehavior(dwarf, state.tick);
+  }
+  for (const visitor of state.visitors || []) {
+    sampleBehavior(visitor, state.tick);
   }
 
   // 3.5 Process visitors (external forces)

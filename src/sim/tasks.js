@@ -66,6 +66,7 @@ export const TASK_TYPE = {
   // Survival (low priority now)
   FORAGE: 'forage',             // Find food
   EAT: 'eat',                   // Consume food
+  SEEK_SHELTER: 'seek_shelter', // Get out of bad weather
 
   // Rest
   REST: 'rest',                 // Recover energy

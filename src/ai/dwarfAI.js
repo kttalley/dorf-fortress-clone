@@ -38,6 +38,7 @@ import {
   findWorkLocation,
   workOnBuildProject,
   considerBuilding,
+  getStructures,
   STRUCTURE_TYPE,
 } from '../sim/construction.js';
 
@@ -72,6 +73,7 @@ export const AI_STATE = {
   SEEKING_SOCIAL: 'seeking_social',
   SOCIALIZING: 'socializing',
   EXPLORING: 'exploring',
+  SEEKING_SHELTER: 'seeking_shelter',
   WORKING_DIG: 'digging',
   WORKING_BUILD: 'building',
   WORKING_CRAFT: 'crafting',
@@ -100,8 +102,9 @@ export function decide(dwarf, state) {
   if (state.weather) {
     const weather = state.weather.getWeatherAt(dwarf.x, dwarf.y);
     // getWeatherAt already computes the dominant field (lowercase ids,
-    // matching WEATHER_MOOD_MAP / fulfillment keys)
-    if (weather.type && weather.dominant > 0.05) {
+    // matching WEATHER_MOOD_MAP / fulfillment keys). Sheltered dwarves are
+    // out of the weather — no exposure effects (that's what shelter is FOR).
+    if (weather.type && weather.dominant > 0.05 && !isSheltered(dwarf, state)) {
       const dominantType = weather.type;
       const maxIntensity = weather.dominant;
 
@@ -183,6 +186,9 @@ function continueTask(dwarf, state) {
     case TASK_TYPE.FORAGE:
     case TASK_TYPE.EAT:
       return workEat(dwarf, state);
+
+    case TASK_TYPE.SEEK_SHELTER:
+      return workSeekShelter(dwarf, state);
 
     case 'fighting':
       return workFighting(dwarf, state);
@@ -282,6 +288,37 @@ function findNewTask(dwarf, state) {
       priority: 40 + (dwarf.skills?.crafting || 0.3) * 20,
       target: craftJob,
     });
+  }
+
+  // Weather-driven behavior (audit WALK R5 / WX 8): bad weather damps
+  // outdoor work and socializing and pulls dwarves toward shelter
+  if (state.weather) {
+    const weather = state.weather.getWeatherAt(dwarf.x, dwarf.y);
+    if (weather?.type && weather.dominant > 0.3) {
+      const shift = getWeatherBehaviorModifier(dwarf, weather.type, weather.dominant).priorityShift || {};
+
+      for (const candidate of candidates) {
+        if (shift.working && (candidate.type === TASK_TYPE.DIG || candidate.type === TASK_TYPE.BUILD || candidate.type === TASK_TYPE.CRAFT)) {
+          candidate.priority += shift.working * weather.dominant;
+        }
+        if (shift.socializing && candidate.type === TASK_TYPE.SOCIALIZE) {
+          candidate.priority += shift.socializing * weather.dominant;
+        }
+      }
+
+      if (shift.seeking_shelter > 0 && !isSheltered(dwarf, state)) {
+        const shelter = findNearestShelter(dwarf, state);
+        if (shelter) {
+          // Rain at full intensity ~55, miasma ~85 (outranks routine work,
+          // not critical hunger/combat)
+          candidates.push({
+            type: TASK_TYPE.SEEK_SHELTER,
+            priority: 25 + shift.seeking_shelter * 6 * weather.dominant,
+            target: shelter,
+          });
+        }
+      }
+    }
   }
 
   // Always have idle as fallback
@@ -412,6 +449,9 @@ function startTask(dwarf, task, state) {
         state: AI_STATE.SEEKING_FOOD,
         target: food ? { x: food.x, y: food.y } : null,
       };
+
+    case TASK_TYPE.SEEK_SHELTER:
+      return workSeekShelter(dwarf, state);
 
     default:
       return decideIdle(dwarf, state);
@@ -584,6 +624,32 @@ function workEat(dwarf, state) {
   return { state: AI_STATE.SEEKING_FOOD, target: { x: food.x, y: food.y } };
 }
 
+function workSeekShelter(dwarf, state) {
+  const task = dwarf.currentTask;
+  if (!task?.target) {
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  // Weather cleared: no reason to hide anymore
+  const weather = state.weather?.getWeatherAt?.(dwarf.x, dwarf.y);
+  if (!weather?.type || weather.dominant < 0.2) {
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  const dist = Math.abs(dwarf.x - task.target.x) + Math.abs(dwarf.y - task.target.y);
+  if (dist <= 1 || isSheltered(dwarf, state)) {
+    // Hunkered down: ride out the weather
+    satisfyFulfillment(dwarf, 'tranquility', 0.1);
+    dwarf.mood = Math.min(100, (dwarf.mood || 50) + 0.5);
+    return { state: AI_STATE.SEEKING_SHELTER, target: task.target };
+  }
+
+  executeSmartMovement(dwarf, state, { targetPos: task.target });
+  return { state: AI_STATE.SEEKING_SHELTER, target: task.target };
+}
+
 // === DECISION HELPERS ===
 
 function decideExplore(dwarf, state, avoidSocial = false) {
@@ -694,6 +760,56 @@ function findBuildTask(dwarf, state) {
   }
 
   return nearest;
+}
+
+/**
+ * Sheltered = underground or inside a completed structure's footprint
+ */
+function isSheltered(dwarf, state) {
+  const tileType = getTileAt(dwarf.x, dwarf.y, state);
+  if (tileType === 'cave_floor') return true;
+
+  return getStructures().some(s =>
+    s.complete &&
+    dwarf.x >= s.x && dwarf.x < s.x + (s.width || 1) &&
+    dwarf.y >= s.y && dwarf.y < s.y + (s.height || 1)
+  );
+}
+
+/**
+ * Nearest shelter target: a completed structure's center, falling back to
+ * the nearest cave-floor tile within scanning range
+ */
+function findNearestShelter(dwarf, state) {
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const s of getStructures()) {
+    if (!s.complete) continue;
+    const cx = s.x + Math.floor((s.width || 1) / 2);
+    const cy = s.y + Math.floor((s.height || 1) / 2);
+    const dist = Math.abs(dwarf.x - cx) + Math.abs(dwarf.y - cy);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = { x: cx, y: cy };
+    }
+  }
+  if (best) return best;
+
+  const SCAN_RADIUS = 15;
+  for (let dy = -SCAN_RADIUS; dy <= SCAN_RADIUS; dy++) {
+    for (let dx = -SCAN_RADIUS; dx <= SCAN_RADIUS; dx++) {
+      const x = dwarf.x + dx;
+      const y = dwarf.y + dy;
+      const dist = Math.abs(dx) + Math.abs(dy);
+      if (dist === 0 || dist >= bestDist) continue;
+      if (getTileAt(x, y, state) === 'cave_floor') {
+        bestDist = dist;
+        best = { x, y };
+      }
+    }
+  }
+  return best;
 }
 
 function getTileAt(x, y, state) {

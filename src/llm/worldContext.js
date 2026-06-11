@@ -29,6 +29,9 @@ import { getHistorySummary } from '../sim/history.js';
 import { estimateTokens } from '../utils/gameContextCompressor.js';
 import { getCalendar, getSeasonStage } from '../sim/clock.js';
 import { queueGeneration } from '../ai/llmClient.js';
+import { buildWeatherContext } from '../sim/weatherCognition.js';
+import { summarizeBehavior, compassDirection } from '../sim/behaviorTrace.js';
+import { getStructures } from '../sim/construction.js';
 
 // Per-layer token budgets (audit §3.4)
 const L0_TOKEN_BUDGET = 350;
@@ -341,15 +344,119 @@ export function buildChronicle(state) {
   }
 }
 
+// Tile type -> evocative place phrase (shared by L2 and the thought system)
+const TILE_DESCRIPTIONS = {
+  'grass': 'a grassy meadow',
+  'tall_grass': 'tall grass',
+  'forest_floor': 'the forest floor',
+  'tree_conifer': 'among pine trees',
+  'tree_deciduous': 'under leafy trees',
+  'cave_floor': 'a dim cavern',
+  'cave_wall': 'near cave walls',
+  'river_bank': 'by the river',
+  'river': 'at the water\'s edge',
+  'mountain_slope': 'a rocky slope',
+  'mountain_peak': 'high ground',
+  'marsh': 'marshy ground',
+  'sand': 'sandy terrain',
+  'mushroom': 'a mushroom patch',
+  'moss': 'mossy stone',
+  'crystal': 'near glowing crystals',
+  'berry_bush': 'near berry bushes',
+};
+
 /**
- * L2 local context — STUB (tile description, weather at (x,y), nearby
- * entities, current task; filled in by Agent 2b / Phase 3).
- * @param {object} entity
- * @param {object} state
- * @returns {string} '' until the local builder is wired
+ * Human phrase for the tile at (x, y) ("a grassy meadow").
+ * @param {number} x
+ * @param {number} y
+ * @param {object} state - World state with map
+ * @returns {string}
  */
-export function buildLocalContext(entity, state) { // eslint-disable-line no-unused-vars
-  return '';
+export function getTileDescription(x, y, state) {
+  const tile = state?.map?.tiles?.[y * state.map.width + x];
+  if (!tile?.type) return 'an unknown area';
+  return TILE_DESCRIPTIONS[tile.type] || 'an open area';
+}
+
+// L2 tuning
+const NEARBY_RADIUS = 8;       // Perception-ish radius for the local scan
+const MAX_NEARBY_MENTIONS = 6; // Cap the "Nearby:" list
+const MAX_REMEMBERED = 2;      // Remembered locations worth mentioning
+
+/**
+ * Manhattan distance (avoids importing entities.js — keeps L2 dependency-light)
+ */
+const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+/**
+ * L2 local context (audit P6, P7, WALK R3): what THIS entity senses right
+ * now — tile underfoot, weather overhead, a typed nearby scan (dwarves,
+ * visitors, food, structures), remembered places, and the behavior trace.
+ * Volatile per call, so it renders into the USER message (assembleContext),
+ * never the cached system prefix. Built from local data only — never throws.
+ *
+ * @param {object} entity - Walker with x/y (dwarf or visitor)
+ * @param {object} state - World state
+ * @returns {string} ~3-line local block, or '' when nothing is known
+ */
+export function buildLocalContext(entity, state) {
+  if (!entity || typeof entity.x !== 'number' || !state) return '';
+
+  try {
+    const lines = [];
+
+    // Tile underfoot
+    lines.push(`You stand in ${getTileDescription(entity.x, entity.y, state)}.`);
+
+    // Weather overhead (P6 — reuses the long-dead buildWeatherContext)
+    const weather = state.weather?.getWeatherAt?.(entity.x, entity.y);
+    const weatherLine = buildWeatherContext(entity, weather).trim();
+    if (weatherLine) lines.push(weatherLine);
+
+    // Typed nearby scan (P7): dwarves, visitors (a dwarf should NOTICE a
+    // goblin), food, completed structures
+    const seen = [];
+    for (const other of state.dwarves || []) {
+      if (other.id !== entity.id && manhattan(entity, other) <= NEARBY_RADIUS) {
+        seen.push(`${other.generatedName || other.name} (${(other.state || 'idle').replace(/_/g, ' ')})`);
+      }
+    }
+    for (const visitor of state.visitors || []) {
+      if (visitor.state !== 'dead' && visitor.id !== entity.id && manhattan(entity, visitor) <= NEARBY_RADIUS) {
+        seen.push(`${visitor.generatedName || visitor.name || 'a stranger'} the ${visitor.race || visitor.type || 'visitor'}`);
+      }
+    }
+    const foodNearby = (state.foodSources || [])
+      .filter(f => f.amount > 0 && manhattan(entity, f) <= NEARBY_RADIUS).length;
+    if (foodNearby > 0) {
+      seen.push(foodNearby === 1 ? 'a food source' : `${foodNearby} food sources`);
+    }
+    for (const s of getStructures()) {
+      if (s.complete && manhattan(entity, s) <= NEARBY_RADIUS) {
+        seen.push(`the ${s.name || 'structure'}`);
+      }
+    }
+    lines.push(seen.length > 0 ? `Nearby: ${seen.slice(0, MAX_NEARBY_MENTIONS).join(', ')}.` : 'No one else is nearby.');
+
+    // Remembered places (P7 — reuses perception.js memory.locations)
+    const remembered = Object.values(entity.memory?.locations || {})
+      .filter(loc => manhattan(entity, loc) > 2) // here-and-now is covered above
+      .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0))
+      .slice(0, MAX_REMEMBERED)
+      .map(loc => `${loc.type} to the ${compassDirection(loc.x - entity.x, loc.y - entity.y)}`);
+    if (remembered.length > 0) {
+      lines.push(`You remember ${remembered.join(' and ')}.`);
+    }
+
+    // Behavior trace (WALK R3): what they have actually been doing
+    const trace = summarizeBehavior(entity);
+    if (trace) lines.push(`You have been ${trace}.`);
+
+    return lines.join('\n');
+  } catch (error) {
+    console.warn('[WorldContext] Local context build failed:', error.message);
+    return '';
+  }
 }
 
 /**
