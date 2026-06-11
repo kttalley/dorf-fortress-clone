@@ -151,11 +151,14 @@ export const TILE_DEFS = Object.freeze({
   },
   [TileType.CRYSTAL]: {
     char: '◆',
+    chars: ['◆', '◇', '◆', '✦', '◆', '◆'],  // Inner light glints and settles
     fg: '#88ccff',
     bg: '#1a1410',
     walkable: true,
     harvestable: true,
     moveCost: 1,
+    animated: true,
+    animPeriod: 22,  // Slow crystalline shimmer
   },
 
   // === FOREST ===
@@ -211,11 +214,14 @@ export const TILE_DEFS = Object.freeze({
   },
   [TileType.TALL_GRASS]: {
     char: ';',
+    chars: [';', ':', ';', ','],  // Stalks bending in the breeze
     fg: '#4a9955',
     bg: '#0f1a10',
     walkable: true,
     harvestable: false,
     moveCost: 1.2,
+    animated: true,
+    animPeriod: 16,  // Gentle grass sway
   },
   [TileType.DIRT]: {
     char: '░',
@@ -237,7 +243,7 @@ export const TILE_DEFS = Object.freeze({
   // === WATER ===
   [TileType.WATER_SHALLOW]: {
     char: '~',
-    chars: ['~', '≈', '∿', '≈', '~', 'ˉ'],  // Lapping ripple cycle
+    chars: ['~', '≈', '∿', '∽', '≈', '~', 'ˉ', '⌣', '~', '∼'],  // Lapping ripples with calm beats
     fg: '#4488cc',
     bg: '#112233',
     walkable: false,
@@ -248,7 +254,7 @@ export const TILE_DEFS = Object.freeze({
   },
   [TileType.WATER_DEEP]: {
     char: '≈',
-    chars: ['≈', '≋', '≈', '~', '≋', '∿'],  // Rolling swells
+    chars: ['≈', '≋', '≈', '∿', '≋', '~', '∽', '≋', '≈', '∼'],  // Rolling swells, deep churn
     fg: '#2266aa',
     bg: '#0a1520',
     walkable: false,
@@ -259,7 +265,7 @@ export const TILE_DEFS = Object.freeze({
   },
   [TileType.RIVER]: {
     char: '~',
-    chars: ['~', '≈', '∿', '≈', '~', '≋'],  // Fast flowing current
+    chars: ['~', '≈', '∿', '≋', '∽', '≈', '~', '∿'],  // Fast current: runs and eddies
     fg: '#55aadd',
     bg: '#0a2030',
     walkable: false,
@@ -278,11 +284,14 @@ export const TILE_DEFS = Object.freeze({
   },
   [TileType.MARSH]: {
     char: '"',
+    chars: ['"', '”', '"', '„'],  // Reeds nodding in the wet wind
     fg: '#557755',
     bg: '#1a2a1a',
     walkable: true,
     harvestable: false,
     moveCost: 2,
+    animated: true,
+    animPeriod: 18,  // Slow reed sway
   },
 
   // === RESOURCES / FLORA ===
@@ -296,7 +305,7 @@ export const TILE_DEFS = Object.freeze({
   },
   [TileType.MUSHROOM]: {
     char: '♦',
-    chars: ['♦', '◆'],  // "Breathing" pulse: cap swells and relaxes
+    chars: ['♦', '◆', '♦', '◇', '♦'],  // Breathing: cap swells, holds, relaxes hollow
     fg: '#cc88aa',
     bg: '#1a1410',
     walkable: true,
@@ -315,7 +324,7 @@ export const TILE_DEFS = Object.freeze({
   },
   [TileType.FLOWER]: {
     char: '*',
-    chars: ['*', '✻', '✽', '✻'],  // Undulating sway: petals open and tilt
+    chars: ['*', '✻', '✽', '✼', '✽', '✻', '*', '·'],  // Undulating dance: open, tilt, bow, rest
     fg: '#ffcc44',
     bg: '#0f1a10',
     walkable: true,

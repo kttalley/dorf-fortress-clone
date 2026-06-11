@@ -12,7 +12,7 @@ import { emit, EVENTS } from '../events/eventBus.js';
 import { initScentMap, emitScent, decayScents } from './movement.js';
 import { initConstruction } from './construction.js';
 import { initCrafting } from './crafting.js';
-import { decayDrives, getDominantDrive } from './drives.js';
+import { decayDrives, getDominantDrive, applyHomeostasis } from './drives.js';
 import { perceiveWorld } from './perception.js';
 import { getCalendar } from './clock.js';
 import { sampleBehavior } from './behaviorTrace.js';
@@ -77,6 +77,9 @@ export function tick(state) {
   // === NEW: 0.75 Decay all entity drives (replaces applyHunger for drives) ===
   for (const dwarf of state.dwarves) {
     decayDrives(dwarf, state);
+    // Homeostasis: mood drifts back toward each dwarf's own setpoint and
+    // stress bleeds off — misery is a state, not a destination
+    applyHomeostasis(dwarf);
     // Energy drains while awake, recovers during night sleep (workRest —
     // audit WALK R8). Finally makes the long-dormant energy stat real.
     if (dwarf.state !== 'sleeping') {

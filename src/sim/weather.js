@@ -208,7 +208,16 @@ export class WeatherSimulator {
     const t = (state.tick || 0) * 0.0016;
     this.windTarget = this.noise.get(t, 77.7) * Math.PI * 2;
     this.windStrengthTarget = 0.2 + 0.8 * (0.5 + 0.5 * this.noise.get(t * 0.6, -33.3));
-    this.windAngle += (this.windTarget - this.windAngle) * 0.01;
+
+    // Gusts: a fast noise octave, squared so it spikes briefly and rarely
+    // instead of humming — squalls feel like squalls
+    const gustNoise = this.noise.get(t * 9, 12.5);
+    const gust = Math.max(0, gustNoise) ** 2 * 0.6;
+    this.windStrengthTarget = Math.min(1.2, this.windStrengthTarget + gust);
+
+    // Gusty air also turns faster
+    const turnRate = 0.01 + gust * 0.03;
+    this.windAngle += (this.windTarget - this.windAngle) * turnRate;
     this.windStrength += (this.windStrengthTarget - this.windStrength) * 0.02;
   }
 
@@ -243,8 +252,14 @@ export class WeatherSimulator {
     this.frontOffsetX += Math.cos(this.windAngle) * this.windStrength * FRONT_DRIFT;
     this.frontOffsetY += Math.sin(this.windAngle) * this.windStrength * FRONT_DRIFT;
 
-    // Global storminess: fronts build, peak and dissipate over hundreds of ticks
-    this.storminess = 0.5 + 0.5 * this.noise.get(tick * STORM_CYCLE, 191.3);
+    // Global storminess: two noise periods (slow swells + faster pulses)
+    // plus a seasonal bias — autumn and winter run stormier, summer calmer.
+    // More texture than the old single sine-like cycle: calm spells, brief
+    // squall pulses, and long storm sieges all emerge.
+    const slow = this.noise.get(tick * STORM_CYCLE, 191.3);
+    const fast = this.noise.get(tick * STORM_CYCLE * 4.7, -88.1);
+    const seasonBias = { spring: 0.04, summer: -0.08, autumn: 0.1, winter: 0.06 }[state.clock?.season] || 0;
+    this.storminess = Math.max(0, Math.min(1, 0.5 + 0.35 * slow + 0.18 * fast + seasonBias));
 
     if (this._frontsComputed && tick % FRONT_RECOMPUTE_TICKS !== 0) return;
     this._frontsComputed = true;

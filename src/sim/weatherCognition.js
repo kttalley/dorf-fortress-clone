@@ -107,6 +107,16 @@ export function applyWeatherMood(dwarf, weatherType, intensity, state) {
     moodShift *= intensity; // More intense = more negative
   }
 
+  // Homeostasis: weather alone wears mood down only to a floor — dwarves
+  // grumble about rain, they don't spiral into despair from it. Negative
+  // shifts scale with the remaining headroom above the floor, saturating
+  // smoothly instead of grinding mood to zero (this runs EVERY tick).
+  const WEATHER_MOOD_FLOOR = 30;
+  if (moodShift < 0) {
+    const headroom = Math.max(0, ((dwarf.mood || 50) - WEATHER_MOOD_FLOOR) / (100 - WEATHER_MOOD_FLOOR));
+    moodShift *= headroom;
+  }
+
   // Apply mood change
   dwarf.mood = Math.max(0, Math.min(100, (dwarf.mood || 50) + moodShift * 0.1));
 

@@ -226,29 +226,55 @@ export function updateSeasonalWeather(state) {
   const cold = avgTemp < 0.35 || season === 3;
   const arid = avgMoist < 0.35;
 
-  // Roughly one event roll per in-game day (called every 100 ticks)
+  // Dawn fog banks: damp mornings raise mist independently of storm rolls,
+  // burning off naturally as the source expires
+  if (clock.phase === 'dawn' && avgMoist > 0.45 && Math.random() < 0.18) {
+    triggerFogInCavern(state, null, Math.min(0.6, 0.2 + avgMoist * 0.35));
+  }
+
+  // Roughly one storm roll per in-game day (called every 100 ticks)
   if (Math.random() < 0.92) return;
 
   const intensity = rollRange(profile.intensity);
   const duration = rollRange(profile.duration) | 0;
 
+  // Each storm draws a character, not just a type: squalls are short and
+  // violent, drizzles long and soft, sieges heavy and sprawling
+  const character = Math.random();
+  const squall = character < 0.3;     // brief, intense
+  const drizzle = character > 0.75;   // long, gentle
+
+  const charIntensity = squall ? Math.min(1, intensity + 0.25)
+    : drizzle ? Math.max(0.2, intensity * 0.5)
+    : intensity;
+  const charDuration = squall ? Math.max(80, (duration * 0.35) | 0)
+    : drizzle ? (duration * 2.2) | 0
+    : duration;
+
   if (cold) {
-    // Cold climates / winter: precipitation falls as snow
-    triggerSnowStorm(state, Math.min(1, intensity + avgMoist * 0.2), duration);
+    // Cold climates / winter: flurries, steady snowfall, or a blizzard siege
+    triggerSnowStorm(state, Math.min(1, charIntensity + avgMoist * 0.2), charDuration);
     return;
   }
 
   if (arid && (season === 1 || Math.random() < 0.5)) {
-    // Arid climates: dust and sand instead of rain, worst in summer
-    triggerSandstorm(state, intensity, duration);
+    // Arid climates: brief dust devils or full sandstorm walls, worst in summer
+    triggerSandstorm(state, charIntensity, charDuration);
     return;
   }
 
   if (Math.random() < profile.rain + avgMoist * 0.3) {
-    triggerRainStorm(state, intensity, duration);
+    triggerRainStorm(state, charIntensity, charDuration);
+    // A violent squall sometimes drags a second cell in on the same front
+    if (squall && Math.random() < 0.4) {
+      triggerRainStorm(state, charIntensity * 0.7, (charDuration * 1.5) | 0);
+    }
   } else if (season === 2 && avgMoist > 0.45) {
-    // Damp autumn mornings: fog banks
+    // Damp autumn: fog banks
     triggerFogInCavern(state, null, Math.min(0.6, 0.25 + avgMoist * 0.3));
+  } else if (avgMoist > 0.6 && Math.random() < 0.3) {
+    // Humid lulls: drifting mist between storms
+    triggerMistFromWater(state, (state.map.width * Math.random()) | 0, (state.map.height * Math.random()) | 0);
   }
 }
 

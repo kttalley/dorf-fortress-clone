@@ -297,6 +297,31 @@ await generateConversationSpeech(
 const speechPrompt = lastFetchBody?.messages?.map(m => m.content).join('\n') || '';
 assert(speechPrompt.includes('Talk of the camp') && speechPrompt.includes('Wolves circled'), 'small talk carries the chronicle topic hint');
 
+// ============================================================
+// (f) homeostasis: misery is a state, not a destination
+// ============================================================
+console.log('\n(f) homeostasis');
+
+const { applyHomeostasis } = await import('../src/sim/drives.js');
+const { applyWeatherMood } = await import('../src/sim/weatherCognition.js');
+
+const gloomy = makeDwarf(10, 0, 0, 'Gloom');
+gloomy.mood = 10;
+gloomy.personality = { melancholy: 0.2 };
+for (let i = 0; i < 400; i++) applyHomeostasis(gloomy);
+assert(gloomy.mood > 40, `low mood recovers toward the setpoint (10 -> ${gloomy.mood.toFixed(0)})`);
+
+const stressed = makeDwarf(11, 0, 0, 'Frazzle');
+stressed.weatherStress = 5;
+for (let i = 0; i < 300; i++) applyHomeostasis(stressed);
+assert(stressed.weatherStress === 0, 'weather stress bleeds off over time');
+
+// Weather misery saturates at a floor instead of grinding to zero
+const soaked = makeDwarf(12, 0, 0, 'Soggy');
+soaked.mood = 50;
+for (let i = 0; i < 2000; i++) applyWeatherMood(soaked, 'rain', 1.0, {});
+assert(soaked.mood >= 29, `endless rain bottoms out at the floor, not despair (${soaked.mood.toFixed(1)})`);
+
 // --- summary ---
 clearEvents();
 console.log(`\n${passed} passed, ${failed} failed`);

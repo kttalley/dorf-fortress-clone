@@ -130,6 +130,34 @@ export function decayDrives(entity, state) {
 }
 
 /**
+ * Homeostasis (per tick): living things tend back toward their own normal.
+ * Mood regresses toward a personality setpoint — melancholic dwarves settle
+ * lower, cheerful ones higher — so transient misery (rain, hunger scares,
+ * fights) fades instead of compounding forever. Accumulated weather stress
+ * likewise bleeds off. This is the counterweight to all the systems that
+ * only ever push mood DOWN; without it the fortress trends to despair.
+ */
+export function applyHomeostasis(entity) {
+  if (!entity) return;
+
+  // Setpoint 44..62 depending on temperament
+  const melancholy = entity.personality?.melancholy ?? 0.5;
+  const setpoint = 62 - melancholy * 18;
+
+  const mood = entity.mood ?? 50;
+  // Time constant ~200 ticks: noticeable recovery within a fraction of a day
+  entity.mood = Math.max(0, Math.min(100, mood + (setpoint - mood) * 0.005));
+
+  // Stress fades once its source stops feeding it
+  if (entity.weatherStress > 0) {
+    entity.weatherStress = Math.max(0, entity.weatherStress - 0.02);
+  }
+  if (entity._weatherStress > 0) {
+    entity._weatherStress = Math.max(0, entity._weatherStress - 0.02);
+  }
+}
+
+/**
  * Satisfy a drive by reducing it
  */
 export function satisfyDrive(entity, driveName, amount) {
