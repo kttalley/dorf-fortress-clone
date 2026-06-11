@@ -8,7 +8,10 @@ import { VISITOR_STATE, shouldFlee, isSatisfied, addSatisfaction } from '../sim/
 import { VISITOR_ROLE, RACE } from '../sim/races.js';
 import { findFortressCenter, findExitPosition, isNearEdge } from '../sim/edges.js';
 import { findNearestDwarf, inAttackRange, attemptAttack } from '../sim/combat.js';
-import { isPassable, canAffordMove } from '../sim/movement.js';
+import { isPassable, canAffordMove, findPath } from '../sim/movement.js';
+import { ensureItinerary, currentStop, advanceStop, findMarketSpot } from './itineraries.js';
+import { queueEventForNarration } from '../llm/eventNarrator.js';
+import { addLog } from '../state/store.js';
 import { emit, EVENTS } from '../events/eventBus.js';
 
 // Configuration
@@ -21,6 +24,9 @@ const CONFIG = {
   SATISFACTION_PER_PREACH: 15, // Satisfaction gained per preach
   SATISFACTION_PER_LOOT: 20,   // Satisfaction gained per successful attack
   SCOUT_OBSERVE_TICKS: 100,    // How long scouts observe before leaving
+  STOP_REACH: 2,               // Close enough to an itinerary stop to linger
+  STOP_TIMEOUT_TICKS: 300,     // Give up on an unreachable stop
+  PATH_MAX_NODES: 600,         // A* search budget per leg (audit WALK R9)
 };
 
 /**
@@ -40,6 +46,16 @@ export function decideVisitor(visitor, state) {
   // Check if satisfied and ready to leave
   if (isSatisfied(visitor)) {
     return decideLeave(visitor, state);
+  }
+
+  // Itinerary stops come before role business (audit WALK R9): scouts orbit
+  // observation points, elves sightsee landmarks, merchants detour past one
+  ensureItinerary(visitor, state);
+  const stop = currentStop(visitor);
+  if (stop) {
+    const touring = decideTouring(visitor, stop, state);
+    if (touring) return touring;
+    // Stop abandoned/finished this tick: fall through to role logic
   }
 
   // Role-specific decisions
@@ -68,6 +84,8 @@ export function actVisitor(visitor, state) {
   switch (visitor.state) {
     case VISITOR_STATE.ARRIVING:
       return actArriving(visitor, state);
+    case VISITOR_STATE.TOURING:
+      return actTouring(visitor, state);
     case VISITOR_STATE.TRADING:
       return actTrading(visitor, state);
     case VISITOR_STATE.RAIDING:
@@ -85,21 +103,80 @@ export function actVisitor(visitor, state) {
   }
 }
 
+// ========== ITINERARY (TOURING) DECISIONS ==========
+
+/**
+ * Walk to / linger at the current itinerary stop (audit WALK R9).
+ * Returns a decision while the stop is live, or null when the stop was
+ * finished or abandoned this tick (caller falls through to role logic).
+ */
+function decideTouring(visitor, stop, state) {
+  // Give up on stops that can't be reached (walled-off vantage point)
+  visitor._stopTicks = (visitor._stopTicks || 0) + 1;
+  if (visitor._stopTicks > CONFIG.STOP_TIMEOUT_TICKS) {
+    advanceStop(visitor);
+    return null;
+  }
+
+  // Skittish observers (scouts) abandon a stop when dwarves close in
+  if (stop.skittish) {
+    const nearest = findNearestDwarf(visitor, state);
+    if (nearest && distance(visitor, nearest) < 5) {
+      advanceStop(visitor);
+      return null;
+    }
+  }
+
+  if (distance(visitor, stop) <= CONFIG.STOP_REACH) {
+    // Arrived: narrate once, then linger
+    if (!visitor._stopNarrated && stop.narrate) {
+      visitor._stopNarrated = true;
+      narrateStopVisit(visitor, stop, state);
+    }
+    visitor._lingerTicks = (visitor._lingerTicks || 0) + 1;
+    addSatisfaction(visitor, stop.satisfaction || 0.3);
+    if (visitor._lingerTicks >= (stop.linger || 15)) {
+      advanceStop(visitor);
+      return null;
+    }
+    return { state: VISITOR_STATE.TOURING, target: { x: stop.x, y: stop.y } };
+  }
+
+  return { state: VISITOR_STATE.TOURING, target: { x: stop.x, y: stop.y } };
+}
+
+/**
+ * Feed the sightseeing line to the live log and the day-end narrator —
+ * "Aelindra the elf lingered at the Crystal Hollow" is chronicle material
+ */
+function narrateStopVisit(visitor, stop, state) {
+  const name = visitor.generatedName || visitor.name || `a ${visitor.race}`;
+  const message = visitor.role === VISITOR_ROLE.SCOUT
+    ? `${name} was seen watching the camp from ${stop.name}.`
+    : `${name} lingered at ${stop.name}.`;
+  addLog(state, message);
+  queueEventForNarration({ tick: state.tick || 0, message, type: 'visit' });
+}
+
 // ========== MERCHANT DECISIONS ==========
 
 function decideMerchant(visitor, state) {
-  const fortressCenter = findFortressCenter(state);
+  // Merchants head for the market, not the raw dwarf centroid (audit R9):
+  // a completed hall, else the landmark nearest camp, else the camp itself
+  const market = findMarketSpot(state);
 
   switch (visitor.state) {
     case VISITOR_STATE.ARRIVING:
-      const distToCenter = distance(visitor, fortressCenter);
-      if (distToCenter <= CONFIG.ARRIVING_DISTANCE) {
-        // Reached destination, start trading
-        return { state: VISITOR_STATE.TRADING, target: fortressCenter };
+    case VISITOR_STATE.TOURING: {
+      const distToMarket = distance(visitor, market);
+      if (distToMarket <= CONFIG.ARRIVING_DISTANCE) {
+        // Reached the market, set up shop
+        return { state: VISITOR_STATE.TRADING, target: market };
       }
-      return { state: VISITOR_STATE.ARRIVING, target: fortressCenter };
+      return { state: VISITOR_STATE.ARRIVING, target: market };
+    }
 
-    case VISITOR_STATE.TRADING:
+    case VISITOR_STATE.TRADING: {
       // Look for dwarves to trade with
       const nearbyDwarf = findNearestDwarf(visitor, state);
       if (nearbyDwarf && distance(visitor, nearbyDwarf) <= CONFIG.INTERACTION_RANGE) {
@@ -107,10 +184,11 @@ function decideMerchant(visitor, state) {
         addSatisfaction(visitor, CONFIG.SATISFACTION_PER_TRADE * 0.2);
         visitor.interactionCount++;
       }
-      return { state: VISITOR_STATE.TRADING, target: fortressCenter };
+      return { state: VISITOR_STATE.TRADING, target: market };
+    }
 
     default:
-      return { state: VISITOR_STATE.ARRIVING, target: fortressCenter };
+      return { state: VISITOR_STATE.ARRIVING, target: market };
   }
 }
 
@@ -283,7 +361,23 @@ function actArriving(visitor, state) {
     visitor.target = findFortressCenter(state);
   }
 
-  moveTowardTarget(visitor, state);
+  moveAlongPath(visitor, state);
+}
+
+function actTouring(visitor, state) {
+  if (!visitor.target) return;
+
+  if (distance(visitor, visitor.target) <= CONFIG.STOP_REACH) {
+    // Lingering: an occasional shuffle so they look alive, not frozen
+    if (Math.random() < 0.06) {
+      const dx = Math.floor(Math.random() * 3) - 1;
+      const dy = Math.floor(Math.random() * 3) - 1;
+      tryMove(visitor, visitor.x + dx, visitor.y + dy, state);
+    }
+    return;
+  }
+
+  moveAlongPath(visitor, state);
 }
 
 function actTrading(visitor, state) {
@@ -361,7 +455,7 @@ function actLeaving(visitor, state) {
     visitor.target = findExitPosition(visitor, state.map);
   }
 
-  moveTowardTarget(visitor, state);
+  moveAlongPath(visitor, state);
 
   // Check if reached edge
   if (isNearEdge(visitor.x, visitor.y, state.map, CONFIG.FLEE_EDGE_DISTANCE)) {
@@ -380,6 +474,55 @@ function actDefault(visitor, state) {
 }
 
 // ========== HELPER FUNCTIONS ==========
+
+/**
+ * Path-following movement (audit WALK R9 — first real caller of the A*
+ * findPath that has sat unused in movement.js since it was written).
+ * Computes a path to visitor.target once, walks it step by step, and only
+ * recomputes when the goal changes or the route breaks. Transient blocks
+ * (another visitor in the cell, terrain moveCost throttling) keep the path
+ * and simply wait; a missing/failed path falls back to the greedy stepper.
+ */
+function moveAlongPath(visitor, state) {
+  const target = visitor.target;
+  if (!target) return;
+
+  const goal = visitor._pathGoal;
+  const goalChanged = !goal || goal.x !== target.x || goal.y !== target.y;
+  const pathDone = !Array.isArray(visitor._path) || (visitor._pathIdx ?? 0) >= visitor._path.length;
+
+  if (goalChanged || pathDone) {
+    visitor._path = findPath(visitor.x, visitor.y, target.x, target.y, state, CONFIG.PATH_MAX_NODES);
+    visitor._pathGoal = { x: target.x, y: target.y };
+    visitor._pathIdx = 1; // index 0 is the tile we're standing on
+  }
+
+  const path = visitor._path;
+  if (path && visitor._pathIdx < path.length) {
+    let step = path[visitor._pathIdx];
+    // Already on this step (e.g., after a recompute): advance
+    if (step && step.x === visitor.x && step.y === visitor.y) {
+      visitor._pathIdx++;
+      step = path[visitor._pathIdx];
+    }
+
+    if (step) {
+      if (tryMove(visitor, step.x, step.y, state)) {
+        visitor._pathIdx++;
+        return;
+      }
+      if (isPassable(state, step.x, step.y)) {
+        // Transient block (visitor collision / move budget): wait it out
+        return;
+      }
+      // Terrain changed under the route: rebuild next tick
+      visitor._path = null;
+    }
+  }
+
+  // No path found (or exhausted while off-goal): greedy fallback
+  moveTowardTarget(visitor, state);
+}
 
 function moveTowardTarget(visitor, state) {
   if (!visitor.target) return;

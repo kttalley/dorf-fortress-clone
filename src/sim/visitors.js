@@ -9,6 +9,7 @@ import { RACE, RACE_CONFIG, ROLE_CONFIG, VISITOR_ROLE, getRelationKey } from './
 export const VISITOR_STATE = Object.freeze({
   ARRIVING: 'arriving',
   ACTIVE: 'active',
+  TOURING: 'touring',     // Walking/lingering at an itinerary stop (itineraries.js)
   TRADING: 'trading',
   RAIDING: 'raiding',
   PREACHING: 'preaching',
