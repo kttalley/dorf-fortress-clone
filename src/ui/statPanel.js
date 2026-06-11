@@ -207,7 +207,10 @@ export function createStatPanel(containerEl, gridEl, mapWidth, mapHeight) {
 
     let result = null;
     try {
-      result = await chatWithEntity(message, entity, entityType, { dwarves: worldState?.dwarves });
+      result = await chatWithEntity(message, entity, entityType, {
+        dwarves: worldState?.dwarves,
+        history: worldState?.history,
+      });
     } catch (err) {
       console.error('[EntityChat] Error:', err);
     }

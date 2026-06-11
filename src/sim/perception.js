@@ -46,6 +46,11 @@ export function perceiveWorld(entity, state) {
     initializePerception(entity);
   }
 
+  // Entities with their own memory shape (animals) still need the slots
+  // perception writes into
+  if (!entity.memory) entity.memory = {};
+  if (!entity.memory.locations) entity.memory.locations = {};
+
   const now = state.tick;
   const { perceptionRadius } = entity;
 
@@ -171,7 +176,7 @@ function scanNearbyLocations(entity, state, radius) {
       if (nx < 0 || nx >= map.width || ny < 0 || ny >= map.height) continue;
       if (distance(entity, { x: nx, y: ny }) > radius) continue;
 
-      const tile = getTile(nx, ny, map);
+      const tile = getTile(map, nx, ny);
       if (!tile) continue; // Skip null tiles
 
       const tileDef = getTileDef(tile.type);
@@ -265,6 +270,16 @@ function calculateThreatLevel(entity, other) {
     return 0;
   }
 
+  // Prey species fear their listed predators (deer/rabbit/boar/frog list
+  // 'dwarf'; deer and rabbits also list 'wolf') — without this, prey never
+  // flee anything (audit WALK R2)
+  if (entity.type === 'animal' && entity.species?.predators) {
+    const kind = other.subtype || other.type;
+    if (entity.species.predators.includes(kind)) {
+      return 0.7;
+    }
+  }
+
   // Goblins are threats to most entities
   if (other.type === 'goblin') {
     return 0.9;
@@ -291,8 +306,8 @@ function calculateThreatLevel(entity, other) {
  * Calculate relevance of a location
  */
 function calculateLocationRelevance(entity, loc, state) {
-  // Water is relevant to fishers
-  if (loc.type === 'water' && entity.skills?.some(s => s.name === 'fishing' && s.level > 0)) {
+  // Water is relevant to fishers (skills are an object map, e.g. { fishing: 0.4 })
+  if (loc.type === 'water' && (entity.skills?.fishing || 0) > 0) {
     return 0.8;
   }
 

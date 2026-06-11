@@ -382,6 +382,22 @@ ${memory}
 Brief observation or thought (1-2 sentences, first person):`;
   },
 
+  // Arriving at a thought-driven destination (audit WALK R4)
+  THOUGHT_ARRIVAL: (dwarf, context) => {
+    const traits = formatTraits(dwarf.personality);
+    const mood = describeMood(dwarf.mood);
+    const location = context.tileName || 'somewhere';
+    const reason = context.arrivalReason
+      ? `Earlier you thought: "${context.arrivalReason}" — and now you've made the journey.`
+      : 'You set out to come here, and now you have arrived.';
+
+    return `You are ${dwarf.generatedName}. Traits: ${traits}. Mood: ${mood}.
+
+You just arrived at ${context.arrivedAt || location}. ${reason}
+
+Brief thought about what you find here (1-2 sentences, first person):`;
+  },
+
   // Starting a conversation
   SPEECH_INITIATE: (speaker, listener, speakerThought, relationship) => {
     const traits = formatTraits(speaker.personality);
@@ -439,6 +455,9 @@ export async function generateEventThought(dwarf, eventType, context = {}) {
     case 'hunger':
       prompt = PROMPT_TEMPLATES.THOUGHT_HUNGER(dwarf, context);
       break;
+    case 'arrival':
+      prompt = PROMPT_TEMPLATES.THOUGHT_ARRIVAL(dwarf, context);
+      break;
     case 'observation':
     default:
       prompt = PROMPT_TEMPLATES.THOUGHT_OBSERVATION(dwarf, context);
@@ -482,6 +501,12 @@ export async function generateConversationSpeech(speaker, listener, speakerThoug
     prompt = PROMPT_TEMPLATES.SPEECH_INITIATE(
       speaker, listener, speakerThought, relationship
     );
+
+    // Shared world event for small talk (audit P8): dwarves can reference
+    // what actually happened in the world instead of generic pleasantries
+    if (context.topicHint) {
+      prompt = `Talk of the camp: "${context.topicHint}"\n\n${prompt}`;
+    }
   }
 
   // L2 local senses for the speaker (see generateEventThought)
@@ -617,6 +642,12 @@ function getContextualFallback(dwarf, eventType) {
       'I wonder what today will bring.',
       'Just another moment.',
       'The air feels different here.',
+    ],
+    arrival: [
+      'Here at last. Worth the walk.',
+      'So this is the place I had in mind.',
+      'Made it. Now, let me look around.',
+      'Just as I pictured it... more or less.',
     ],
   };
 

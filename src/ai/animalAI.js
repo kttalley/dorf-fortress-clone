@@ -15,6 +15,7 @@ import {
   canMate,
   ageAnimal,
   createAnimalOffspring,
+  MAX_ANIMALS,
 } from '../sim/animals.js';
 import { emit, EVENTS } from '../events/eventBus.js';
 
@@ -278,8 +279,9 @@ function actMating(animal, state) {
     return;
   }
 
-  // Small probability to produce offspring each tick (1% per tick ≈ 1% per second)
-  if (Math.random() < 0.01) {
+  // Small probability to produce offspring each tick (1% per tick ≈ 1% per
+  // second); population cap keeps reproduction from snowballing the tick loop
+  if ((state.animals?.length || 0) < MAX_ANIMALS && Math.random() < 0.01) {
     const offspring = createAnimalOffspring(animal, mate, state);
     state.animals?.push(offspring);
 

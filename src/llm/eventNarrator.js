@@ -324,6 +324,22 @@ export function initNarratorEventTaps(state) {
     });
   });
 
+  // Wildlife (audit WALK R2): predator kills once per species pairing per
+  // day; animal attacks on dwarves are always notable
+  on(EVENTS.ANIMAL_KILLED, ({ predator, prey }) => {
+    const key = `kill:${predator?.subtype}:${prey?.subtype || prey?.type}`;
+    const preyName = prey?.type === 'dwarf'
+      ? entityName(prey)
+      : `a ${prey?.subtype || 'creature'}`;
+    queueOncePerDay(key, tick(), `A ${predator?.subtype || 'predator'} brought down ${preyName}.`, 'wildlife');
+  });
+
+  on(EVENTS.ANIMAL_ATTACKED, ({ animal, target }) => {
+    if (target?.type !== 'dwarf') return;
+    const key = `maul:${animal?.subtype}:${target?.id}`;
+    queueOncePerDay(key, tick(), `${entityName(target)} was attacked by a ${animal?.subtype || 'beast'}!`, 'wildlife');
+  });
+
   // Weather (emitted per dwarf per tick when notable — once per type per day)
   on(EVENTS.WEATHER_CHANGE, ({ type, intensity }) => {
     if (!type) return;

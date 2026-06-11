@@ -405,8 +405,13 @@ export function buildLocalContext(entity, state) {
   try {
     const lines = [];
 
-    // Tile underfoot
-    lines.push(`You stand in ${getTileDescription(entity.x, entity.y, state)}.`);
+    // Tile underfoot + time of day (audit WALK R8: temporal texture)
+    const phase = state.clock?.phase;
+    const phaseNote = phase === 'dawn' ? ' Dawn is breaking.'
+      : phase === 'dusk' ? ' Dusk is settling; the camp drifts together.'
+      : phase === 'night' ? ' It is night.'
+      : '';
+    lines.push(`You stand in ${getTileDescription(entity.x, entity.y, state)}.${phaseNote}`);
 
     // Weather overhead (P6 — reuses the long-dead buildWeatherContext)
     const weather = state.weather?.getWeatherAt?.(entity.x, entity.y);
@@ -426,6 +431,19 @@ export function buildLocalContext(entity, state) {
         seen.push(`${visitor.generatedName || visitor.name || 'a stranger'} the ${visitor.race || visitor.type || 'visitor'}`);
       }
     }
+    // Wildlife (audit WALK R2): a dwarf should notice the wolf before it matters
+    const beasts = {};
+    for (const animal of state.animals || []) {
+      if (animal.hp > 0 && manhattan(entity, animal) <= NEARBY_RADIUS) {
+        beasts[animal.subtype] = (beasts[animal.subtype] || 0) + 1;
+      }
+    }
+    for (const [subtype, count] of Object.entries(beasts)) {
+      const dangerous = subtype === 'wolf' || subtype === 'bear' || subtype === 'boar';
+      seen.push(count === 1
+        ? `a ${subtype}${dangerous ? ' prowling close by' : ''}`
+        : `${count} ${subtype}s${dangerous ? ' prowling close by' : ''}`);
+    }
     const foodNearby = (state.foodSources || [])
       .filter(f => f.amount > 0 && manhattan(entity, f) <= NEARBY_RADIUS).length;
     if (foodNearby > 0) {
@@ -434,6 +452,13 @@ export function buildLocalContext(entity, state) {
     for (const s of getStructures()) {
       if (s.complete && manhattan(entity, s) <= NEARBY_RADIUS) {
         seen.push(`the ${s.name || 'structure'}`);
+      }
+    }
+    // Named landmarks (audit WALK R8): shared nouns so conversations across
+    // turns can reference the same places
+    for (const landmark of state.landmarks || []) {
+      if (manhattan(entity, landmark) <= NEARBY_RADIUS) {
+        seen.push(landmark.name);
       }
     }
     lines.push(seen.length > 0 ? `Nearby: ${seen.slice(0, MAX_NEARBY_MENTIONS).join(', ')}.` : 'No one else is nearby.');

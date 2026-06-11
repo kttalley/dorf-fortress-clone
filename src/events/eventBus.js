@@ -35,6 +35,15 @@ export const EVENTS = Object.freeze({
   DWARF_NAME_PENDING: 'dwarf:name_pending',     // Name generation started
   DWARF_NAME_GENERATED: 'dwarf:name_generated', // Name generation complete
 
+  // Animal ecosystem events (emitted by animalAI / world tick)
+  ANIMAL_ATTACKED: 'animal:attacked',       // Predator landed a hit
+  ANIMAL_KILLED: 'animal:killed',           // Predator killed prey
+  ANIMAL_BORN: 'animal:born',               // Offspring born from mating
+  ANIMAL_DEATH: 'animal:death',             // Animal died (any cause)
+
+  // Intention events (LLM thoughts becoming destinations)
+  INTENTION_FULFILLED: 'dwarf:intention_fulfilled', // Dwarf reached a thought-driven destination
+
   // Visitor events (external forces)
   VISITOR_ARRIVED: 'visitor:arrived',       // Visitor group spawns at map edge
   VISITOR_LEAVING: 'visitor:leaving',       // Visitor starts leaving

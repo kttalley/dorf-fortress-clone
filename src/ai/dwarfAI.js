@@ -56,6 +56,8 @@ import {
   inAttackRange,
 } from '../sim/combat.js';
 
+import { emit, EVENTS } from '../events/eventBus.js';
+
 // Weather cognition integration
 import {
   applyWeatherMood,
@@ -74,6 +76,9 @@ export const AI_STATE = {
   SOCIALIZING: 'socializing',
   EXPLORING: 'exploring',
   SEEKING_SHELTER: 'seeking_shelter',
+  GATHERING: 'gathering',
+  SLEEPING: 'sleeping',
+  PURSUING_INTENTION: 'pursuing_intention',
   WORKING_DIG: 'digging',
   WORKING_BUILD: 'building',
   WORKING_CRAFT: 'crafting',
@@ -189,6 +194,15 @@ function continueTask(dwarf, state) {
 
     case TASK_TYPE.SEEK_SHELTER:
       return workSeekShelter(dwarf, state);
+
+    case TASK_TYPE.GATHER:
+      return workGather(dwarf, state);
+
+    case TASK_TYPE.REST:
+      return workRest(dwarf, state);
+
+    case TASK_TYPE.SCOUT:
+      return workIntention(dwarf, state);
 
     case 'fighting':
       return workFighting(dwarf, state);
@@ -319,6 +333,38 @@ function findNewTask(dwarf, state) {
         }
       }
     }
+  }
+
+  // Day/night rhythm (audit WALK R8): dusk pulls idle dwarves together,
+  // night pulls them to sleep — temporal texture the prompts can see
+  const phase = state.clock?.phase;
+  if (phase === 'dusk') {
+    const spot = findGatheringSpot(dwarf, state);
+    if (spot) {
+      candidates.push({
+        type: TASK_TYPE.GATHER,
+        priority: 46,
+        target: spot,
+      });
+    }
+  } else if (phase === 'night') {
+    const spot = findNearestShelter(dwarf, state) || findGatheringSpot(dwarf, state);
+    // Tired dwarves want sleep more (energy finally matters)
+    candidates.push({
+      type: TASK_TYPE.REST,
+      priority: 50 + (100 - (dwarf.energy ?? 100)) * 0.2,
+      target: spot,
+    });
+  }
+
+  // LLM intention (audit WALK R4): a thought picked a destination — above
+  // idle wandering, below pressing needs and aspiration work
+  if (dwarf.intention && (dwarf.intention.expiresTick ?? Infinity) > state.tick) {
+    candidates.push({
+      type: TASK_TYPE.SCOUT,
+      priority: 48,
+      target: { x: dwarf.intention.x, y: dwarf.intention.y },
+    });
   }
 
   // Always have idle as fallback
@@ -452,6 +498,15 @@ function startTask(dwarf, task, state) {
 
     case TASK_TYPE.SEEK_SHELTER:
       return workSeekShelter(dwarf, state);
+
+    case TASK_TYPE.GATHER:
+      return workGather(dwarf, state);
+
+    case TASK_TYPE.REST:
+      return workRest(dwarf, state);
+
+    case TASK_TYPE.SCOUT:
+      return workIntention(dwarf, state);
 
     default:
       return decideIdle(dwarf, state);
@@ -648,6 +703,126 @@ function workSeekShelter(dwarf, state) {
 
   executeSmartMovement(dwarf, state, { targetPos: task.target });
   return { state: AI_STATE.SEEKING_SHELTER, target: task.target };
+}
+
+/**
+ * Dusk congregation (audit WALK R8): drift to the gathering spot, then
+ * mingle. Dissolves when dusk ends.
+ */
+function workGather(dwarf, state) {
+  const phase = state.clock?.phase;
+  if (phase !== 'dusk' && phase !== 'night') {
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  const task = dwarf.currentTask;
+  if (!task?.target) {
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  const dist = Math.abs(dwarf.x - task.target.x) + Math.abs(dwarf.y - task.target.y);
+  if (dist <= 3) {
+    // Arrived: mingle by the fire
+    satisfyFulfillment(dwarf, 'social', 0.08);
+    dwarf.mood = Math.min(100, (dwarf.mood || 50) + 0.4);
+    return { state: AI_STATE.GATHERING, target: task.target };
+  }
+
+  executeSmartMovement(dwarf, state, { targetPos: task.target, seekSocial: true });
+  return { state: AI_STATE.GATHERING, target: task.target };
+}
+
+/**
+ * Night sleep (audit WALK R8): walk to shelter, then sleep — the long-dormant
+ * energy stat finally regenerates here (and decays while awake, world.js).
+ */
+function workRest(dwarf, state) {
+  const phase = state.clock?.phase;
+  if (phase !== 'night') {
+    // Morning: wake up
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  const task = dwarf.currentTask;
+  const target = task?.target;
+
+  const dist = target
+    ? Math.abs(dwarf.x - target.x) + Math.abs(dwarf.y - target.y)
+    : 0;
+
+  if (!target || dist <= 1 || isSheltered(dwarf, state)) {
+    // Asleep: recover energy and a little tranquility
+    dwarf.energy = Math.min(100, (dwarf.energy ?? 100) + 0.25);
+    satisfyFulfillment(dwarf, 'tranquility', 0.05);
+    return { state: AI_STATE.SLEEPING, target: target || { x: dwarf.x, y: dwarf.y } };
+  }
+
+  executeSmartMovement(dwarf, state, { targetPos: target });
+  return { state: AI_STATE.SLEEPING, target };
+}
+
+/**
+ * Pursue an LLM-thought destination (audit WALK R4). Arrival emits
+ * INTENTION_FULFILLED so the thought system can close the loop with a
+ * follow-up thought.
+ */
+function workIntention(dwarf, state) {
+  const intention = dwarf.intention;
+
+  // Intention gone or stale: drop the task
+  if (!intention || (intention.expiresTick ?? Infinity) <= state.tick) {
+    dwarf.intention = null;
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  const dist = Math.abs(dwarf.x - intention.x) + Math.abs(dwarf.y - intention.y);
+  if (dist <= 1) {
+    // Made it — the thought became a journey became an arrival
+    satisfyFulfillment(dwarf, 'exploration', 0.4);
+    satisfyFulfillment(dwarf, 'tranquility', 0.1);
+    dwarf.mood = Math.min(100, (dwarf.mood || 50) + 2);
+    emit(EVENTS.INTENTION_FULFILLED, { dwarf, intention, worldState: state });
+    dwarf.intention = null;
+    dwarf.currentTask = null;
+    return { state: AI_STATE.IDLE, target: null };
+  }
+
+  executeSmartMovement(dwarf, state, { targetPos: { x: intention.x, y: intention.y } });
+  return { state: AI_STATE.PURSUING_INTENTION, target: { x: intention.x, y: intention.y } };
+}
+
+/**
+ * Where the camp congregates at dusk: completed structure center, else the
+ * first landmark, else the dwarves' centroid
+ */
+function findGatheringSpot(dwarf, state) {
+  for (const s of getStructures()) {
+    if (s.complete) {
+      return {
+        x: s.x + Math.floor((s.width || 1) / 2),
+        y: s.y + Math.floor((s.height || 1) / 2),
+      };
+    }
+  }
+
+  if (state.landmarks?.length > 0) {
+    const landmark = state.landmarks[0];
+    return { x: landmark.x, y: landmark.y };
+  }
+
+  const dwarves = state.dwarves || [];
+  if (dwarves.length > 1) {
+    return {
+      x: Math.round(dwarves.reduce((sum, d) => sum + d.x, 0) / dwarves.length),
+      y: Math.round(dwarves.reduce((sum, d) => sum + d.y, 0) / dwarves.length),
+    };
+  }
+
+  return null;
 }
 
 // === DECISION HELPERS ===

@@ -40,6 +40,10 @@ export function createWorldState(width = 40, height = 20) {
 
     visitors: [],  // External visitors (humans, goblins, elves)
 
+    animals: [],  // Wildlife (deer, wolves, etc. — src/sim/animals.js)
+
+    landmarks: [],  // Named notable places (src/sim/landmarks.js)
+
     history: null,  // World history (generated at world creation)
 
     narratedLog: [],  // Day-end narrated events (eventNarrator, capped at 100)

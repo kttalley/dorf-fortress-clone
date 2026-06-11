@@ -16,6 +16,8 @@ import { decayDrives, getDominantDrive } from './drives.js';
 import { perceiveWorld } from './perception.js';
 import { getCalendar } from './clock.js';
 import { sampleBehavior } from './behaviorTrace.js';
+import { ageAnimal, getAnimalNutrition, getAnimalDisplayName, updateAnimalFear } from './animals.js';
+import { decideAnimal, actAnimal } from '../ai/animalAI.js';
 
 // External forces imports
 import { processVisitors } from '../ai/visitorAI.js';
@@ -75,6 +77,11 @@ export function tick(state) {
   // === NEW: 0.75 Decay all entity drives (replaces applyHunger for drives) ===
   for (const dwarf of state.dwarves) {
     decayDrives(dwarf, state);
+    // Energy drains while awake, recovers during night sleep (workRest —
+    // audit WALK R8). Finally makes the long-dormant energy stat real.
+    if (dwarf.state !== 'sleeping') {
+      dwarf.energy = Math.max(0, (dwarf.energy ?? 100) - 0.05);
+    }
   }
 
   // 1. Apply hunger pressure (legacy compatibility; now also uses drives)
@@ -122,6 +129,33 @@ export function tick(state) {
   }
   for (const visitor of state.visitors || []) {
     sampleBehavior(visitor, state.tick);
+  }
+
+  // 3.4 Animal ecosystem (audit WALK R2): drives + aging every tick,
+  // perception/fear/decisions at the animal's faster interval, actions every tick
+  for (const animal of state.animals || []) {
+    if (animal.hp <= 0 || animal.state === 'dead') continue;
+    decayDrives(animal, state);
+    ageAnimal(animal, state);
+    if (state.tick % (animal.decisionInterval || 10) === 0) {
+      perceiveWorld(animal, state);
+      updateAnimalFear(animal);
+      decideAnimal(animal, state);
+    }
+    actAnimal(animal, state);
+  }
+
+  // 3.45 Fallen animals become carcasses (forageable food) and leave the world
+  if (state.animals?.length) {
+    const fallen = state.animals.filter(a => a.hp <= 0 || a.state === 'dead');
+    if (fallen.length > 0) {
+      for (const animal of fallen) {
+        state.foodSources.push(createFoodSource(animal.x, animal.y, getAnimalNutrition(animal)));
+        addLog(state, `${getAnimalDisplayName(animal)} has fallen.`);
+        emit(EVENTS.ANIMAL_DEATH, { animal, worldState: state });
+      }
+      state.animals = state.animals.filter(a => a.hp > 0 && a.state !== 'dead');
+    }
   }
 
   // 3.5 Process visitors (external forces)
@@ -187,6 +221,12 @@ function decide(dwarf, state) {
  * act() only resolves arrival effects: eating and target completion.
  */
 function act(dwarf, state) {
+  // Sleeping/gathering dwarves stay put at their spot — dwarfAI owns the
+  // wake-up/dissolve transitions (phase change), not arrival resolution
+  if (dwarf.state === 'sleeping' || dwarf.state === 'gathering') {
+    return;
+  }
+
   if (dwarf.target === null) {
     dwarf.state = 'idle';
     return;

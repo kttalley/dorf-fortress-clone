@@ -4,6 +4,8 @@
  * The LLM embodies the character based on their stats, personality, and history
  */
 
+import { getDwarfRelation, getRecentEventsForRace } from '../../sim/history.js';
+
 /**
  * Build system prompt for entity roleplay
  * @param {object} entity - The entity to roleplay as
@@ -23,7 +25,7 @@ export function buildEntitySystemPrompt(entity, entityType, context = {}) {
   if (entityType === 'dwarf') {
     characterPrompt = buildDwarfSystemPrompt(entity, context);
   } else if (entityType === 'visitor') {
-    characterPrompt = buildVisitorSystemPrompt(entity);
+    characterPrompt = buildVisitorSystemPrompt(entity, context);
   } else {
     characterPrompt = buildGenericSystemPrompt(entity);
   }
@@ -77,7 +79,7 @@ ${relationships}
 /**
  * Build system prompt for a visitor character
  */
-function buildVisitorSystemPrompt(visitor) {
+function buildVisitorSystemPrompt(visitor, context = {}) {
   const name = visitor.generatedName || visitor.name;
   const bio = visitor.generatedBio || `A ${visitor.race} ${visitor.role}.`;
   const race = visitor.race || 'unknown';
@@ -91,6 +93,11 @@ function buildVisitorSystemPrompt(visitor) {
     elf: 'aloof, nature-loving, values beauty and tradition',
   };
 
+  // Shared history (audit P8): the visitor knows their people's standing with
+  // the dwarves and the named events behind it — a goblin merchant remembers
+  // the Betrayal at Frostgate
+  const sharedHistory = formatSharedHistory(context.history, race);
+
   return `You are ${name}, a ${race} ${role} visiting a dwarf fortress. Stay completely in character.
 
 ## YOUR IDENTITY
@@ -101,14 +108,43 @@ Race: ${race} (${raceTraits[race] || 'mysterious'})
 Role: ${role}
 Current attitude toward dwarves: ${disposition}
 Current activity: ${state}
-
+${sharedHistory}
 ## ROLEPLAY RULES
 1. Speak in first person as ${name}
 2. Embody your race's typical mannerisms and values
 3. Your disposition affects how friendly or hostile you are
 4. Keep responses brief (1-3 sentences) and conversational
 5. Reference your purpose here (trading, raiding, etc.) when relevant
-6. Never break character or mention being an AI`;
+6. You may reference the shared history between your people and the dwarves
+7. Never break character or mention being an AI`;
+}
+
+/**
+ * Render the race's standing + recent named events with the dwarves
+ * (audit P8 — uses the long-unused history.js accessors)
+ */
+function formatSharedHistory(history, race) {
+  if (!history || !race || race === 'unknown') return '';
+
+  const lines = [];
+
+  const relation = getDwarfRelation(history, race);
+  let stance;
+  if (relation >= 50) stance = 'allied with';
+  else if (relation >= 20) stance = 'friendly with';
+  else if (relation >= -20) stance = 'neutral toward';
+  else if (relation >= -50) stance = 'hostile toward';
+  else stance = 'at war with';
+  lines.push(`Your people are ${stance} the dwarves.`);
+
+  const events = getRecentEventsForRace(history, race, 2);
+  for (const event of events) {
+    if (event?.description) {
+      lines.push(`You remember: ${event.description} (Year ${event.year})`);
+    }
+  }
+
+  return `\n## SHARED HISTORY\n${lines.join('\n')}\n`;
 }
 
 /**

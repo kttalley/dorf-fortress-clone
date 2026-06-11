@@ -29,6 +29,8 @@ import { initLoadingProgress, setLoadingProgress, addLoadingStatus, setLoadingTe
 // External forces imports
 import { generateWorldHistory, getHistorySummary } from './sim/history.js';
 import { resetSpawner } from './sim/visitorSpawner.js';
+import { spawnAnimalsForBiome } from './sim/animals.js';
+import { extractLandmarks } from './sim/landmarks.js';
 
 // Scenario and palette imports
 import { generateScenario, generateDuotonePalette, paletteToBiomeColorMod, applyPaletteToDocument, initSessionPalette } from './llm/scenarioGenerator.js';
@@ -148,7 +150,9 @@ async function regenerateWorld() {
   // Generate biome name for the map (LLM-based), using session palette for color
   addLoadingStatus('biomeGen');
   try {
-    await addBiomeToMap(state.map, { timeout: 8000 });
+    // Scenario threads into biome naming (audit P9): generation steps stop
+    // being independent dice rolls and compose one coherent world
+    await addBiomeToMap(state.map, { timeout: 8000, scenario: currentScenario });
     const biomeName = state.map.biome?.name || 'Unknown Region';
     // Blend LLM color mod with session palette
     const llmColorMod = state.map.biome?.colorMod || { hue: 0, saturation: 0, brightness: 0 };
@@ -184,6 +188,7 @@ async function regenerateWorld() {
   state.dwarves = [];
   state.foodSources = [];
   state.visitors = [];  // External forces
+  state.animals = [];   // Wildlife (respawned per-biome below)
   state.log = state.log.slice(-3);
   state.tick = 0;
 
@@ -193,6 +198,13 @@ async function regenerateWorld() {
   state.narratedLog = [];
   clearPending();
   lastChronicleDay = 1;
+
+  // Name the notable places (audit WALK R8): crystal hollows, mushroom
+  // groves, river bends — shared nouns for idle destinations and prompts
+  state.landmarks = extractLandmarks(state.map, mapSeed);
+  if (state.landmarks.length > 0) {
+    console.log('[World] Landmarks:', state.landmarks.map(l => l.name).join(', '));
+  }
 
   // Generate world history
   addLoadingStatus('history');
@@ -270,6 +282,13 @@ async function regenerateWorld() {
     if (pos) {
       state.foodSources.push(createFoodSource(pos.x, pos.y, 8 + Math.floor(Math.random() * 6)));
     }
+  }
+
+  // Populate wildlife for this biome (audit WALK R2 — the living world)
+  const wildlife = spawnAnimalsForBiome(state);
+  if (wildlife.length > 0) {
+    addLog(state, 'Wildlife stirs in the wilderness...');
+    console.log(`[World] Spawned ${wildlife.length} animals for biome`);
   }
   setLoadingProgress(55);
 

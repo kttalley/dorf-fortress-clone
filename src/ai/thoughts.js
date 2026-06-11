@@ -9,6 +9,7 @@ import { generateEventThought, generateConversationSpeech, checkConnection, getQ
 import { distance, addMemory, satisfyFulfillment } from '../sim/entities.js';
 import { on, emit, EVENTS } from '../events/eventBus.js';
 import { getWorldLore, buildChronicle, buildLocalContext, getTileDescription } from '../llm/worldContext.js';
+import { parseIntent } from './intentions.js';
 
 /**
  * System context for ambient calls: L0 world lore + L1 chronicle.
@@ -145,6 +146,11 @@ function subscribeToEvents() {
   // New terrain
   state.eventUnsubscribers.push(
     on(EVENTS.NEW_TERRAIN, handleNewTerrain)
+  );
+
+  // Intention fulfilled — a thought-driven journey arrived (audit WALK R4)
+  state.eventUnsubscribers.push(
+    on(EVENTS.INTENTION_FULFILLED, handleIntentionFulfilled)
   );
 }
 
@@ -327,6 +333,34 @@ async function handleNewTerrain({ dwarf, previousTerrain, newTerrain, worldState
   }
 }
 
+/**
+ * Handle intention fulfilled — the dwarf reached a destination a thought
+ * chose. Generate a follow-up thought so the loop closes: thought →
+ * destination → arrival → new thought (audit WALK R4).
+ */
+async function handleIntentionFulfilled({ dwarf, intention }) {
+  // Arrivals matter: bypass the regular cooldown gate, but keep a small
+  // safety margin so a burst of fulfillments can't flood the queue
+  const last = state.thoughtCooldowns.get(dwarf.id) || 0;
+  if (Date.now() - last < 3000) return;
+
+  const context = {
+    nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
+    tileName: getTileDescription(dwarf.x, dwarf.y, state.worldState),
+    worldCtx: worldSystemCtx(),
+    localCtx: localCtxFor(dwarf),
+    arrivedAt: intention?.targetName || 'the place',
+    arrivalReason: intention?.reason || '',
+  };
+
+  const thought = await generateEventThought(dwarf, 'arrival', context);
+
+  if (thought) {
+    recordThought(dwarf, thought, 'arrival');
+    addMemory(dwarf, 'event', `Reached ${context.arrivedAt}`, state.worldState?.tick || 0);
+  }
+}
+
 // ============================================================
 // CONVERSATION SYSTEM
 // ============================================================
@@ -343,11 +377,19 @@ async function startConversation(initiator, target, initiatorThought) {
   // Check if they're still close enough
   if (distance(initiator, target) > CONFIG.INTERACTION_DISTANCE + 2) return;
 
+  // The latest chronicle line gives small talk a shared world event to
+  // reference (audit P8 — "talk of the camp")
+  const recentChronicle = state.worldState?.chronicle?.recent;
+  const topicHint = recentChronicle?.length > 0
+    ? recentChronicle[recentChronicle.length - 1]
+    : null;
+
   // Generate opening speech
   const speech = await generateConversationSpeech(initiator, target, initiatorThought, {
     isResponse: false,
     worldCtx: worldSystemCtx(),
     localCtx: localCtxFor(initiator),
+    topicHint,
   });
 
   if (!speech) return;
@@ -524,6 +566,20 @@ function recordThought(dwarf, thought, type) {
 
   // Add to memory
   addMemory(dwarf, 'thought', thought, state.worldState?.tick || 0);
+
+  // Thoughts become destinations (audit WALK R4): if this thought names a
+  // place the dwarf knows, it becomes an actionable intention (newest wins).
+  // Arrival thoughts don't spawn new journeys — no infinite loops.
+  if (type !== 'arrival') {
+    try {
+      const intent = parseIntent(thought, dwarf, state.worldState);
+      if (intent) {
+        dwarf.intention = intent;
+      }
+    } catch (error) {
+      console.warn('[Thoughts] Intent parse failed:', error.message);
+    }
+  }
 
   // Notify callbacks
   state.onThoughtCallback(dwarf, thought);

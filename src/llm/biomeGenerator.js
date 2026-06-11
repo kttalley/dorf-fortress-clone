@@ -112,7 +112,7 @@ export function getFallbackBiome(climate) {
 /**
  * Build LLM prompt for biome generation
  */
-function buildBiomePrompt(climate) {
+function buildBiomePrompt(climate, scenario = null) {
   const tempDesc = climate.avgTemperature < 0.35 ? 'cold' :
                    climate.avgTemperature < 0.65 ? 'temperate' : 'hot';
   const moistDesc = climate.avgMoisture < 0.35 ? 'arid' :
@@ -120,8 +120,16 @@ function buildBiomePrompt(climate) {
   const elevDesc = climate.avgElevation < 0.35 ? 'lowland' :
                    climate.avgElevation < 0.65 ? 'mid-elevation' : 'highland';
 
-  return `Generate a creative, evocative biome name for a fantasy world region.
+  // Scenario continuity (audit P9): the region's name should fit the story
+  // being told there, not roll independent dice
+  const scenarioLines = scenario?.title
+    ? `\nThis region is the setting of the scenario "${scenario.title}"${
+        scenario.description ? `: ${scenario.description}` : ''
+      }\nName the region so it fits this story's tone.\n`
+    : '';
 
+  return `Generate a creative, evocative biome name for a fantasy world region.
+${scenarioLines}
 Climate characteristics:
 - Temperature: ${tempDesc} (${(climate.avgTemperature * 100).toFixed(0)}%)
 - Moisture: ${moistDesc} (${(climate.avgMoisture * 100).toFixed(0)}%)
@@ -192,7 +200,7 @@ export async function generateBiome(climate, options = {}) {
   // Try LLM if available
   if (llmAvailable) {
     try {
-      const prompt = buildBiomePrompt(climate);
+      const prompt = buildBiomePrompt(climate, options.scenario);
 
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Biome generation timeout')), timeout);

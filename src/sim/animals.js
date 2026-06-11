@@ -315,6 +315,159 @@ export function isHungry(animal) {
   return animal.drives?.hunger > 70;
 }
 
+// === ECOSYSTEM WIRING (audit WALK R2) ===
+
+// Hard population cap so reproduction can't snowball the tick loop
+export const MAX_ANIMALS = 40;
+
+// Species weights per climate band. Herd sizes keep herbivores in visible
+// groups while predators stay sparse.
+const SPAWN_TABLES = {
+  cold: [
+    { subtype: 'deer', weight: 4, herd: [2, 4] },
+    { subtype: 'rabbit', weight: 3, herd: [2, 3] },
+    { subtype: 'wolf', weight: 2, herd: [1, 2] },
+    { subtype: 'bear', weight: 1, herd: [1, 1] },
+  ],
+  temperate: [
+    { subtype: 'deer', weight: 4, herd: [3, 5] },
+    { subtype: 'rabbit', weight: 4, herd: [2, 4] },
+    { subtype: 'boar', weight: 2, herd: [1, 2] },
+    { subtype: 'wolf', weight: 1, herd: [1, 2] },
+    { subtype: 'bear', weight: 1, herd: [1, 1] },
+  ],
+  hot: [
+    { subtype: 'rabbit', weight: 4, herd: [2, 4] },
+    { subtype: 'boar', weight: 3, herd: [1, 3] },
+    { subtype: 'deer', weight: 2, herd: [2, 3] },
+    { subtype: 'wolf', weight: 1, herd: [1, 1] },
+  ],
+};
+
+const WALKABLE_SPAWN_TILES = new Set([
+  'grass', 'tall_grass', 'dirt', 'forest_floor', 'cave_floor',
+  'river_bank', 'sand', 'mountain_slope', 'marsh', 'moss',
+  'shrub', 'flower', 'mushroom', 'berry_bush', 'rocky_ground',
+  'snow', 'mud',
+]);
+
+function tileTypeAt(map, x, y) {
+  if (x < 0 || x >= map.width || y < 0 || y >= map.height) return null;
+  return map.tiles[y * map.width + x]?.type || null;
+}
+
+/**
+ * Random walkable position, optionally near a predicate-matching tile
+ * (frogs want water). Returns null when the map offers nothing.
+ */
+function findSpawnPosition(map, nearTileType = null) {
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const x = Math.floor(Math.random() * map.width);
+    const y = Math.floor(Math.random() * map.height);
+    const type = tileTypeAt(map, x, y);
+    if (!type || !WALKABLE_SPAWN_TILES.has(type)) continue;
+
+    if (nearTileType) {
+      let nearMatch = false;
+      for (let dy = -3; dy <= 3 && !nearMatch; dy++) {
+        for (let dx = -3; dx <= 3 && !nearMatch; dx++) {
+          if (tileTypeAt(map, x + dx, y + dy) === nearTileType) nearMatch = true;
+        }
+      }
+      if (!nearMatch) continue;
+    }
+
+    return { x, y };
+  }
+  return null;
+}
+
+function pickWeighted(table) {
+  const total = table.reduce((sum, e) => sum + e.weight, 0);
+  let roll = Math.random() * total;
+  for (const entry of table) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry;
+  }
+  return table[table.length - 1];
+}
+
+/**
+ * Populate state.animals at worldgen with a climate-appropriate species mix
+ * (audit WALK R2). Herbivores arrive in herds with shared territory markers,
+ * frogs cling to water in wet biomes, predators stay rare.
+ *
+ * @param {object} state - World state (map with optional biome.climate)
+ * @param {object} [options]
+ * @param {number} [options.targetPopulation] - Animals to spawn (default scales with map)
+ * @returns {Array} The animals that were spawned
+ */
+export function spawnAnimalsForBiome(state, options = {}) {
+  const map = state.map;
+  if (!map?.tiles?.length) return [];
+
+  const climate = map.biome?.climate || {};
+  const temp = typeof climate.avgTemperature === 'number' ? climate.avgTemperature : 0.5;
+  const moisture = typeof climate.avgMoisture === 'number' ? climate.avgMoisture : 0.5;
+
+  const band = temp < 0.35 ? 'cold' : temp > 0.65 ? 'hot' : 'temperate';
+  const table = SPAWN_TABLES[band].slice();
+
+  // Wet biomes croak
+  if (moisture > 0.55) {
+    table.push({ subtype: 'frog', weight: 3, herd: [2, 4], nearTile: 'river' });
+  }
+
+  const target = options.targetPopulation
+    ?? Math.min(MAX_ANIMALS - 10, Math.max(12, Math.floor((map.width * map.height) / 250)));
+
+  const spawned = [];
+  let guard = 0;
+  while (spawned.length < target && guard++ < 60) {
+    const entry = pickWeighted(table);
+    const herdSize = entry.herd[0] + Math.floor(Math.random() * (entry.herd[1] - entry.herd[0] + 1));
+    const anchor = findSpawnPosition(map, entry.nearTile || null);
+    if (!anchor) continue;
+
+    for (let i = 0; i < herdSize && spawned.length < target; i++) {
+      const x = Math.max(0, Math.min(map.width - 1, anchor.x + Math.floor(Math.random() * 5) - 2));
+      const y = Math.max(0, Math.min(map.height - 1, anchor.y + Math.floor(Math.random() * 5) - 2));
+      const animal = createAnimal(x, y, entry.subtype, state);
+      // Herd members share a territory anchor so they drift back together
+      animal.territoryMarker = { x: anchor.x, y: anchor.y };
+      animal.memory.territoryMarker = animal.territoryMarker;
+      // Stagger ages so the population doesn't mature/die in lockstep
+      animal.ageInTicks = Math.floor(Math.random() * animal.species.lifespan * 0.5);
+      animal.age = animal.ageInTicks / animal.species.lifespan;
+      animal.canReproduce = animal.age > 0.3;
+      spawned.push(animal);
+    }
+  }
+
+  state.animals = state.animals || [];
+  state.animals.push(...spawned);
+  return spawned;
+}
+
+/**
+ * Raise fear from perceived predators (species.predators — includes 'dwarf'
+ * for prey species). Call at decision intervals after perceiveWorld; the
+ * fear drive then powers decideAnimal's flee priority.
+ */
+export function updateAnimalFear(animal) {
+  const threat = animal.recentlyPerceivedThreat;
+  if (!threat?.entity) return;
+
+  const predators = animal.species?.predators || [];
+  const kind = threat.entity.subtype || threat.entity.type;
+  if (!predators.includes(kind) && (threat.threatLevel || 0) < 0.5) return;
+
+  // Closer threats are scarier; a predator inside half the perception radius
+  // must clear the flee threshold (60) in one perception pass
+  const proximity = Math.max(0, 1 - (threat.distance || 0) / (animal.perceptionRadius || 8));
+  animal.drives.fear = Math.min(100, (animal.drives.fear || 0) + 35 + proximity * 45);
+}
+
 /**
  * Get display name for animal
  */
