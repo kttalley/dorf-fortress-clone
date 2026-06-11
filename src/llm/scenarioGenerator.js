@@ -57,17 +57,16 @@ export async function generateScenario(options = {}) {
       return preset;
     }
 
-    // Build prompt
+    // Build prompt — system goes out as a real system role
     const { system, user } = formatScenarioPrompt({ theme, customHint });
 
-    // Combine system + user for Ollama (it uses single prompt)
-    const fullPrompt = `${system}\n\n${user}`;
-
     // Call LLM with generous token limit for JSON
-    const response = await queueGeneration(fullPrompt, {
+    const response = await queueGeneration(user, {
+      system,
       maxTokens: 400,
       temperature: 0.9,
       stop: ['\n\n\n', '```\n\n'],
+      interactive: true, // setup-screen call, player is waiting
     });
 
     if (!response) {

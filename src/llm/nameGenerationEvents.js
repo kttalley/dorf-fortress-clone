@@ -55,10 +55,12 @@ function handleDwarfNamePending({ entity }) {
  * Wait for batch name generation to complete
  * Returns immediately once all dwarves have LLM-generated names (or fall back after timeout)
  * @param {Array} dwarves
+ * @param {object} [worldSnapshot] - World context for name flavor
+ *   ({ lore, dwarves, recentEvent }) — lets names echo biome/scenario/history
  * @param {number} timeoutMs - Max wait time (currently ignored since we wait for batch promise)
  * @returns {Promise<Map>} Map of dwarf.id -> { name, bio, source }
  */
-export async function waitForBatchNameGeneration(dwarves, timeoutMs = 30000) {
+export async function waitForBatchNameGeneration(dwarves, worldSnapshot = null, timeoutMs = 30000) {
   const startTime = Date.now();
   const results = new Map();
 
@@ -66,7 +68,7 @@ export async function waitForBatchNameGeneration(dwarves, timeoutMs = 30000) {
 
   try {
     // Call the batch generation function
-    const batchResults = await requestNameBioBatchSingle(dwarves, null, { timeout: timeoutMs });
+    const batchResults = await requestNameBioBatchSingle(dwarves, worldSnapshot, { timeout: timeoutMs });
 
     // Aggregate into results map
     for (const result of batchResults) {

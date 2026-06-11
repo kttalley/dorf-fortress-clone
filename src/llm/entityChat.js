@@ -6,6 +6,7 @@
 
 import { queueGeneration, checkConnection } from '../ai/llmClient.js';
 import { buildEntitySystemPrompt, buildEntityUserPrompt } from './prompts/entityChat.js';
+import { getWorldLore } from './worldContext.js';
 
 // Per-entity conversation history storage
 // Key: `${entityType}_${entityId}`
@@ -40,16 +41,20 @@ export async function chatWithEntity(message, entity, entityType, context = {}) 
     return { response: fallback, source: 'fallback' };
   }
 
-  // Build prompts
-  const systemPrompt = buildEntitySystemPrompt(entity, entityType, context);
+  // Build prompts — shared L0 world lore prefixes the character system prompt
+  const systemPrompt = buildEntitySystemPrompt(entity, entityType, {
+    ...context,
+    worldLore: getWorldLore(),
+  });
   const userPrompt = buildEntityUserPrompt(message, history);
-  const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
-  // Query LLM
-  const response = await queueGeneration(fullPrompt, {
+  // Query LLM (real system role; interactive — the player is waiting)
+  const response = await queueGeneration(userPrompt, {
+    system: systemPrompt,
     maxTokens: 150,
     temperature: 0.85,
     stop: ['\n\nVisitor:', '\nVisitor:', 'Visitor:', '\n\n##'],
+    interactive: true,
   });
 
   if (response) {

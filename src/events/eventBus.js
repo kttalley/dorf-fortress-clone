@@ -41,6 +41,9 @@ export const EVENTS = Object.freeze({
   VISITOR_LEFT: 'visitor:left',             // Visitor exits map
   VISITOR_DEATH: 'visitor:death',           // Visitor dies
 
+  // Construction events
+  CONSTRUCTION_COMPLETE: 'construction:complete', // A structure finishes building
+
   // Combat events
   COMBAT_HIT: 'combat:hit',                 // Attack lands successfully
   COMBAT_MISS: 'combat:miss',               // Attack misses

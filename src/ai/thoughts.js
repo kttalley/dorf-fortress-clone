@@ -8,6 +8,17 @@
 import { generateEventThought, generateConversationSpeech, checkConnection, getQueueStatus } from './llmClient.js';
 import { distance, addMemory, satisfyFulfillment } from '../sim/entities.js';
 import { on, emit, EVENTS } from '../events/eventBus.js';
+import { getWorldLore, buildChronicle } from '../llm/worldContext.js';
+
+/**
+ * System context for ambient calls: L0 world lore + L1 chronicle.
+ * Both layers change only on world regen / day boundaries, so the string
+ * stays byte-stable within a day (Ollama prefix-cache friendly).
+ * @returns {string}
+ */
+function worldSystemCtx() {
+  return [getWorldLore(), buildChronicle(state.worldState)].filter(Boolean).join('\n\n');
+}
 
 // ============================================================
 // CONFIGURATION
@@ -192,6 +203,7 @@ async function handleDwarfMeeting({ dwarf, other, worldState }) {
     otherDwarf: other,
     nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
     tileName: getTileDescription(dwarf.x, dwarf.y),
+    worldCtx: worldSystemCtx(),
   };
 
   const thought = await generateEventThought(dwarf, 'meeting', context);
@@ -216,6 +228,7 @@ async function handleFoodFound({ dwarf, food, worldState }) {
     food,
     nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
     tileName: getTileDescription(dwarf.x, dwarf.y),
+    worldCtx: worldSystemCtx(),
   };
 
   const thought = await generateEventThought(dwarf, 'food_found', context);
@@ -244,6 +257,7 @@ async function handleHungerThreshold({ dwarf, previousHunger, newHunger }) {
     nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
     hungerLevel: crossedThreshold,
     tileName: getTileDescription(dwarf.x, dwarf.y),
+    worldCtx: worldSystemCtx(),
   };
 
   const thought = await generateEventThought(dwarf, 'hunger', context);
@@ -265,6 +279,7 @@ async function handleMoodShift({ dwarf, previousMood, newMood, reason }) {
   const context = {
     nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
     tileName: getTileDescription(dwarf.x, dwarf.y),
+    worldCtx: worldSystemCtx(),
     moodImproving: moodDelta > 0,
   };
 
@@ -286,6 +301,7 @@ async function handleNewTerrain({ dwarf, previousTerrain, newTerrain, worldState
   const context = {
     nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
     tileName: getTileDescription(dwarf.x, dwarf.y),
+    worldCtx: worldSystemCtx(),
     previousTerrain,
   };
 
@@ -315,6 +331,7 @@ async function startConversation(initiator, target, initiatorThought) {
   // Generate opening speech
   const speech = await generateConversationSpeech(initiator, target, initiatorThought, {
     isResponse: false,
+    worldCtx: worldSystemCtx(),
   });
 
   if (!speech) return;
@@ -374,6 +391,7 @@ async function continueConversation(convId, responder, previousSpeaker) {
   const response = await generateConversationSpeech(responder, previousSpeaker, responderThought, {
     isResponse: true,
     lastSaid: lastMessage.text,
+    worldCtx: worldSystemCtx(),
   });
 
   if (!response) {
@@ -453,6 +471,7 @@ function startBackgroundLoop() {
       const context = {
         nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
         tileName: getTileDescription(dwarf.x, dwarf.y),
+    worldCtx: worldSystemCtx(),
       };
 
       const thought = await generateEventThought(dwarf, 'observation', context);
@@ -652,6 +671,7 @@ export async function forceThought(dwarf) {
   const context = {
     nearbyDwarves: findNearbyDwarves(dwarf, CONFIG.INTERACTION_DISTANCE * 2),
     tileName: getTileDescription(dwarf.x, dwarf.y),
+    worldCtx: worldSystemCtx(),
   };
 
   const thought = await generateEventThought(dwarf, 'observation', context);

@@ -477,18 +477,23 @@ export function needsExploration(dwarf) {
 // === BATCH LLM NAME GENERATION ===
 
 import { waitForBatchNameGeneration } from '../llm/nameGenerator.js';
+import { getWorldLore } from '../llm/worldContext.js';
 
 /**
  * Batch-generate names and bios for an array of dwarves using LLM
  * Updates each dwarf in place (generatedName, generatedBio)
  * Falls back to local names if LLM fails
  * @param {Array} dwarves
+ * @param {object} [worldSnapshot] - World context ({ lore, dwarves, recentEvent });
+ *   defaults to the shared L0 world lore so names echo biome/scenario/history
  */
-export async function generateNamesAndBios(dwarves) {
+export async function generateNamesAndBios(dwarves, worldSnapshot = null) {
   if (!dwarves || dwarves.length === 0) return;
 
+  const snapshot = worldSnapshot || { lore: getWorldLore() };
+
   try {
-    await waitForBatchNameGeneration(dwarves);
+    await waitForBatchNameGeneration(dwarves, snapshot);
   } catch (err) {
     console.warn('LLM batch name generation failed, using local names:', err);
 

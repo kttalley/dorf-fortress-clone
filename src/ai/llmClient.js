@@ -6,26 +6,61 @@
 
 // Primary Ollama Configuration (OpenAI-compatible chat completions)
 // Endpoint and model MUST be supplied via env vars (see .env / .env.example).
-const VLLM_URL = import.meta.env.VITE_VLLM_URL || '';
-const VLLM_MODEL = import.meta.env.VITE_VLLM_MODEL || '';
+// Vite statically replaces `import.meta.env.VITE_*` in builds; the try/catch
+// lets this module also load under plain Node (tests), where import.meta.env
+// is undefined and we fall back to process.env.
+let VLLM_URL = '';
+let VLLM_MODEL = '';
+let GROQ_API_KEY;
+let GROQ_MODEL = 'llama-3.1-8b-instant';
+try {
+  VLLM_URL = import.meta.env.VITE_VLLM_URL || '';
+  VLLM_MODEL = import.meta.env.VITE_VLLM_MODEL || '';
+  GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+  GROQ_MODEL = import.meta.env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant';
+} catch {
+  const env = (typeof process !== 'undefined' && process.env) || {};
+  VLLM_URL = env.VITE_VLLM_URL || '';
+  VLLM_MODEL = env.VITE_VLLM_MODEL || '';
+  GROQ_API_KEY = env.VITE_GROQ_API_KEY;
+  GROQ_MODEL = env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant';
+}
 const REQUEST_TIMEOUT = 60000;
 
 // Groq Fallback Configuration
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = import.meta.env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant';
 
-// Request queue to prevent overwhelming the server
+// Explicit Ollama context window. Ollama defaults can be as low as 2048;
+// layered system prompts (L0 lore + history) plus completion must fit, and
+// silent truncation would eat the cached L0 prefix first. (Audit P10/§3.4)
+const DEFAULT_NUM_CTX = 4096;
+
+// Request queue to prevent overwhelming the server.
+// Ambient calls (thoughts, narration) stay low to preserve Ollama prefix-cache
+// hits and local-rig throughput; interactive calls (chat, assistant, setup
+// generation) may override via `options.interactive`. (Audit P10)
 const requestQueue = [];
-let isProcessing = false;
-const MAX_CONCURRENT = 10;  // Increased from 2 to handle more concurrent requests
+const MAX_CONCURRENT = 3;              // ambient default
+const MAX_CONCURRENT_INTERACTIVE = 10; // interactive override
 let activeRequests = 0;
+
+/**
+ * Build the chat messages array, with an optional real system role
+ * @param {string} prompt - User message content
+ * @param {string} [system] - Optional system message content
+ * @returns {Array<{role: string, content: string}>}
+ */
+function buildMessages(prompt, system) {
+  return system
+    ? [{ role: 'system', content: system }, { role: 'user', content: prompt }]
+    : [{ role: 'user', content: prompt }];
+}
 
 /**
  * Generate text completion from Groq (fallback)
  * Uses chat completions API with the prompt as a user message
  * @param {string} prompt - The prompt to send
- * @param {object} options - Generation options
+ * @param {object} options - Generation options (supports options.system)
  * @returns {Promise<string>} Generated text
  */
 async function generateWithGroq(prompt, options = {}) {
@@ -35,6 +70,7 @@ async function generateWithGroq(prompt, options = {}) {
     maxTokens = 100,
     temperature = 0.8,
     stop,
+    system,
   } = options;
 
   try {
@@ -48,7 +84,7 @@ async function generateWithGroq(prompt, options = {}) {
       },
       body: JSON.stringify({
         model: GROQ_MODEL,
-        messages: [{ role: 'user', content: prompt }],
+        messages: buildMessages(prompt, system),
         max_tokens: maxTokens,
         temperature,
         stop: (stop && stop.length > 0) ? stop : undefined,
@@ -79,8 +115,14 @@ async function generateWithGroq(prompt, options = {}) {
 
 /**
  * Generate text completion from vLLM (primary) with Groq fallback
- * @param {string} prompt - The prompt to send
+ * @param {string} prompt - The prompt to send (user message)
  * @param {object} options - Generation options
+ * @param {string} [options.system] - Optional system message; emitted as a real
+ *   `system` role so the byte-stable prefix is prefix-cache friendly. Absent,
+ *   behavior is identical to a single user message (backward compatible).
+ * @param {number} [options.numCtx] - Explicit Ollama context window override
+ * @param {boolean} [options.interactive] - Marks interactive (player-facing)
+ *   calls; lifts the queue concurrency cap from 3 to 10
  * @returns {Promise<string>} Generated text
  */
 export async function generate(prompt, options = {}) {
@@ -89,6 +131,8 @@ export async function generate(prompt, options = {}) {
     temperature = 0.8,
     topP = 0.9,
     stop = ['\n\n', 'Human:', 'User:'],
+    system,
+    numCtx = DEFAULT_NUM_CTX,
   } = options;
 
   // vLLM first (primary, local rig for narration)
@@ -97,13 +141,16 @@ export async function generate(prompt, options = {}) {
   } else {
     const requestBody = {
       model: VLLM_MODEL,
-      messages: [{ role: 'user', content: prompt }],
+      messages: buildMessages(prompt, system),
       max_tokens: maxTokens,
       temperature,
       top_p: topP,
       stop: (stop && stop.length > 0) ? stop : undefined,
       stream: false,
       think: false,
+      // Ollama-specific passthrough (like `think` above): pin the context
+      // window so layered prompts are never silently truncated from the front.
+      options: { num_ctx: numCtx },
     };
 
     const controller = new AbortController();
@@ -167,14 +214,32 @@ export function queueGeneration(prompt, options = {}) {
 }
 
 /**
+ * Concurrency cap for a queued request.
+ * Ambient calls (thoughts, speech, narration) keep MAX_CONCURRENT low so
+ * large layered prompts don't thrash the Ollama prefix cache; interactive
+ * calls (entity chat, assistant, setup generation) pass
+ * `options.interactive = true` to get the higher cap.
+ */
+function concurrencyLimitFor(options) {
+  return options?.interactive ? MAX_CONCURRENT_INTERACTIVE : MAX_CONCURRENT;
+}
+
+/**
  * Process the request queue
  */
 async function processQueue() {
-  if (activeRequests >= MAX_CONCURRENT || requestQueue.length === 0) {
+  if (requestQueue.length === 0) {
     return;
   }
 
-  const { prompt, options, resolve } = requestQueue.shift();
+  // Find the first request whose concurrency cap allows it to start
+  // (an interactive request may start even while ambient slots are full)
+  const index = requestQueue.findIndex(req => activeRequests < concurrencyLimitFor(req.options));
+  if (index === -1) {
+    return;
+  }
+
+  const { prompt, options, resolve } = requestQueue.splice(index, 1)[0];
   activeRequests++;
 
   try {
@@ -353,7 +418,8 @@ Write ${responder.generatedName}'s brief reply (1 short sentence, casual, no quo
  * Generate thought based on specific event type
  * @param {object} dwarf - Dwarf entity
  * @param {string} eventType - 'meeting' | 'food_found' | 'hunger' | 'observation'
- * @param {object} context - Event-specific context
+ * @param {object} context - Event-specific context. `context.worldCtx` (world
+ *   lore string from src/llm/worldContext.js) is sent as the system message.
  * @returns {Promise<string>}
  */
 export async function generateEventThought(dwarf, eventType, context = {}) {
@@ -383,6 +449,7 @@ export async function generateEventThought(dwarf, eventType, context = {}) {
     maxTokens: 80,
     temperature: 0.9,
     stop: ['\n\n', 'Human:', 'User:', 'You are'],
+    system: context.worldCtx || undefined,
   });
 
   return cleanResponse(thought) || getContextualFallback(dwarf, eventType);
@@ -393,7 +460,8 @@ export async function generateEventThought(dwarf, eventType, context = {}) {
  * @param {object} speaker
  * @param {object} listener
  * @param {string} speakerThought
- * @param {object} context - { isResponse, lastSaid }
+ * @param {object} context - { isResponse, lastSaid, worldCtx } — `worldCtx`
+ *   (world lore string) is sent as the system message
  * @returns {Promise<string>}
  */
 export async function generateConversationSpeech(speaker, listener, speakerThought, context = {}) {
@@ -414,6 +482,7 @@ export async function generateConversationSpeech(speaker, listener, speakerThoug
     maxTokens: 50,
     temperature: 0.85,
     stop: ['\n', '"', '*', '('],
+    system: context.worldCtx || undefined,
   });
 
   return cleanResponse(speech) || getPersonalitySpeech(speaker);

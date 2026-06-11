@@ -14,14 +14,19 @@ import {
   enrichEventForPrompt,
 } from './prompts/narrative.js';
 import { narrateEventLocal } from './fallbacks.js';
+import { getCalendar } from '../sim/clock.js';
+import { on, EVENTS } from '../events/eventBus.js';
 
 // Configuration
 const MAX_EVENTS_PER_BATCH = 10;
-const TICKS_PER_DAY = 100; // Configurable: when to trigger day-end narration
 
 // Narration state
 let pendingEvents = [];
 let lastNarrationDay = 0;
+
+// Day-scoped dedupe keys (combat pairs, weather types) so spammy per-tick
+// events queue at most once per day. Cleared at each day-end narration.
+const seenThisDay = new Set();
 
 /**
  * Queue an event for narration at day-end
@@ -43,17 +48,16 @@ export function queueEventForNarration(event) {
  * @returns {boolean}
  */
 export function shouldNarrate(currentTick) {
-  const currentDay = Math.floor(currentTick / TICKS_PER_DAY);
-  return currentDay > lastNarrationDay && pendingEvents.length > 0;
+  return getDay(currentTick) > lastNarrationDay && pendingEvents.length > 0;
 }
 
 /**
- * Get current simulation day from tick
+ * Get current simulation day from tick (shared clock — src/sim/clock.js)
  * @param {number} tick
  * @returns {number}
  */
 export function getDay(tick) {
-  return Math.floor(tick / TICKS_PER_DAY) + 1;
+  return getCalendar(tick).day;
 }
 
 /**
@@ -86,10 +90,9 @@ export async function narrateDayEvents(eventList, worldState = {}) {
     day
   );
 
-  const fullPrompt = `${SYSTEM_EVENT_NARRATOR}\n\n${userPrompt}`;
-
-  // Call LLM
-  const response = await queueGeneration(fullPrompt, {
+  // Call LLM — system instructions go out as a real system role (ambient call)
+  const response = await queueGeneration(userPrompt, {
+    system: SYSTEM_EVENT_NARRATOR,
     maxTokens: 400,
     temperature: 0.8,
     stop: ['\n\n\n'],
@@ -117,11 +120,15 @@ export async function narrateDayEvents(eventList, worldState = {}) {
  * @returns {Promise<void>}
  */
 export async function processEndOfDay(worldState) {
+  // New day: reset the once-per-day dedupe window for combat/weather taps
+  seenThisDay.clear();
+
   if (pendingEvents.length === 0) {
     return;
   }
 
-  const currentDay = getDay(worldState.tick);
+  // Day boundary detection prefers the shared clock on state (audit P5)
+  const currentDay = worldState.clock?.day ?? getDay(worldState.tick);
 
   // Don't re-narrate same day
   if (currentDay <= lastNarrationDay) {
@@ -233,4 +240,94 @@ export function getPendingCount() {
 export function clearPending() {
   pendingEvents = [];
   lastNarrationDay = 0;
+  seenThisDay.clear();
+}
+
+// ============================================================
+// NOTABLE-EVENT TAPS (audit P4)
+// ============================================================
+
+/**
+ * Display name for any entity (dwarf or visitor)
+ * @param {object} entity
+ * @returns {string}
+ */
+function entityName(entity) {
+  if (!entity) return 'someone';
+  return entity.generatedName || entity.name || `a ${entity.race || entity.type || 'stranger'}`;
+}
+
+/**
+ * Queue an event once per day for a given dedupe key (combat pairs,
+ * weather types — events that fire every tick must not flood the batch).
+ */
+function queueOncePerDay(key, tick, message, type) {
+  if (seenThisDay.has(key)) return;
+  seenThisDay.add(key);
+  queueEventForNarration({ tick, message, type });
+}
+
+let tapsInitialized = false;
+
+/**
+ * Subscribe the narrator to NOTABLE event-bus events — deaths, arrivals,
+ * fights, construction, weather — feeding queueEventForNarration without
+ * spamming every log line. Call once at startup; safe to call again (no-op).
+ *
+ * @param {object} state - World state (source of tick for queued events)
+ */
+export function initNarratorEventTaps(state) {
+  if (tapsInitialized) return;
+  tapsInitialized = true;
+
+  const tick = () => state?.tick || 0;
+
+  // Deaths
+  on(EVENTS.DWARF_DEATH, ({ dwarf, killer, cause }) => {
+    const message = killer
+      ? `${entityName(dwarf)} was slain by ${entityName(killer)}.`
+      : `${entityName(dwarf)} died${cause ? ` (${cause})` : ''}.`;
+    queueEventForNarration({ tick: tick(), message, type: 'death' });
+  });
+
+  on(EVENTS.VISITOR_DEATH, ({ visitor, killer }) => {
+    const message = killer
+      ? `${entityName(visitor)} the ${visitor?.race || 'visitor'} was slain by ${entityName(killer)}.`
+      : `${entityName(visitor)} the ${visitor?.race || 'visitor'} perished.`;
+    queueEventForNarration({ tick: tick(), message, type: 'death' });
+  });
+
+  // Arrivals
+  on(EVENTS.VISITOR_ARRIVED, ({ visitor, race, count, edge }) => {
+    const group = count > 1 ? `A band of ${count} ${race}s` : `A lone ${race}`;
+    const from = edge ? ` from the ${edge}` : '';
+    queueEventForNarration({
+      tick: tick(),
+      message: `${group} led by ${entityName(visitor)} arrived${from}.`,
+      type: 'arrival',
+    });
+  });
+
+  // Fights (COMBAT_HIT fires per attack — record each pairing once per day)
+  on(EVENTS.COMBAT_HIT, ({ attacker, defender }) => {
+    const key = `fight:${attacker?.id}:${defender?.id}`;
+    queueOncePerDay(key, tick(), `${entityName(attacker)} attacked ${entityName(defender)}.`, 'fight');
+  });
+
+  // Construction
+  on(EVENTS.CONSTRUCTION_COMPLETE, ({ structure, builtBy }) => {
+    const builder = builtBy ? `, built by ${builtBy}` : '';
+    queueEventForNarration({
+      tick: tick(),
+      message: `The ${structure?.name || 'structure'} was completed${builder}.`,
+      type: 'construction',
+    });
+  });
+
+  // Weather (emitted per dwarf per tick when notable — once per type per day)
+  on(EVENTS.WEATHER_CHANGE, ({ type, intensity }) => {
+    if (!type) return;
+    const strength = intensity > 0.7 ? 'Heavy' : 'Drifting';
+    queueOncePerDay(`weather:${type}`, tick(), `${strength} ${type} swept over the land.`, 'weather');
+  });
 }

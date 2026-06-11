@@ -8,6 +8,8 @@
  * - Player actions
  */
 
+import { getCalendar } from './clock.js';
+
 // ============================================================
 // SCENARIO-TRIGGERED WEATHER
 // ============================================================
@@ -211,10 +213,11 @@ export function updateSeasonalWeather(state) {
   // No sky on underground maps: skip surface storms entirely
   if (!state.map?.elevation || !state.map?.moisture) return;
 
-  const tick = state.tick || 0;
-  const dayLength = 1200;  // Ticks per in-game day
-  const seasonLength = dayLength * 30;  // 30 days per season
-  const season = (tick % (seasonLength * 4)) / seasonLength | 0;
+  // Calendar comes from the shared clock (src/sim/clock.js) — state.clock is
+  // refreshed every tick by the simulation; fall back to deriving it for
+  // callers outside the tick path (tests, manual triggers).
+  const clock = state.clock || getCalendar(state.tick || 0);
+  const season = clock.seasonIndex;
   const profile = SEASON_PROFILES[season];
 
   const climate = state.map?.biome?.climate || {};

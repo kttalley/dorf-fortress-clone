@@ -6,6 +6,7 @@
 import { SKILL } from './tasks.js';
 import { addLog } from '../state/store.js';
 import { getDisplayName } from './entities.js';
+import { emit, EVENTS } from '../events/eventBus.js';
 
 // === STRUCTURE TYPES ===
 export const STRUCTURE_TYPE = {
@@ -699,6 +700,9 @@ export function workOnBuildProject(project, dwarf, state) {
     if (idx !== -1) buildProjects.splice(idx, 1);
 
     addLog(state, `${project.blueprint.name} has been completed!`);
+
+    // Notable event: completed structures feed the day-end chronicle
+    emit(EVENTS.CONSTRUCTION_COMPLETE, { structure, builtBy: project.initiatorName, worldState: state });
 
     // Skill improvement
     if (project.blueprint.skill && dwarf.skills) {

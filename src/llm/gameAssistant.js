@@ -6,6 +6,7 @@
 import { queueGeneration, checkConnection } from '../ai/llmClient.js';
 import { SYSTEM_PROMPT, buildUserPrompt } from './prompts/gameAssistant.js';
 import { compressWithBudget } from '../utils/gameContextCompressor.js';
+import { getWorldLore } from './worldContext.js';
 
 // Chat history storage
 let chatHistory = [];
@@ -41,9 +42,23 @@ export async function askGame(question, world, history = null, scenarioContext =
   // Compress world state
   const worldSummary = compressWithBudget(world, 1000);
 
-  // Collect enriched world context
+  // Shared L0 world lore (scenario + biome + history + race relations) is the
+  // canonical, byte-stable system prefix. The bespoke biome/history/scenario
+  // assembly below only kicks in as a fallback if lore was never built.
+  const worldLore = getWorldLore();
+
   const worldContext = {
-    biome: world.map?.biome ? {
+    visitors: world.visitors ? world.visitors.map(v => ({
+      race: v.race,
+      group: v.group,
+      purpose: v.purpose,
+      state: v.state,
+    })).slice(0, 5) : [],
+  };
+
+  if (!worldLore) {
+    // Fallback bespoke assembly (pre-worldContext behavior)
+    worldContext.biome = world.map?.biome ? {
       name: world.map.biome.name,
       description: world.map.biome.description,
       climate: {
@@ -52,30 +67,28 @@ export async function askGame(question, world, history = null, scenarioContext =
         avgElevation: world.map.biome.climate?.avgElevation ?? world.map.biome.avgElevation,
       },
       resources: world.map.biome.resources || [],
-    } : null,
-    history: world.history ? {
+    } : null;
+    worldContext.history = world.history ? {
       summary: world.history.summary,
       events: (world.history.events || []).map(e => typeof e === 'string' ? e : `${e.tick || '?'}: ${e.description || e}`),
       raceRelations: world.history.raceRelations || {},
-    } : null,
-    visitors: world.visitors ? world.visitors.map(v => ({
-      race: v.race,
-      group: v.group,
-      purpose: v.purpose,
-      state: v.state,
-    })).slice(0, 5) : [],
-    scenario: scenarioContext || null,
-  };
+    } : null;
+    worldContext.scenario = scenarioContext || null;
+  }
 
-  // Build full prompt with context
+  // Build prompts — lore-first system message (prefix-cache friendly)
   const userPrompt = buildUserPrompt(worldSummary, question, activeHistory, worldContext);
-  const fullPrompt = `${SYSTEM_PROMPT}\n\n${userPrompt}`;
+  const systemPrompt = worldLore
+    ? `## THE WORLD\n${worldLore}\n\n${SYSTEM_PROMPT}`
+    : SYSTEM_PROMPT;
 
-  // Query LLM
-  const response = await queueGeneration(fullPrompt, {
+  // Query LLM (real system role; interactive — the player is waiting)
+  const response = await queueGeneration(userPrompt, {
+    system: systemPrompt,
     maxTokens: 200,
     temperature: 0.7,
     stop: ['\n\nPlayer:', '\n\n##', 'Human:'],
+    interactive: true,
   });
 
   if (response) {

@@ -3,7 +3,7 @@
  * Emergent dwarf simulation with LLM-driven thoughts and social interactions
  */
 
-import { createWorldState, addLog } from './state/store.js';
+import { createWorldState, createChronicle, addLog } from './state/store.js';
 import { createDwarf, createFoodSource, resetIds, getDominantTraits, getDisplayName } from './sim/entities.js';
 import { generateBiomeMap, generateMixedMap, generateCaveMap, findWalkablePosition, addBiomeToMap, initBiomeGenerator } from './map/map.js';
 import { tick } from './sim/world.js';
@@ -15,6 +15,9 @@ import { initSpeechBubbles, showSpeech, updateBubblePositions, injectBubbleStyle
 import { checkConnection } from './ai/llmClient.js';
 import { initializeLLM } from './llm/nameGenerator.js';
 import { waitForBatchNameGeneration } from './llm/nameGenerationEvents.js';
+import { buildWorldLore, getWorldLore, invalidateWorldLore, updateChronicle } from './llm/worldContext.js';
+import { processEndOfDay, initNarratorEventTaps, queueEventForNarration, clearPending } from './llm/eventNarrator.js';
+import { getCalendar } from './sim/clock.js';
 import { on, EVENTS } from './events/eventBus.js';
 import { initConversationToast } from './ui/conversationToast.js';
 import { initGameAssistant, createAssistantToggle } from './ui/gameAssistantPanel.js';
@@ -57,6 +60,9 @@ let currentMapMode = Math.floor(Math.random() * MAP_MODES.length);
 let tickInterval = SPEED_LEVELS[0];
 let speedIndex = 0;
 let running = true;
+
+// Last day already narrated/folded into the L1 chronicle (day 1 = world start)
+let lastChronicleDay = 1;
 let loopId = null;
 let renderer = null;
 let cursor = null;
@@ -181,11 +187,24 @@ async function regenerateWorld() {
   state.log = state.log.slice(-3);
   state.tick = 0;
 
+  // Reset the calendar and L1 chronicle for the new world
+  state.clock = getCalendar(0);
+  state.chronicle = createChronicle();
+  state.narratedLog = [];
+  clearPending();
+  lastChronicleDay = 1;
+
   // Generate world history
   addLoadingStatus('history');
   const historySeed = mapSeed;
   state.history = generateWorldHistory(historySeed);
   setLoadingProgress(40);
+
+  // Build the shared L0 world lore (scenario + biome + history + race
+  // relations). Cached byte-stable until the next world regen; every LLM
+  // call type shares this string as its system-prompt prefix.
+  invalidateWorldLore();
+  buildWorldLore(state, currentScenario);
 
   // Reset visitor spawner
   resetSpawner();
@@ -257,7 +276,16 @@ async function regenerateWorld() {
   // === LLM NAME GENERATION WITH REALTIME UI UPDATE ===
   try {
     console.log('[Init] Batch generating dwarf names...');
-    await waitForBatchNameGeneration(state.dwarves, 30000); // 30s timeout
+    // World snapshot (lore + population + a recent event) so generated names
+    // echo the biome, scenario, and history (fixes the always-null snapshot)
+    const worldSnapshot = {
+      lore: getWorldLore(),
+      dwarves: state.dwarves,
+      recentEvent: state.history?.events?.length
+        ? state.history.events[state.history.events.length - 1].description
+        : null,
+    };
+    await waitForBatchNameGeneration(state.dwarves, worldSnapshot, 30000); // 30s timeout
 
     // Assign names and trigger UI updates for all components
     state.dwarves.forEach(dwarf => {
@@ -297,6 +325,10 @@ async function regenerateWorld() {
     onSpeech: handleDwarfSpeech,
     onSidebarUpdate: updateSidebarThoughts,
   });
+
+  // Tap notable events (deaths, arrivals, fights, construction, weather)
+  // into the day-end narrator → L1 chronicle pipeline (idempotent)
+  initNarratorEventTaps(state);
 }
 
 /**
@@ -599,14 +631,28 @@ function gameLoop(renderer) {
 
   tick(state);
 
-  // Update weather patterns periodically
-  if (state.tick % 100 === 0 && state.weather) {
-    updateSeasonalWeather(state);
+  // Periodic maintenance (every 100 ticks)
+  if (state.tick % 100 === 0) {
+    // Update weather patterns
+    if (state.weather) {
+      updateSeasonalWeather(state);
+    }
+
+    // Day boundary (state.clock is the source of truth): narrate the day's
+    // notable events, then fold them into the L1 chronicle. Async and
+    // fire-and-forget — LLM work never blocks the tick loop.
+    if (state.clock && state.clock.day > lastChronicleDay) {
+      lastChronicleDay = state.clock.day;
+      processEndOfDay(state)
+        .then(() => updateChronicle(state))
+        .catch(error => console.warn('[Chronicle] Day-end processing failed:', error.message));
+    }
   }
 
   // Softer game over - dwarves can recover if food is found
   if (state.dwarves.length === 0) {
     addLog(state, 'All dwarves have perished... A new group arrives!');
+    queueEventForNarration({ tick: state.tick, message: 'All dwarves perished; a new group arrived to continue the legacy.', type: 'death' });
     // Auto-regenerate with same map
     resetIds();
     for (let i = 0; i < 3; i++) {

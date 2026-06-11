@@ -8,17 +8,27 @@
  * Build system prompt for entity roleplay
  * @param {object} entity - The entity to roleplay as
  * @param {string} entityType - 'dwarf' or 'visitor'
- * @param {object} [context] - Optional context {dwarves: Array} used to resolve
- *   relationship IDs to display names
+ * @param {object} [context] - Optional context {dwarves: Array, worldLore: string}.
+ *   `dwarves` resolves relationship IDs to display names; `worldLore` (the
+ *   shared byte-stable L0 string) is prefixed at the very start of the system
+ *   prompt so all call types share a prefix-cache-friendly opening.
  * @returns {string} System prompt
  */
 export function buildEntitySystemPrompt(entity, entityType, context = {}) {
+  const lorePrefix = context.worldLore
+    ? `## THE WORLD\n${context.worldLore}\n\n`
+    : '';
+
+  let characterPrompt;
   if (entityType === 'dwarf') {
-    return buildDwarfSystemPrompt(entity, context);
+    characterPrompt = buildDwarfSystemPrompt(entity, context);
   } else if (entityType === 'visitor') {
-    return buildVisitorSystemPrompt(entity);
+    characterPrompt = buildVisitorSystemPrompt(entity);
+  } else {
+    characterPrompt = buildGenericSystemPrompt(entity);
   }
-  return buildGenericSystemPrompt(entity);
+
+  return lorePrefix + characterPrompt;
 }
 
 /**

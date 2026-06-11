@@ -14,6 +14,7 @@ import { initConstruction } from './construction.js';
 import { initCrafting } from './crafting.js';
 import { decayDrives, getDominantDrive } from './drives.js';
 import { perceiveWorld } from './perception.js';
+import { getCalendar } from './clock.js';
 
 // External forces imports
 import { processVisitors } from '../ai/visitorAI.js';
@@ -43,6 +44,9 @@ export function tick(state) {
   }
 
   state.tick++;
+
+  // Refresh the shared day/season clock (single source of truth — audit P5)
+  state.clock = getCalendar(state.tick);
 
   // 0. Update weather (Phase 1: Core Loop)
   if (state.weather) {

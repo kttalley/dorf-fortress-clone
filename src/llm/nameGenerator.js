@@ -212,9 +212,8 @@ async function generateWithLLM(entity, worldSnapshot, options) {
     ? buildWorldContext(worldSnapshot)
     : null;
 
-  // Format prompt - combine system and user prompt since llmClient doesn't support system prompt
+  // Format prompt — system instructions go out as a real system role
   const userPrompt = formatDwarfNameBioPrompt(entity, { worldContext });
-  const fullPrompt = `${SYSTEM_DWARF_NAME_BIO}\n\n${userPrompt}`;
 
   try {
     // Call LLM using the queueGeneration function for rate limiting
@@ -229,10 +228,12 @@ async function generateWithLLM(entity, worldSnapshot, options) {
 
     // Race between LLM call and timeout
     const response = await Promise.race([
-      queueGeneration(fullPrompt, {
+      queueGeneration(userPrompt, {
+        system: SYSTEM_DWARF_NAME_BIO,
         maxTokens: CONFIG.MAX_TOKENS,
         temperature: CONFIG.TEMPERATURE,
         stop: ['\n\n', 'Human:', 'User:'],
+        interactive: true, // entity creation blocks world setup
       }),
       timeoutPromise,
     ]);
@@ -253,7 +254,7 @@ async function generateWithLLM(entity, worldSnapshot, options) {
     return {
       name: parsed.name,
       bio: parsed.bio,
-      _prompt: fullPrompt, // For debugging
+      _prompt: `${SYSTEM_DWARF_NAME_BIO}\n\n${userPrompt}`, // For debugging
     };
 
   } catch (error) {
@@ -270,6 +271,12 @@ function buildWorldContext(worldSnapshot) {
   if (!worldSnapshot) return null;
 
   const parts = [];
+
+  // Shared L0 world lore (scenario + biome + history) — names start echoing
+  // the world they're born into (audit P3)
+  if (worldSnapshot.lore) {
+    parts.push(worldSnapshot.lore);
+  }
 
   // Population
   const dwarfCount = worldSnapshot.dwarves?.length || 0;
@@ -343,11 +350,10 @@ export async function requestNameBioBatchSingle(entities, worldSnapshot = null, 
   }
 
   try {
-    // Build batch prompt
-    const batchPrompt = formatBatchNameBioPrompt(entities, { worldContext: worldSnapshot });
-    const fullPrompt = `${SYSTEM_DWARF_NAME_BIO}\n\n${batchPrompt}`;
+    // Build batch prompt — system instructions go out as a real system role
+    const batchPrompt = formatBatchNameBioPrompt(entities, { worldContext: buildWorldContext(worldSnapshot) });
 
-    console.log(`[LLM Batch] Sending batch prompt (${entities.length} dwarves, ~${fullPrompt.length} chars)`);
+    console.log(`[LLM Batch] Sending batch prompt (${entities.length} dwarves, ~${batchPrompt.length} chars)`);
 
     const { queueGeneration } = await import('../ai/llmClient.js');
 
@@ -358,12 +364,14 @@ export async function requestNameBioBatchSingle(entities, worldSnapshot = null, 
 
     // Race between LLM call and timeout
 const response = await Promise.race([
-  queueGeneration(fullPrompt, {
+  queueGeneration(batchPrompt, {
+    system: SYSTEM_DWARF_NAME_BIO,
     // Increase maxTokens proportional to number of entities
     maxTokens: CONFIG.MAX_TOKENS * entities.length * 2,
     temperature: CONFIG.TEMPERATURE,
     // Remove stop sequences for batch to avoid premature truncation
     stop: [],
+    interactive: true, // world setup blocks on this batch
   }),
   timeoutPromise,
 ]);
@@ -473,7 +481,11 @@ function formatBatchNameBioPrompt(entities, options = {}) {
     .map((e, i) => `${i + 1}. Dwarf ID ${e.id}: ${e.personality ? Object.entries(e.personality).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([t])=>t).join(', ') : 'ordinary'}`)
     .join('\n');
 
-  return `Generate creative names and short one-line bios for ALL ${entities.length} dwarves listed below.
+  const contextBlock = options.worldContext
+    ? `These dwarves live in the following world — let names and bios echo it:\n${options.worldContext}\n\n`
+    : '';
+
+  return `${contextBlock}Generate creative names and short one-line bios for ALL ${entities.length} dwarves listed below.
 
 ${list}
 
