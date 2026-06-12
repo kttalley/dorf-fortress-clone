@@ -5,6 +5,7 @@
 
 import { distance } from './entities.js';
 import { emit, EVENTS } from '../events/eventBus.js';
+import { emitScent, SCENT_CHANNEL } from './movement.js';
 
 export const COMBAT_CONFIG = Object.freeze({
   ATTACK_RANGE: 1,           // Must be adjacent
@@ -63,6 +64,10 @@ export function attemptAttack(attacker, defender, state) {
     damage,
     remainingHp: defender.hp,
   });
+
+  // Violence taints the air (audit WALK R7): wildlife avoids the spot,
+  // and prompts can read "signs of recent violence" from the gradient
+  emitScent(defender.x, defender.y, 1.5, 7, SCENT_CHANNEL.DANGER);
 
   // Check for death
   if (defender.hp <= 0) {

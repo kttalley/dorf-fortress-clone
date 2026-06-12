@@ -8,7 +8,7 @@ import { VISITOR_STATE, shouldFlee, isSatisfied, addSatisfaction } from '../sim/
 import { VISITOR_ROLE, RACE } from '../sim/races.js';
 import { findFortressCenter, findExitPosition, isNearEdge } from '../sim/edges.js';
 import { findNearestDwarf, inAttackRange, attemptAttack } from '../sim/combat.js';
-import { isPassable, canAffordMove, findPath } from '../sim/movement.js';
+import { isPassable, canAffordMove, findPath, getScentGradient, SCENT_CHANNEL } from '../sim/movement.js';
 import { ensureItinerary, currentStop, advanceStop, findMarketSpot } from './itineraries.js';
 import { queueEventForNarration } from '../llm/eventNarrator.js';
 import { addLog } from '../state/store.js';
@@ -27,6 +27,7 @@ const CONFIG = {
   STOP_REACH: 2,               // Close enough to an itinerary stop to linger
   STOP_TIMEOUT_TICKS: 300,     // Give up on an unreachable stop
   PATH_MAX_NODES: 600,         // A* search budget per leg (audit WALK R9)
+  RAIDER_SIGHT: 14,            // Beyond this raiders track presence scent, not minds (WALK R7)
 };
 
 /**
@@ -220,14 +221,25 @@ function decideGuard(visitor, state) {
 function decideRaider(visitor, state) {
   // Find a target
   const target = findNearestDwarf(visitor, state);
+  const dist = target ? distance(visitor, target) : Infinity;
 
-  if (!target) {
-    // No targets, wander and eventually leave
+  if (!target || dist > CONFIG.RAIDER_SIGHT) {
+    // No dwarf in sight (audit WALK R7): track the presence scent the camp
+    // leaks instead of reading minds across the map
+    const grad = getScentGradient(visitor.x, visitor.y, SCENT_CHANNEL.PRESENCE);
+    if (grad.dx !== 0 || grad.dy !== 0) {
+      return {
+        state: VISITOR_STATE.RAIDING,
+        target: {
+          x: Math.max(0, Math.min(state.map.width - 1, visitor.x + Math.sign(grad.dx) * 5)),
+          y: Math.max(0, Math.min(state.map.height - 1, visitor.y + Math.sign(grad.dy) * 5)),
+        },
+      };
+    }
+    // No trail either — wander and grow bored
     addSatisfaction(visitor, 5);
     return { state: VISITOR_STATE.RAIDING, target: null };
   }
-
-  const dist = distance(visitor, target);
 
   if (dist <= CONFIG.ATTACK_RANGE) {
     // Attack!

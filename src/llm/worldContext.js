@@ -32,6 +32,7 @@ import { queueGeneration } from '../ai/llmClient.js';
 import { buildWeatherContext } from '../sim/weatherCognition.js';
 import { summarizeBehavior, compassDirection } from '../sim/behaviorTrace.js';
 import { getStructures } from '../sim/construction.js';
+import { getScent, SCENT_CHANNEL } from '../sim/movement.js';
 
 // Per-layer token budgets (audit §3.4)
 const L0_TOKEN_BUDGET = 350;
@@ -462,6 +463,15 @@ export function buildLocalContext(entity, state) {
       }
     }
     lines.push(seen.length > 0 ? `Nearby: ${seen.slice(0, MAX_NEARBY_MENTIONS).join(', ')}.` : 'No one else is nearby.');
+
+    // Scent facts (audit WALK R7): the danger field doubles as a free
+    // narrative sensor — combat and kills taint a spot for a long while
+    const danger = getScent(entity.x, entity.y, SCENT_CHANNEL.DANGER);
+    if (danger > 1.5) {
+      lines.push('There are signs of recent violence here; the wildlife has gone quiet.');
+    } else if (danger > 0.4) {
+      lines.push('Something violent happened near here not long ago — a faint unease lingers.');
+    }
 
     // Remembered places (P7 — reuses perception.js memory.locations)
     const remembered = Object.values(entity.memory?.locations || {})

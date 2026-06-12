@@ -9,7 +9,7 @@ import { isCritical, createFoodSource } from './entities.js';
 import { decide as aiDecide, workFighting } from '../ai/dwarfAI.js';
 import { applyHunger, processDeath, processEat, maybeSpawnFood, updateFoodProduction } from './rules.js';
 import { emit, EVENTS } from '../events/eventBus.js';
-import { initScentMap, emitScent, decayScents } from './movement.js';
+import { initScentMap, emitScent, decayScents, seedWaterScent, SCENT_CHANNEL } from './movement.js';
 import { initConstruction } from './construction.js';
 import { initCrafting } from './crafting.js';
 import { decayDrives, getDominantDrive, applyHomeostasis } from './drives.js';
@@ -31,6 +31,7 @@ let systemsInitialized = false;
  */
 export function initSystems(state) {
   initScentMap(state.map.width, state.map.height);
+  seedWaterScent(state);  // Static water channel (audit WALK R7)
   initConstruction();
   initCrafting();
   resetSpawner();  // Reset visitor spawner state
@@ -64,6 +65,12 @@ export function tick(state) {
     if (food.amount > 0) {
       emitScent(food.x, food.y, food.amount * 0.5, 12);
     }
+  }
+
+  // Dwarves leave a presence trickle (audit WALK R7): wildlife shies away
+  // from the camp's bustle, raiders track it instead of reading minds
+  for (const dwarf of state.dwarves) {
+    emitScent(dwarf.x, dwarf.y, 0.25, 5, SCENT_CHANNEL.PRESENCE);
   }
 
   // Track previous hunger for threshold detection
@@ -155,6 +162,8 @@ export function tick(state) {
       for (const animal of fallen) {
         state.foodSources.push(createFoodSource(animal.x, animal.y, getAnimalNutrition(animal)));
         addLog(state, `${getAnimalDisplayName(animal)} has fallen.`);
+        // Death taints the spot (audit WALK R7): wildlife shuns it for a while
+        emitScent(animal.x, animal.y, 2.5, 7, SCENT_CHANNEL.DANGER);
         emit(EVENTS.ANIMAL_DEATH, { animal, worldState: state });
       }
       state.animals = state.animals.filter(a => a.hp > 0 && a.state !== 'dead');

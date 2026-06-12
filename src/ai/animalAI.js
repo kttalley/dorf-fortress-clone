@@ -7,7 +7,15 @@
 import { distance } from '../sim/entities.js';
 import { getTile } from '../map/map.js';
 import { satisfyDrive, stimulateDrive, decayDrives } from '../sim/drives.js';
-import { executeSmartMovement, moveToward, findPath, isPassable } from '../sim/movement.js';
+import {
+  executeSmartMovement,
+  moveToward,
+  findPath,
+  isPassable,
+  getScent,
+  getScentGradient,
+  SCENT_CHANNEL,
+} from '../sim/movement.js';
 import {
   shouldHunt,
   isFleeing,
@@ -31,6 +39,32 @@ export const ANIMAL_STATE = {
   DEAD: 'dead',
 };
 
+// === SCENT SENSITIVITY (audit WALK R7) ===
+// Combined dwarf-presence + danger scent a wild animal tolerates before
+// drifting off. Presence near the camp steadies around 4-6; a dwarf merely
+// passing through leaves well under 1, so transients don't spook anyone.
+const UNEASE_THRESHOLD = 2.0;
+const FLEE_SCENT_DISTANCE = 6; // How far the drift-away target is set
+
+function getUnease(x, y) {
+  return getScent(x, y, SCENT_CHANNEL.PRESENCE) + getScent(x, y, SCENT_CHANNEL.DANGER);
+}
+
+function getUneaseGradient(x, y) {
+  const presence = getScentGradient(x, y, SCENT_CHANNEL.PRESENCE);
+  const danger = getScentGradient(x, y, SCENT_CHANNEL.DANGER);
+  return { dx: presence.dx + danger.dx, dy: presence.dy + danger.dy };
+}
+
+function clampToMap(pos, state) {
+  return {
+    x: Math.max(0, Math.min(state.map.width - 1, Math.round(pos.x))),
+    y: Math.max(0, Math.min(state.map.height - 1, Math.round(pos.y))),
+  };
+}
+
+const WATER_TILE_TYPES = new Set(['river', 'water_shallow', 'water_deep', 'marsh']);
+
 // === ANIMAL AI DECISION LOGIC ===
 
 /**
@@ -51,6 +85,25 @@ export function decideAnimal(animal, state) {
       animal.state = ANIMAL_STATE.FLEEING;
       animal.target = safePos;
       return;
+    }
+  }
+
+  // PRIORITY 1.5: UNEASE (audit WALK R7) — the smell of dwarf bustle or
+  // recent violence moves skittish wildlife along without any
+  // line-of-sight threat. Predators and big omnivores don't care.
+  if (animal.species.diet === 'herbivore' || animal.species.threatLevel === 'harmless') {
+    const unease = getUnease(animal.x, animal.y);
+    if (unease > UNEASE_THRESHOLD) {
+      const grad = getUneaseGradient(animal.x, animal.y);
+      if (grad.dx !== 0 || grad.dy !== 0) {
+        stimulateDrive(animal, 'fear', 2);
+        animal.state = ANIMAL_STATE.WANDERING;
+        animal.target = clampToMap({
+          x: animal.x - Math.sign(grad.dx) * FLEE_SCENT_DISTANCE,
+          y: animal.y - Math.sign(grad.dy) * FLEE_SCENT_DISTANCE,
+        }, state);
+        return;
+      }
     }
   }
 
@@ -101,6 +154,23 @@ export function decideAnimal(animal, state) {
       animal.state = ANIMAL_STATE.WANDERING;
       animal.target = animal.territoryMarker;
       return;
+    }
+  }
+
+  // PRIORITY 6: HABITAT (audit WALK R7) — water creatures stranded on dry
+  // land drift home along the static water scent field
+  if (animal.species.habitat === 'water') {
+    const tile = getTile(state.map, animal.x, animal.y);
+    if (!WATER_TILE_TYPES.has(tile?.type)) {
+      const grad = getScentGradient(animal.x, animal.y, SCENT_CHANNEL.WATER);
+      if (grad.dx !== 0 || grad.dy !== 0) {
+        animal.state = ANIMAL_STATE.WANDERING;
+        animal.target = clampToMap({
+          x: animal.x + Math.sign(grad.dx) * 4,
+          y: animal.y + Math.sign(grad.dy) * 4,
+        }, state);
+        return;
+      }
     }
   }
 
@@ -303,23 +373,37 @@ function actMating(animal, state) {
  * Animal wanders
  */
 function actWandering(animal, state) {
-  // Slow random walk
+  // Directed wandering (territory return, scent unease, water homing):
+  // walk the target, then settle
+  if (animal.target) {
+    if (distance(animal, animal.target) <= 1) {
+      animal.target = null;
+      animal.state = ANIMAL_STATE.IDLE;
+      return;
+    }
+    executeSmartMovement(animal, state, { targetPos: animal.target });
+    return;
+  }
+
+  // Slow random walk, shying away from steps that climb the unease
+  // gradient (audit WALK R7)
   if (Math.random() < 0.3) {
+    const here = getUnease(animal.x, animal.y);
     const dirs = [
       { x: 1, y: 0 },
       { x: -1, y: 0 },
       { x: 0, y: 1 },
       { x: 0, y: -1 },
-    ];
+    ].filter(d => {
+      const nx = animal.x + d.x;
+      const ny = animal.y + d.y;
+      return isPassable(state, nx, ny) && getUnease(nx, ny) <= here + 0.25;
+    });
+    if (dirs.length === 0) return;
 
     const dir = dirs[Math.floor(Math.random() * dirs.length)];
-    const nextX = animal.x + dir.x;
-    const nextY = animal.y + dir.y;
-
-    if (isPassable(state, nextX, nextY)) {
-      animal.x = nextX;
-      animal.y = nextY;
-    }
+    animal.x += dir.x;
+    animal.y += dir.y;
   }
 }
 

@@ -19,27 +19,52 @@ const CONFIG = {
   MAX_MOMENTUM: 3,             // Max tiles of momentum
 };
 
-// === SCENT MAP ===
-// Tracks attractive/repulsive gradients across the map
-let scentMap = null;
+// === SCENT MAP (multi-channel — audit WALK R7 / §3.3) ===
+// One mechanism, many behaviors:
+//   food     - forage trails (the original channel; emitted by food sources)
+//   presence - dwarf activity. Animals avoid it, raiders follow it.
+//   danger   - combat and kills. Fades slowly; wildlife shuns the spot.
+//   water    - static field seeded from water tiles at init. Frogs stay wet.
+// Channel gradients are also free prompt facts ("the woods have gone quiet").
+export const SCENT_CHANNEL = Object.freeze({
+  FOOD: 'food',
+  PRESENCE: 'presence',
+  DANGER: 'danger',
+  WATER: 'water',
+});
+
+// Per-tick global decay per channel (water is static — never decays)
+const CHANNEL_TICK_DECAY = {
+  food: 0.98,
+  presence: 0.96,
+  danger: 0.995,
+  water: 1.0,
+};
+
+let scentChannels = null;
 let scentWidth = 0;
 let scentHeight = 0;
 
 /**
- * Initialize scent map for a world
+ * Initialize scent map for a world (all channels)
  */
 export function initScentMap(width, height) {
   scentWidth = width;
   scentHeight = height;
-  scentMap = new Float32Array(width * height);
+  scentChannels = {};
+  for (const channel of Object.values(SCENT_CHANNEL)) {
+    scentChannels[channel] = new Float32Array(width * height);
+  }
 }
 
 /**
  * Add scent at a location (spreads outward)
  * Positive = attractive, Negative = repulsive
+ * @param {string} [channel] - SCENT_CHANNEL value (default: food)
  */
-export function emitScent(x, y, strength, radius = CONFIG.SCENT_RADIUS) {
-  if (!scentMap) return;
+export function emitScent(x, y, strength, radius = CONFIG.SCENT_RADIUS, channel = SCENT_CHANNEL.FOOD) {
+  const field = scentChannels?.[channel];
+  if (!field) return;
 
   for (let dy = -radius; dy <= radius; dy++) {
     for (let dx = -radius; dx <= radius; dx++) {
@@ -53,36 +78,62 @@ export function emitScent(x, y, strength, radius = CONFIG.SCENT_RADIUS) {
 
       const decay = Math.pow(CONFIG.SCENT_DECAY, dist);
       const idx = ny * scentWidth + nx;
-      scentMap[idx] += strength * decay;
+      field[idx] += strength * decay;
     }
   }
 }
 
 /**
  * Get scent at location
+ * @param {string} [channel] - SCENT_CHANNEL value (default: food)
  */
-export function getScent(x, y) {
-  if (!scentMap || x < 0 || x >= scentWidth || y < 0 || y >= scentHeight) return 0;
-  return scentMap[y * scentWidth + x];
+export function getScent(x, y, channel = SCENT_CHANNEL.FOOD) {
+  const field = scentChannels?.[channel];
+  if (!field || x < 0 || x >= scentWidth || y < 0 || y >= scentHeight) return 0;
+  return field[y * scentWidth + x];
 }
 
 /**
- * Decay all scents (call each tick)
+ * Decay all scents (call each tick). Water is static and skipped.
  */
 export function decayScents() {
-  if (!scentMap) return;
-  for (let i = 0; i < scentMap.length; i++) {
-    scentMap[i] *= 0.98; // Slow global decay
-    if (Math.abs(scentMap[i]) < 0.01) scentMap[i] = 0;
+  if (!scentChannels) return;
+  for (const [channel, field] of Object.entries(scentChannels)) {
+    const decay = CHANNEL_TICK_DECAY[channel] ?? 0.98;
+    if (decay >= 1.0) continue;
+    for (let i = 0; i < field.length; i++) {
+      field[i] *= decay;
+      if (Math.abs(field[i]) < 0.01) field[i] = 0;
+    }
+  }
+}
+
+/**
+ * Seed the static water channel from the map's water tiles. Call once at
+ * world init (after initScentMap) — the field never decays, so frogs and
+ * thirsty walkers always have a gradient to follow home.
+ */
+export function seedWaterScent(state) {
+  const map = state?.map;
+  if (!map?.tiles?.length || !scentChannels) return;
+
+  const WATER_TILES = new Set(['river', 'water_shallow', 'water_deep', 'marsh']);
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      if (WATER_TILES.has(map.tiles[y * map.width + x]?.type)) {
+        emitScent(x, y, 0.6, 8, SCENT_CHANNEL.WATER);
+      }
+    }
   }
 }
 
 /**
  * Calculate scent gradient direction at a position
  * Returns { dx, dy } normalized vector pointing toward strongest scent
+ * @param {string} [channel] - SCENT_CHANNEL value (default: food)
  */
-export function getScentGradient(x, y) {
-  if (!scentMap) return { dx: 0, dy: 0 };
+export function getScentGradient(x, y, channel = SCENT_CHANNEL.FOOD) {
+  if (!scentChannels) return { dx: 0, dy: 0 };
 
   let gradX = 0;
   let gradY = 0;
@@ -96,7 +147,7 @@ export function getScentGradient(x, y) {
   ];
 
   for (const { dx, dy } of samples) {
-    const scent = getScent(x + dx, y + dy);
+    const scent = getScent(x + dx, y + dy, channel);
     gradX += dx * scent;
     gradY += dy * scent;
   }

@@ -300,10 +300,11 @@ export function createRenderer(containerEl, width, height) {
           cell.style.overflow = 'hidden';
           cell.style.backgroundColor = bg;
 
-          // Apply visual treatment based on entity type
-          if (entity && entity.scale && entity.scale > 1.0) {
+          // Apply visual treatment based on entity type. Sub-1.0 scales
+          // matter too: animals render at half humanoid size.
+          if (entity && entity.scale && entity.scale !== 1.0) {
             cell.style.transform = `scale(${entity.scale})`;
-            cell.style.fontWeight = 'bold';
+            cell.style.fontWeight = entity.scale > 1.0 ? 'bold' : 'normal';
             cell.style.zIndex = '100';
             
             // Enhance shadow if speaking - highlight outline effect
@@ -611,13 +612,14 @@ export const EntityGlyph = Object.freeze({
   GOBLIN_HOSTILE: { char: 'g', fg: '#cc4444', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(204, 68, 68, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
   ELF: { char: 'e', fg: '#aaddff', zIndex: 10, scale: 1.75, shadow: '0 0 6px rgba(170, 221, 255, 0.3), 0 1px 3px rgba(0, 0, 0, 0.6)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))' },
 
-  // Animals - different species as roguelike letters
-  DEER: { char: 'd', fg: '#dd9944', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(221, 153, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
-  RABBIT: { char: 'r', fg: '#bb9966', zIndex: 9, scale: 1.75, shadow: '0 0 4px rgba(187, 153, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
-  WOLF: { char: 'w', fg: '#888888', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(136, 136, 136, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
-  BOAR: { char: 'b', fg: '#664422', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(102, 68, 34, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
-  FROG: { char: 'f', fg: '#66cc66', zIndex: 9, scale: 1.75, shadow: '0 0 4px rgba(102, 204, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
-  BEAR: { char: 'B', fg: '#664444', zIndex: 9, scale: 1.75, shadow: '0 0 5px rgba(102, 68, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  // Animals - different species as roguelike letters. Half humanoid scale
+  // (1.75 / 2) so wildlife reads as smaller than the walking races.
+  DEER: { char: 'd', fg: '#dd9944', zIndex: 9, scale: 0.875, shadow: '0 0 5px rgba(221, 153, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  RABBIT: { char: 'r', fg: '#bb9966', zIndex: 9, scale: 0.875, shadow: '0 0 4px rgba(187, 153, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
+  WOLF: { char: 'w', fg: '#888888', zIndex: 9, scale: 0.875, shadow: '0 0 5px rgba(136, 136, 136, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  BOAR: { char: 'b', fg: '#664422', zIndex: 9, scale: 0.875, shadow: '0 0 5px rgba(102, 68, 34, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
+  FROG: { char: 'f', fg: '#66cc66', zIndex: 9, scale: 0.875, shadow: '0 0 4px rgba(102, 204, 102, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))' },
+  BEAR: { char: 'B', fg: '#664444', zIndex: 9, scale: 0.875, shadow: '0 0 5px rgba(102, 68, 68, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)', filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' },
 
   // Food - green percent sign (traditional roguelike food)
   FOOD: { char: '%', fg: '#32cd32', zIndex: 5, scale: 1.1, shadow: '0 0 3px rgba(50, 205, 50, 0.2), 0 1px 1px rgba(0, 0, 0, 0.4)', filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2))' },
