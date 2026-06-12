@@ -426,6 +426,9 @@ export function getTaskDescription(task) {
     [TASK_TYPE.SCOUT]: 'scouting',
     [TASK_TYPE.FORAGE]: 'foraging',
     [TASK_TYPE.EAT]: 'eating',
+    [TASK_TYPE.HUNT]: 'hunting',
+    [TASK_TYPE.FISH]: 'fishing',
+    [TASK_TYPE.SEEK_SHELTER]: 'sheltering from the weather',
     [TASK_TYPE.REST]: 'resting',
     [TASK_TYPE.IDLE]: 'relaxing',
   };

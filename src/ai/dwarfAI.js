@@ -10,7 +10,25 @@ import {
   needsSocial,
   getMostPressingNeed,
   satisfyFulfillment,
+  getDisplayName,
 } from '../sim/entities.js';
+
+import { addLog } from '../state/store.js';
+
+import {
+  canHuntAt,
+  findNearestPrey,
+  attemptHunt,
+  getHuntingAbility,
+  HUNTING_CONFIG,
+} from '../sim/hunting.js';
+
+import {
+  canFishAt,
+  attemptFish,
+  getFishingAbility,
+  isWaterTile,
+} from '../sim/fishing.js';
 
 import {
   TASK_TYPE,
@@ -77,6 +95,8 @@ export const AI_STATE = {
   SOCIALIZING: 'socializing',
   EXPLORING: 'exploring',
   SEEKING_SHELTER: 'seeking_shelter',
+  HUNTING: 'hunting',
+  FISHING: 'fishing',
   GATHERING: 'gathering',
   SLEEPING: 'sleeping',
   PURSUING_INTENTION: 'pursuing_intention',
@@ -196,6 +216,12 @@ function continueTask(dwarf, state) {
     case TASK_TYPE.SEEK_SHELTER:
       return workSeekShelter(dwarf, state);
 
+    case TASK_TYPE.HUNT:
+      return workHunt(dwarf, state);
+
+    case TASK_TYPE.FISH:
+      return workFish(dwarf, state);
+
     case TASK_TYPE.GATHER:
       return workGather(dwarf, state);
 
@@ -226,11 +252,41 @@ function findNewTask(dwarf, state) {
 
   // Hunger check (but less urgent now)
   if (isHungry(dwarf)) {
+    const food = findNearestFood(dwarf, state);
     candidates.push({
       type: TASK_TYPE.FORAGE,
       priority: 60 + (dwarf.hunger - 60),
-      target: findNearestFood(dwarf, state),
+      target: food,
     });
+
+    // Dwarves join the food web (audit pass 2): when foraging has nothing
+    // sure to walk to (no visible food, only a stale memory), hunting and
+    // fishing outrank it; with real food in sight they stay fallbacks
+    const noSureFood = !food || food.remembered;
+
+    if (canHuntAt(dwarf, dwarf.x, dwarf.y, state)) {
+      const prey = findNearestPrey(dwarf, state);
+      if (prey) {
+        candidates.push({
+          type: TASK_TYPE.HUNT,
+          priority: noSureFood
+            ? 64 + (dwarf.hunger - 60) + getHuntingAbility(dwarf) * 8
+            : 50 + (dwarf.hunger - 60) * 0.5 + getHuntingAbility(dwarf) * 8,
+          target: prey,
+        });
+      }
+    }
+
+    const fishingSpot = findNearestFishingSpot(dwarf, state);
+    if (fishingSpot && canFishAt(dwarf, fishingSpot.x, fishingSpot.y, state)) {
+      candidates.push({
+        type: TASK_TYPE.FISH,
+        priority: noSureFood
+          ? 63 + (dwarf.hunger - 60) + getFishingAbility(dwarf) * 8
+          : 49 + (dwarf.hunger - 60) * 0.5 + getFishingAbility(dwarf) * 8,
+        target: fishingSpot,
+      });
+    }
   }
 
   // Social need
@@ -500,6 +556,12 @@ function startTask(dwarf, task, state) {
     case TASK_TYPE.SEEK_SHELTER:
       return workSeekShelter(dwarf, state);
 
+    case TASK_TYPE.HUNT:
+      return workHunt(dwarf, state);
+
+    case TASK_TYPE.FISH:
+      return workFish(dwarf, state);
+
     case TASK_TYPE.GATHER:
       return workGather(dwarf, state);
 
@@ -723,6 +785,130 @@ function workSeekShelter(dwarf, state) {
 
   executeSmartMovement(dwarf, state, { targetPos: task.target });
   return { state: AI_STATE.SEEKING_SHELTER, target: task.target };
+}
+
+const HUNT_GIVE_UP_RANGE = HUNTING_CONFIG.HUNT_RANGE * 1.5;
+const FISHING_MAX_CASTS = 80; // ticks at the water's edge before giving up
+
+/**
+ * Hunger-driven hunt (audit pass 2): chase the prey via the movement
+ * system (single mover), attack via attemptHunt when adjacent. A kill stays
+ * unresolved here on purpose — world.js turns the fallen animal into a
+ * carcass food source at the kill site, and the still-hungry dwarf's next
+ * decision forages it.
+ */
+function workHunt(dwarf, state) {
+  const prey = dwarf.currentTask?.target;
+
+  // Prey dead, despawned, or escaped beyond tracking: end the hunt
+  if (!prey || prey.hp <= 0 || prey.state === 'dead' ||
+      !state.animals?.includes(prey) ||
+      distance(dwarf, prey) > HUNT_GIVE_UP_RANGE) {
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  const result = attemptHunt(dwarf, prey, state);
+
+  if (result.killed) {
+    dwarf.mood = Math.min(100, (dwarf.mood || 50) + 4);
+    satisfyFulfillment(dwarf, 'exploration', 0.2);
+    addLog(state, `${getDisplayName(dwarf)} brought down a ${prey.subtype}!`);
+    dwarf.currentTask = null;
+    return { state: AI_STATE.HUNTING, target: { x: dwarf.x, y: dwarf.y } };
+  }
+
+  if (result.reason) {
+    // insufficient_skill / incapacitated — not a hunter today
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  if (result.phase === 'chasing') {
+    executeSmartMovement(dwarf, state, { targetPos: { x: prey.x, y: prey.y } });
+  }
+
+  return { state: AI_STATE.HUNTING, target: { x: prey.x, y: prey.y } };
+}
+
+/**
+ * Hunger-driven fishing (audit pass 2): walk to the remembered bank spot,
+ * then cast each tick — attemptFish rolls catch chance (rain bonus comes
+ * free from the live weather system). The catch lands at the dwarf's feet
+ * as a food source, so the next decision forages it.
+ */
+function workFish(dwarf, state) {
+  const task = dwarf.currentTask;
+  const spot = task?.target;
+  if (!spot) {
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  // Not at a fishable spot yet: keep walking to the bank
+  if (!canFishAt(dwarf, dwarf.x, dwarf.y, state)) {
+    const dist = Math.abs(dwarf.x - spot.x) + Math.abs(dwarf.y - spot.y);
+    if (dist === 0) {
+      // Arrived but the spot isn't fishable after all (water gone? blocked?)
+      dwarf.currentTask = null;
+      return findNewTask(dwarf, state);
+    }
+    executeSmartMovement(dwarf, state, { targetPos: spot });
+    return { state: AI_STATE.FISHING, target: spot };
+  }
+
+  // At the water's edge: cast
+  task._castTicks = (task._castTicks || 0) + 1;
+  const result = attemptFish(dwarf, state);
+
+  if (result.success) {
+    dwarf.mood = Math.min(100, (dwarf.mood || 50) + 3);
+    satisfyFulfillment(dwarf, 'tranquility', 0.2);
+    addLog(state, `${getDisplayName(dwarf)} caught ${result.amount > 1 ? `${result.amount} fish` : 'a fish'}.`);
+    dwarf.currentTask = null;
+    return { state: AI_STATE.FISHING, target: { x: dwarf.x, y: dwarf.y } };
+  }
+
+  if (result.reason === 'no_water' || result.reason === 'incapacitated' ||
+      task._castTicks > FISHING_MAX_CASTS) {
+    dwarf.currentTask = null;
+    return findNewTask(dwarf, state);
+  }
+
+  // Patient casting — a quiet activity
+  satisfyFulfillment(dwarf, 'tranquility', 0.02);
+  return { state: AI_STATE.FISHING, target: { x: dwarf.x, y: dwarf.y } };
+}
+
+const FISHING_SCAN_RADIUS = 12;
+
+/**
+ * Nearest standable bank tile beside water within scanning range
+ */
+function findNearestFishingSpot(dwarf, state) {
+  let best = null;
+  let bestDist = Infinity;
+
+  for (let dy = -FISHING_SCAN_RADIUS; dy <= FISHING_SCAN_RADIUS; dy++) {
+    for (let dx = -FISHING_SCAN_RADIUS; dx <= FISHING_SCAN_RADIUS; dx++) {
+      if (Math.abs(dx) + Math.abs(dy) >= bestDist + 1) continue;
+      const x = dwarf.x + dx;
+      const y = dwarf.y + dy;
+      if (!isWaterTile(getTileAt(x, y, state))) continue;
+
+      // Stand on the closest passable bank tile beside this water
+      for (const [bx, by] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+        if (!isPassable(state, bx, by)) continue;
+        const bankDist = Math.abs(bx - dwarf.x) + Math.abs(by - dwarf.y);
+        if (bankDist < bestDist) {
+          bestDist = bankDist;
+          best = { x: bx, y: by };
+        }
+      }
+    }
+  }
+
+  return best;
 }
 
 /**

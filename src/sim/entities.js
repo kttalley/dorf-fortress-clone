@@ -184,7 +184,6 @@ export function createDwarf(x, y, name = null) {
 
     // === NEW: Goal stack (for planning) ===
     currentGoal: null,
-    goalStack: [],
     decisionTick: 0,
     decisionInterval: 30, // Reconsider goals every 30 ticks
 

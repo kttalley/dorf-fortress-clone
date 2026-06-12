@@ -340,6 +340,17 @@ export function initNarratorEventTaps(state) {
     queueOncePerDay(key, tick(), `${entityName(target)} was attacked by a ${animal?.subtype || 'beast'}!`, 'wildlife');
   });
 
+  // Hunts and catches (audit pass 2): dwarves joined the food web — notable
+  // once per provider per day
+  on(EVENTS.HUNTING_SUCCESS, ({ dwarf, prey }) => {
+    queueOncePerDay(`hunt:${dwarf?.id}`, tick(), `${entityName(dwarf)} hunted down a ${prey?.subtype || 'beast'}.`, 'wildlife');
+  });
+
+  on(EVENTS.FISHING_SUCCESS, ({ dwarf, amount }) => {
+    const catchDesc = amount > 1 ? `${amount} fish` : 'a fish';
+    queueOncePerDay(`fish:${dwarf?.id}`, tick(), `${entityName(dwarf)} pulled ${catchDesc} from the water.`, 'wildlife');
+  });
+
   // Weather (emitted per dwarf per tick when notable — once per type per day)
   on(EVENTS.WEATHER_CHANGE, ({ type, intensity }) => {
     if (!type) return;

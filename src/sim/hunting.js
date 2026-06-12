@@ -5,9 +5,8 @@
  */
 
 import { distance } from './entities.js';
-import { executeSmartMovement, moveToward } from './movement.js';
 import { emit, EVENTS } from '../events/eventBus.js';
-import { getAnimalLoot, getAnimalNutrition } from './animals.js';
+import { getAnimalLoot } from './animals.js';
 
 // === HUNTING CONFIG ===
 export const HUNTING_CONFIG = {
@@ -24,10 +23,30 @@ export const HUNTING_CONFIG = {
 };
 
 /**
+ * Effective hunting ability: trained skill, or raw nerve for the untrained.
+ * No dwarf spawns with the hunting skill (generateSkills), so a pure
+ * skill-level gate would make hunting unreachable — bravery substitutes
+ * until practice builds the real skill (awardHuntingXP seeds it the same way).
+ */
+export function getHuntingAbility(dwarf) {
+  // Nerve is a floor, not just a fallback: a freshly-seeded skill starts at
+  // proficiency bravery*0.3 (awardHuntingXP), BELOW untrained nerve — without
+  // the floor, the first practice swing would lock the dwarf back out
+  const nerve = (dwarf.personality?.bravery ?? 0.5) * 0.5;
+  // Tolerate the legacy object-map skills shape (real dwarves use arrays)
+  const skill = Array.isArray(dwarf.skills)
+    ? dwarf.skills.find(s => s.name === 'hunting')
+    : null;
+  if (!skill) return nerve;
+  return Math.max(skill.level, skill.proficiency, nerve);
+}
+
+/**
  * Check if dwarf can hunt at this location
  */
 export function canHuntAt(dwarf, x, y, state) {
   if (!dwarf || dwarf.hp <= 0) return false;
+  if (getHuntingAbility(dwarf) < HUNTING_CONFIG.MIN_SKILL_TO_HUNT) return false;
 
   // Check for huntable animals nearby
   const nearbyAnimals = state.animals?.filter(a =>
@@ -62,8 +81,10 @@ export function findNearestPrey(dwarf, state) {
 }
 
 /**
- * Attempt to hunt a specific animal target
- * Called each tick while hunting
+ * Attempt to hunt a specific animal target.
+ * Called each tick while hunting. Does NOT move the dwarf — movement is
+ * owned by decide() via movement.js (single mover); the caller chases when
+ * this reports { phase: 'chasing' }.
  */
 export function attemptHunt(dwarf, targetAnimal, state) {
   if (!dwarf || !targetAnimal) {
@@ -74,30 +95,17 @@ export function attemptHunt(dwarf, targetAnimal, state) {
     return { success: false, reason: 'incapacitated' };
   }
 
-  // Get hunting skill
-  let huntingSkill = dwarf.skills?.find(s => s.name === 'hunting');
-  const skillLevel = huntingSkill?.level ?? 0;
-  const proficiency = huntingSkill?.proficiency ?? 0;
-
-  // Check minimum skill
-  if (skillLevel < HUNTING_CONFIG.MIN_SKILL_TO_HUNT) {
+  if (getHuntingAbility(dwarf) < HUNTING_CONFIG.MIN_SKILL_TO_HUNT) {
     return { success: false, reason: 'insufficient_skill' };
   }
 
+  const proficiency = getHuntingAbility(dwarf);
+
   const dist = distance(dwarf, targetAnimal);
 
-  // PHASE 1: CHASE (distance > 1)
+  // PHASE 1: CHASE (distance > 1) — caller moves, tracking XP accrues
   if (dist > HUNTING_CONFIG.CLOSE_RANGE) {
-    // Move toward prey
-    const nextTile = executeSmartMovement(dwarf, targetAnimal, state);
-    if (nextTile) {
-      dwarf.x = nextTile.x;
-      dwarf.y = nextTile.y;
-    }
-
-    // Award tracking XP
     awardHuntingXP(dwarf, HUNTING_CONFIG.XP_PER_CHASE_TICK);
-
     return { success: false, phase: 'chasing', distance: dist };
   }
 

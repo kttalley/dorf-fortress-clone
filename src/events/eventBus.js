@@ -44,6 +44,18 @@ export const EVENTS = Object.freeze({
   // Intention events (LLM thoughts becoming destinations)
   INTENTION_FULFILLED: 'dwarf:intention_fulfilled', // Dwarf reached a thought-driven destination
 
+  // Hunting events (hunger-driven hunting tasks)
+  HUNTING_HIT: 'hunting:hit',               // Hunter landed a blow on prey
+  HUNTING_MISS: 'hunting:miss',             // Hunter's attack missed
+  HUNTING_SUCCESS: 'hunting:success',       // Prey killed and looted
+
+  // Fishing events
+  FISHING_ATTEMPT: 'fishing:attempt',       // Cast that caught nothing
+  FISHING_SUCCESS: 'fishing:success',       // Fish caught (food created)
+
+  // Skill progression
+  SKILL_LEVELED: 'skill:leveled',           // A skill crossed a level boundary
+
   // Visitor events (external forces)
   VISITOR_ARRIVED: 'visitor:arrived',       // Visitor group spawns at map edge
   VISITOR_LEAVING: 'visitor:leaving',       // Visitor starts leaving

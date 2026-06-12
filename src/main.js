@@ -13,8 +13,7 @@ import { createStatPanel } from './ui/statPanel.js';
 import { initThoughtSystem, stopThoughtSystem, getThoughtStatus } from './ai/thoughts.js';
 import { initSpeechBubbles, showSpeech, updateBubblePositions, injectBubbleStyles, initSidebarThoughts, updateSidebarThoughts } from './ui/speechBubble.js';
 import { checkConnection } from './ai/llmClient.js';
-import { initializeLLM } from './llm/nameGenerator.js';
-import { waitForBatchNameGeneration } from './llm/nameGenerationEvents.js';
+import { initializeLLM, waitForBatchNameGeneration } from './llm/nameGenerator.js';
 import { buildWorldLore, getWorldLore, invalidateWorldLore, updateChronicle } from './llm/worldContext.js';
 import { processEndOfDay, initNarratorEventTaps, queueEventForNarration, clearPending } from './llm/eventNarrator.js';
 import { getCalendar } from './sim/clock.js';
@@ -304,7 +303,7 @@ async function regenerateWorld() {
         ? state.history.events[state.history.events.length - 1].description
         : null,
     };
-    await waitForBatchNameGeneration(state.dwarves, worldSnapshot, 30000); // 30s timeout
+    await waitForBatchNameGeneration(state.dwarves, worldSnapshot);
 
     // Assign names and trigger UI updates for all components
     state.dwarves.forEach(dwarf => {

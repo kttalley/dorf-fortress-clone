@@ -5,8 +5,6 @@
  */
 
 import { getTile, inBounds } from '../map/map.js';
-import { getTileDef } from '../map/tiles.js';
-import { stimulateDrive, satisfyDrive } from './drives.js';
 import { emit, EVENTS } from '../events/eventBus.js';
 
 // === FISHING CONFIG ===
@@ -23,6 +21,25 @@ export const FISHING_CONFIG = {
 };
 
 /**
+ * Effective fishing ability: trained skill, or raw patience for the
+ * untrained. No dwarf spawns with the fishing skill (generateSkills), so a
+ * pure skill-level gate would make fishing unreachable — patience substitutes
+ * until practice builds the real skill (awardFishingXP seeds it the same way).
+ */
+export function getFishingAbility(dwarf) {
+  // Patience is a floor, not just a fallback: a freshly-seeded skill starts
+  // at proficiency patience*0.3 (awardFishingXP), BELOW untrained patience —
+  // without the floor, the first cast would weaken the next one
+  const calm = (dwarf.personality?.patience ?? 0.5) * 0.5;
+  // Tolerate the legacy object-map skills shape (real dwarves use arrays)
+  const skill = Array.isArray(dwarf.skills)
+    ? dwarf.skills.find(s => s.name === 'fishing')
+    : null;
+  if (!skill) return calm;
+  return Math.max(skill.level, skill.proficiency, calm);
+}
+
+/**
  * Check if dwarf can fish at a location
  */
 export function canFishAt(dwarf, x, y, state) {
@@ -33,11 +50,9 @@ export function canFishAt(dwarf, x, y, state) {
     return false;
   }
 
-  // Must have fishing tool or decent fishing skill
+  // Must have fishing tool or enough ability for basic hand-line fishing
   const hasFishingRod = dwarf.inventory?.some(item => item.type === 'fishing_rod');
-  const fishingSkill = dwarf.skills?.find(s => s.name === 'fishing');
-
-  if (!hasFishingRod && (!fishingSkill || fishingSkill.level < FISHING_CONFIG.MIN_SKILL_TO_FISH)) {
+  if (!hasFishingRod && getFishingAbility(dwarf) < FISHING_CONFIG.MIN_SKILL_TO_FISH) {
     return false;
   }
 
@@ -57,10 +72,8 @@ export function attemptFish(dwarf, state) {
     return { success: false, reason: 'no_water' };
   }
 
-  // Get fishing skill
-  let fishingSkill = dwarf.skills?.find(s => s.name === 'fishing');
-  const skillLevel = fishingSkill?.level ?? 0;
-  const proficiency = fishingSkill?.proficiency ?? 0;
+  // Effective ability (untrained dwarves fish on patience — see getFishingAbility)
+  const proficiency = getFishingAbility(dwarf);
 
   // Weather modifier
   const weather = state.weather?.getWeatherAt(dwarf.x, dwarf.y);
@@ -176,15 +189,23 @@ function hasWaterAdjacent(x, y, map) {
   ];
 
   for (const adj of adjacentTiles) {
-    if (!inBounds(adj.x, adj.y, map)) continue;
+    if (!inBounds(map, adj.x, adj.y)) continue;
 
-    const tile = getTile(adj.x, adj.y, map);
-    if (tile.type === 'water' || tile.type === 'river') {
+    const tile = getTile(map, adj.x, adj.y);
+    if (isWaterTile(tile?.type)) {
       return true;
     }
   }
 
   return false;
+}
+
+/**
+ * Water tile check matching the real tile ids (water_shallow / water_deep /
+ * river — there is no plain 'water' type in tiles.js)
+ */
+export function isWaterTile(type) {
+  return type === 'river' || type === 'water_shallow' || type === 'water_deep';
 }
 
 /**

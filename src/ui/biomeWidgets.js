@@ -355,6 +355,10 @@ export function updateEventLog(state) {
   // Clear and repopulate
   content.innerHTML = '';
 
+  // The fortress chronicle (audit pass 2): the L1 saga the LLM prompts read
+  // was invisible to the player — pin it above the raw event feed
+  appendChronicleSection(content, state.chronicle);
+
   const logs = state.log || [];
 
   if (logs.length === 0) {
@@ -406,6 +410,71 @@ export function updateEventLog(state) {
 
   // Auto-scroll to top (newest)
   content.scrollTop = 0;
+}
+
+// Recent narrated day-lines shown under the saga
+const CHRONICLE_RECENT_SHOWN = 3;
+
+/**
+ * Render the chronicle block (headline + saga prose + recent narrated days)
+ * at the top of the event log content. Skipped until the first day-end
+ * narration produces something to tell.
+ * @param {HTMLElement} content
+ * @param {object} chronicle - state.chronicle { saga, recent, headline }
+ */
+function appendChronicleSection(content, chronicle) {
+  if (!chronicle) return;
+
+  const saga = (chronicle.saga || '').trim();
+  const recent = chronicle.recent || [];
+  if (!saga && recent.length === 0) return;
+
+  const section = document.createElement('div');
+  section.style.cssText = `
+    padding: 8px 10px;
+    margin: 4px 0 8px 0;
+    background: rgba(50, 42, 28, 0.55);
+    border-radius: 4px;
+    border-left: 3px solid #ccaa55;
+    line-height: 1.4;
+  `;
+
+  if (chronicle.headline) {
+    const headline = document.createElement('div');
+    headline.style.cssText = `
+      color: #ccaa55;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    `;
+    headline.textContent = chronicle.headline;
+    section.appendChild(headline);
+  }
+
+  if (saga) {
+    const sagaEl = document.createElement('div');
+    sagaEl.style.cssText = `
+      color: #ddcc99;
+      font-style: italic;
+      margin-bottom: ${recent.length > 0 ? '6px' : '0'};
+    `;
+    sagaEl.textContent = saga;
+    section.appendChild(sagaEl);
+  }
+
+  for (const line of recent.slice(-CHRONICLE_RECENT_SHOWN)) {
+    const lineEl = document.createElement('div');
+    lineEl.style.cssText = `
+      color: #bbaa88;
+      font-size: 13px;
+      margin-top: 2px;
+    `;
+    lineEl.textContent = line;
+    section.appendChild(lineEl);
+  }
+
+  content.appendChild(section);
 }
 
 /**
