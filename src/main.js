@@ -435,6 +435,24 @@ async function init() {
   // Non-dwarf camera pans chain a return pan to the live dwarf positions.
   renderer.setDwarvesProvider(() => state.dwarves);
 
+  // Camera policy: automatic pans fire ONLY on first page load and when
+  // someone is attacked — combat pans are rate-limited to one per minute.
+  // Every non-dwarf pan still chains a return to the dwarves, so the
+  // camera always settles back on them.
+  const COMBAT_PAN_COOLDOWN_MS = 60_000;
+  let lastCombatPanAt = 0;
+  const panToFight = (victim) => {
+    if (!victim || typeof victim.x !== 'number') return;
+    const now = Date.now();
+    if (now - lastCombatPanAt < COMBAT_PAN_COOLDOWN_MS) return;
+    lastCombatPanAt = now;
+    renderer.animateScrollToPosition(victim.x, victim.y, 1800);
+  };
+  on(EVENTS.COMBAT_HIT, ({ defender }) => panToFight(defender));
+  on(EVENTS.ANIMAL_ATTACKED, ({ target }) => {
+    if (target?.type === 'dwarf') panToFight(target);
+  });
+
   // Create stat panel (for detailed entity inspection) - needs grid element for positioning
   statPanel = createStatPanel(mapContainer, renderer.el, MAP_WIDTH, MAP_HEIGHT);
 

@@ -351,14 +351,9 @@ export function createRenderer(containerEl, width, height) {
    */
   function destroy() {
     window.removeEventListener('resize', handleResize);
-    // Cancel any in-flight pan animation, pending return pan, and the
-    // follow-the-dwarves watchdog
+    // Cancel any in-flight pan animation and pending return pan
     animToken++;
     panSeq++;
-    clearInterval(followTimerId);
-    containerEl.removeEventListener('wheel', markUserInteraction);
-    containerEl.removeEventListener('touchmove', markUserInteraction);
-    containerEl.removeEventListener('pointerdown', markUserInteraction);
     if (returnTimerId !== null) {
       clearTimeout(returnTimerId);
       returnTimerId = null;
@@ -397,43 +392,12 @@ export function createRenderer(containerEl, width, height) {
     return null;
   }
 
-  // --- Follow-the-dwarves watchdog ---------------------------------------
-  // The camera must ALWAYS end up on the dwarves: event pans chain a return
-  // pan, and this loop covers everything else (dwarves wandering away from a
-  // settled camera). It stays hands-off while a pan is in flight, while a
-  // return pan is queued, or right after the player scrolled manually.
+  // NOTE: there is intentionally NO follow-the-dwarves watchdog. Automatic
+  // pans are policy-gated by main.js (first page load + combat, with a
+  // cooldown); the camera otherwise stays where the player put it. Pans to
+  // non-dwarf targets still chain a return pan, so any pan that does fire
+  // ends on the dwarves.
   let panInFlight = false;            // An animated pan is running
-  let lastUserInteraction = 0;        // Last manual wheel/touch/drag on the map
-  const FOLLOW_INTERVAL_MS = 4000;    // How often the watchdog checks
-  const FOLLOW_GRACE_MS = 8000;       // Leave the player alone after manual scrolling
-  const FOLLOW_THRESHOLD_CELLS = 7;   // Re-center when the centroid drifts this far
-
-  const markUserInteraction = () => { lastUserInteraction = Date.now(); };
-  containerEl.addEventListener('wheel', markUserInteraction, { passive: true });
-  containerEl.addEventListener('touchmove', markUserInteraction, { passive: true });
-  containerEl.addEventListener('pointerdown', markUserInteraction, { passive: true });
-
-  const followTimerId = setInterval(() => {
-    if (panInFlight || returnTimerId !== null) return;
-    if (Date.now() - lastUserInteraction < FOLLOW_GRACE_MS) return;
-
-    const dwarves = getReturnDwarves();
-    if (!dwarves) return;
-
-    const currentCellWidth = parseFloat(gridEl.style.gridTemplateColumns.match(/[\d.]+/)?.[0]) || cellWidth;
-    const currentCellHeight = parseFloat(gridEl.style.gridTemplateRows.match(/[\d.]+/)?.[0]) || cellHeight;
-    const rect = containerEl.getBoundingClientRect();
-
-    const avgX = dwarves.reduce((sum, d) => sum + d.x, 0) / dwarves.length;
-    const avgY = dwarves.reduce((sum, d) => sum + d.y, 0) / dwarves.length;
-    const viewCenterX = (containerEl.scrollLeft + rect.width / 2) / currentCellWidth;
-    const viewCenterY = (containerEl.scrollTop + rect.height / 2) / currentCellHeight;
-
-    const drift = Math.abs(avgX - viewCenterX) + Math.abs(avgY - viewCenterY);
-    if (drift > FOLLOW_THRESHOLD_CELLS) {
-      animateScrollToDwarves(dwarves, 1800);
-    }
-  }, FOLLOW_INTERVAL_MS);
 
   /** Marks the start of any pan: cancels a pending return pan. */
   function beginPan() {

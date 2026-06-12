@@ -246,12 +246,13 @@ function createBubble(dwarf, text, type, target = null) {
   bubble.appendChild(nameEl);
   bubble.appendChild(textEl);
 
-  // Add tail/pointer
+  // Add tail/pointer, centered along the bubble's bottom edge
   const tail = document.createElement('div');
   tail.style.cssText = `
     position: absolute;
     bottom: -8px;
-    left: 20px;
+    left: 50%;
+    transform: translateX(-50%);
     width: 0;
     height: 0;
     border-left: 8px solid transparent;
