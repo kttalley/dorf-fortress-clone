@@ -6,6 +6,7 @@
 import { distance } from './entities.js';
 import { getTile, inBounds } from '../map/map.js';
 import { getTileDef } from '../map/tiles.js';
+import { getGroundMovePenalty } from './groundCover.js';
 
 // === MOVEMENT CONFIGURATION ===
 const CONFIG = {
@@ -411,7 +412,12 @@ export function getMoveCost(state, x, y) {
   if (!def.walkable) return Infinity;
 
   const cost = def.moveCost;
-  return Number.isFinite(cost) && cost > 0 ? cost : 1;
+  const base = Number.isFinite(cost) && cost > 0 ? cost : 1;
+
+  // Mud and deep snow are a slog (audit WX 7). Capped at the move-budget
+  // maximum so weather slows tiles but never makes them impassable.
+  const penalty = getGroundMovePenalty(state, x, y);
+  return penalty > 0 ? Math.min(MAX_MOVE_BUDGET, base + penalty) : base;
 }
 
 // Highest finite tile moveCost; caps idle banking to at most one expensive step

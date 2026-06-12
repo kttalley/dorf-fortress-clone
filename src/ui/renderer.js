@@ -11,6 +11,7 @@ import { getDigDesignations, getBuildProjects, getStructures } from '../sim/cons
 import { composeWeatherTile } from '../ui/weatherRenderer.js';
 import { getActiveSpeakers } from '../ui/speechBubble.js';
 import { getSprite, hasSprite } from '../ui/sprites.js';
+import { tintGroundBg } from '../sim/groundCover.js';
 
 // Fixed font size for consistent tile rendering (no scrunching)
 const FIXED_FONT_SIZE = 16;
@@ -212,6 +213,10 @@ export function createRenderer(containerEl, width, height) {
 
         let char, fg;
         let bg = tileDef?.bg ?? '#000';
+        // Ground cover (audit WX 7): snow whitens, mud browns — applied
+        // before weather compositing so storms still tint over snowfields
+        const groundBg = tintGroundBg(x, y, bg);
+        if (groundBg) bg = groundBg;
         if (entity) {
           // Entity overlays tile
           char = entity.char;

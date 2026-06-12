@@ -10,6 +10,7 @@ import { decide as aiDecide, workFighting } from '../ai/dwarfAI.js';
 import { applyHunger, processDeath, processEat, maybeSpawnFood, updateFoodProduction } from './rules.js';
 import { emit, EVENTS } from '../events/eventBus.js';
 import { initScentMap, emitScent, decayScents, seedWaterScent, SCENT_CHANNEL } from './movement.js';
+import { initGroundCover, tickGroundCover } from './groundCover.js';
 import { initConstruction } from './construction.js';
 import { initCrafting } from './crafting.js';
 import { decayDrives, getDominantDrive, applyHomeostasis } from './drives.js';
@@ -32,6 +33,7 @@ let systemsInitialized = false;
 export function initSystems(state) {
   initScentMap(state.map.width, state.map.height);
   seedWaterScent(state);  // Static water channel (audit WALK R7)
+  initGroundCover(state.map.width, state.map.height);  // Wetness/snow grids (audit WX 7)
   initConstruction();
   initCrafting();
   resetSpawner();  // Reset visitor spawner state
@@ -56,6 +58,10 @@ export function tick(state) {
   if (state.weather) {
     state.weather.tick(state);
   }
+
+  // 0.25 The ground remembers the weather (audit WX 7): rain soaks in,
+  // snow piles up, thaw makes mud
+  tickGroundCover(state);
 
   // 0.5 Update scent map
   decayScents();

@@ -33,6 +33,7 @@ import { buildWeatherContext } from '../sim/weatherCognition.js';
 import { summarizeBehavior, compassDirection } from '../sim/behaviorTrace.js';
 import { getStructures } from '../sim/construction.js';
 import { getScent, SCENT_CHANNEL } from '../sim/movement.js';
+import { describeGround } from '../sim/groundCover.js';
 
 // Per-layer token budgets (audit §3.4)
 const L0_TOKEN_BUDGET = 350;
@@ -418,6 +419,10 @@ export function buildLocalContext(entity, state) {
     const weather = state.weather?.getWeatherAt?.(entity.x, entity.y);
     const weatherLine = buildWeatherContext(entity, weather).trim();
     if (weatherLine) lines.push(weatherLine);
+
+    // Ground underfoot (audit WX 7): mud, snow, lingering damp
+    const groundLine = describeGround(entity.x, entity.y, state);
+    if (groundLine) lines.push(groundLine);
 
     // Typed nearby scan (P7): dwarves, visitors (a dwarf should NOTICE a
     // goblin), food, completed structures
