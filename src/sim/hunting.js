@@ -129,9 +129,9 @@ export function attemptHunt(dwarf, targetAnimal, state) {
 
     // Check if killed
     if (targetAnimal.hp <= 0) {
-      // Prey is dead - loot it
+      // Prey is dead — roll loot (the caller deposits it; meat is covered
+      // by the carcass world.js creates from the fallen animal)
       const loot = getAnimalLoot(targetAnimal);
-      dwarf.hunting_loot = (dwarf.hunting_loot || []).concat(loot);
 
       // Award kill XP
       awardHuntingXP(dwarf, HUNTING_CONFIG.XP_PER_KILL);

@@ -3,7 +3,7 @@
  * Dwarves create items at workshops, building their skills and reputation
  */
 
-import { SKILL, TASK_TYPE, createTask, PRIORITY } from './tasks.js';
+import { SKILL, TASK_TYPE, createTask, PRIORITY, awardSkillXP } from './tasks.js';
 import { STRUCTURE_TYPE, getWorkshops } from './construction.js';
 
 // === CRAFT CATEGORIES ===
@@ -84,6 +84,27 @@ export const RECIPES = {
     workAmount: 25,
     output: { type: 'figurine', amount: 1 },
     quality: true, // Can be masterwork
+  },
+
+  // Animal products (Craftsdwarf) — hides/bones drop at hunting kill sites
+  leather_goods: {
+    name: 'Leather Goods',
+    category: CRAFT_CATEGORY.GOODS,
+    workshop: STRUCTURE_TYPE.WORKSHOP_CRAFTSDWARF,
+    skill: SKILL.LEATHERWORKING,
+    materials: [{ type: 'hide', amount: 1 }],
+    workAmount: 18,
+    output: { type: 'craft_goods', amount: 2, material: 'leather' },
+  },
+  bone_trinkets: {
+    name: 'Bone Trinkets',
+    category: CRAFT_CATEGORY.GOODS,
+    workshop: STRUCTURE_TYPE.WORKSHOP_CRAFTSDWARF,
+    skill: SKILL.CRAFTING,
+    materials: [{ type: 'bone', amount: 2 }],
+    workAmount: 15,
+    output: { type: 'trinket', amount: 2, material: 'bone' },
+    quality: true,
   },
 
   // Food (Kitchen)
@@ -199,7 +220,7 @@ export function workOnCrafting(job, dwarf, state) {
   }
 
   // Calculate work based on skill
-  const skill = dwarf.skills?.[job.recipe.skill] || 0.3;
+  const skill = getSkillLevel(dwarf, job.recipe.skill);
   const workDone = 1 + skill * 2;
 
   job.progress += workDone;
@@ -215,12 +236,8 @@ export function workOnCrafting(job, dwarf, state) {
     const item = createItem(job.recipe.output, quality, dwarf);
     craftedItems.push(item);
 
-    // Skill improvement
-    if (dwarf.skills && Math.random() < 0.2) {
-      dwarf.skills[job.recipe.skill] = Math.min(1,
-        (dwarf.skills[job.recipe.skill] || 0.2) + 0.02
-      );
-    }
+    // Skill improvement (array-shaped skills + level-up events)
+    awardSkillXP(dwarf, job.recipe.skill, 10);
 
     // Mood boost from crafting
     dwarf.mood = Math.min(100, (dwarf.mood || 50) + 5 + quality.multiplier);
@@ -239,7 +256,7 @@ export function workOnCrafting(job, dwarf, state) {
  * Determine quality of crafted item
  */
 function determineQuality(dwarf, recipe) {
-  const skill = dwarf.skills?.[recipe.skill] || 0.3;
+  const skill = getSkillLevel(dwarf, recipe.skill);
   const creativity = dwarf.personality?.creativity || 0.5;
   const patience = dwarf.personality?.patience || 0.5;
 
@@ -268,6 +285,45 @@ function createItem(output, quality, crafter) {
     crafterName: crafter.name,
     createdAt: Date.now(),
   };
+}
+
+/**
+ * Skill level tolerant of both shapes: real dwarves carry an array of skill
+ * objects (generateSkills); the old object-map reads always fell through to
+ * the 0.3 default, which made every dwarf craft identically
+ */
+function getSkillLevel(dwarf, skillName) {
+  // 0.3 is a floor, not a fallback: awardSkillXP seeds new skills at level 0,
+  // which must not read as worse than never having tried
+  if (Array.isArray(dwarf.skills)) {
+    return Math.max(0.3, dwarf.skills.find(s => s.name === skillName)?.level ?? 0);
+  }
+  return dwarf.skills?.[skillName] || 0.3;
+}
+
+// Auto-queue tuning: jobs trickle in as materials + workshops appear
+const MAX_PENDING_JOBS = 3;
+const QUEUE_CHANCE = 0.02; // per craftable recipe per check
+
+/**
+ * Queue crafting work as it becomes possible (audit pass 2 follow-up:
+ * createCraftingJob previously had NO callers, so the whole crafting loop —
+ * and any recipe — was unreachable). Called periodically from the world
+ * tick; cheap when nothing is craftable.
+ */
+export function maybeQueueCraftingJobs(state) {
+  if (craftingJobs.length >= MAX_PENDING_JOBS) return;
+
+  const pendingIds = new Set(craftingJobs.map(j => j.recipeId));
+
+  for (const recipeId of Object.keys(RECIPES)) {
+    if (pendingIds.has(recipeId)) continue;
+    if (Math.random() > QUEUE_CHANCE) continue;
+    if (!canCraftRecipe(recipeId, state)) continue;
+
+    createCraftingJob(recipeId, null, state);
+    if (craftingJobs.length >= MAX_PENDING_JOBS) return;
+  }
 }
 
 /**
@@ -331,7 +387,7 @@ export function findBestCraftingJob(dwarf) {
     if (job.assignee && job.assignee !== dwarf.id) continue;
 
     // Score based on skill match and distance
-    const skill = dwarf.skills?.[job.recipe.skill] || 0.3;
+    const skill = getSkillLevel(dwarf, job.recipe.skill);
     const dist = Math.abs(dwarf.x - job.workshop.x) + Math.abs(dwarf.y - job.workshop.y);
 
     const score = skill * 50 - dist;

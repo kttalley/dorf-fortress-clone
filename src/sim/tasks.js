@@ -3,6 +3,8 @@
  * Dwarves pursue meaningful work based on their skills and personality
  */
 
+import { emit, EVENTS } from '../events/eventBus.js';
+
 // === SKILL TREE ===
 // Interconnected skills that improve with practice
 export const SKILL_TREE = {
@@ -88,6 +90,7 @@ export const SKILL = {
   MASONRY: 'masonry',         // Stone construction
   CARPENTRY: 'carpentry',     // Wood construction
   CRAFTING: 'crafting',       // General item creation
+  LEATHERWORKING: 'leatherworking', // Working hides from hunts
   COOKING: 'cooking',         // Food preparation
   SOCIAL: 'social',           // Conversation quality
   EXPLORATION: 'exploration', // Finding new areas
@@ -235,6 +238,12 @@ export function awardSkillXP(dwarf, skillName, amount = 1) {
   if (levelUp > 0) {
     skill.level = Math.min(1.0, skill.level + levelUp * 0.1);
     skill.experience -= levelUp * xpPerLevel;
+
+    emit(EVENTS.SKILL_LEVELED, {
+      dwarf,
+      skill: skillName,
+      newLevel: skill.level,
+    });
   }
 
   // Update proficiency: influenced by personality + skill level

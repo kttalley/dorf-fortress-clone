@@ -814,6 +814,15 @@ function workHunt(dwarf, state) {
     dwarf.mood = Math.min(100, (dwarf.mood || 50) + 4);
     satisfyFulfillment(dwarf, 'exploration', 0.2);
     addLog(state, `${getDisplayName(dwarf)} brought down a ${prey.subtype}!`);
+
+    // Hides/bones drop at the kill site as crafting materials (meat is
+    // covered by the carcass world.js creates from the fallen prey)
+    if (!state.resources) state.resources = [];
+    for (const item of result.loot || []) {
+      if (item.type === 'meat') continue;
+      state.resources.push({ ...item, amount: item.amount || 1, x: prey.x, y: prey.y });
+    }
+
     dwarf.currentTask = null;
     return { state: AI_STATE.HUNTING, target: { x: dwarf.x, y: dwarf.y } };
   }

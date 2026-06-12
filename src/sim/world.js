@@ -12,7 +12,7 @@ import { emit, EVENTS } from '../events/eventBus.js';
 import { initScentMap, emitScent, decayScents, seedWaterScent, SCENT_CHANNEL } from './movement.js';
 import { initGroundCover, tickGroundCover } from './groundCover.js';
 import { initConstruction } from './construction.js';
-import { initCrafting } from './crafting.js';
+import { initCrafting, maybeQueueCraftingJobs } from './crafting.js';
 import { decayDrives, getDominantDrive, applyHomeostasis } from './drives.js';
 import { perceiveWorld } from './perception.js';
 import { getCalendar } from './clock.js';
@@ -190,6 +190,12 @@ export function tick(state) {
 
   // 5. Update food production systems
   updateFoodProduction(state);
+
+  // 5.5 Queue crafting work as materials + workshops appear (audit pass 2
+  // follow-up: jobs were never created, so the crafting loop never ran)
+  if (state.tick % 10 === 0) {
+    maybeQueueCraftingJobs(state);
+  }
 
   // 6. Maybe spawn new food (stochastic pressure)
   maybeSpawnFood(state, createFoodSource);

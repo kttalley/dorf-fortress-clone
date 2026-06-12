@@ -351,6 +351,14 @@ export function initNarratorEventTaps(state) {
     queueOncePerDay(`fish:${dwarf?.id}`, tick(), `${entityName(dwarf)} pulled ${catchDesc} from the water.`, 'wildlife');
   });
 
+  // Skill milestones: novice fumbling isn't chronicle material, but real
+  // competence growing is — once per dwarf+skill per day
+  on(EVENTS.SKILL_LEVELED, ({ dwarf, skill, newLevel }) => {
+    if ((newLevel || 0) < 0.3) return;
+    const tier = newLevel >= 0.7 ? 'masterful' : newLevel >= 0.5 ? 'skilled' : 'competent';
+    queueOncePerDay(`skill:${dwarf?.id}:${skill}`, tick(), `${entityName(dwarf)} has become ${tier} at ${skill}.`, 'progress');
+  });
+
   // Weather (emitted per dwarf per tick when notable — once per type per day)
   on(EVENTS.WEATHER_CHANGE, ({ type, intensity }) => {
     if (!type) return;

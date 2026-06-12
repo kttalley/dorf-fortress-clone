@@ -136,7 +136,7 @@ console.log('\n(a) hunting');
   const result = withRandom(0.0, () => attemptHunt(dwarf, deer, state));
   assert(result.killed === true, 'low-hp prey is killed');
   assert(kills === 1, 'HUNTING_SUCCESS emitted');
-  assert((dwarf.hunting_loot || []).some(l => l.type === 'meat'), 'kill loots meat');
+  assert((result.loot || []).some(l => l.type === 'meat'), 'kill rolls meat loot');
   assert(dwarf.skills.find(s => s.name === 'hunting'), 'hunting skill seeded by practice');
 
   offHit();
@@ -157,6 +157,13 @@ console.log('\n(a) hunting');
   assert(deer.hp <= 0, 'workHunt kills adjacent low-hp prey on the spot');
   assert(dwarf.currentTask === null, 'hunt task cleared after the kill');
   assert(state.log.some(e => /brought down a deer/.test(e.message)), 'kill logged for the event feed');
+
+  // Loot drops at the kill site as crafting materials (random 0 rolls all)
+  const hide = (state.resources || []).find(r => r.type === 'hide');
+  const bone = (state.resources || []).find(r => r.type === 'bone');
+  assert(hide && hide.x === 21 && hide.y === 20, 'hide dropped at the kill site');
+  assert(bone && bone.amount >= 1, 'bone dropped at the kill site');
+  assert(!(state.resources || []).some(r => r.type === 'meat'), 'meat NOT duplicated as a resource (carcass covers food)');
 }
 
 {
@@ -263,6 +270,50 @@ console.log('\n(c) water adjacency');
   assert(!canFishAt(dwarf, dwarf.x, dwarf.y, state), 'no water adjacent -> cannot fish');
   setTileType(state, 20, 21, 'water_deep');
   assert(canFishAt(dwarf, dwarf.x, dwarf.y, state), 'water_deep adjacent -> can fish (arg-order bug dead)');
+}
+
+// ============================================================
+// (d) animal parts feed the crafting loop
+// ============================================================
+console.log('\n(d) loot -> crafting');
+
+{
+  const { RECIPES, workOnCrafting, initCrafting } = await import('../src/sim/crafting.js');
+  const { awardSkillXP } = await import('../src/sim/tasks.js');
+  initCrafting();
+
+  assert(RECIPES.leather_goods?.materials?.[0]?.type === 'hide', 'leather goods recipe consumes hides');
+  assert(RECIPES.bone_trinkets?.materials?.[0]?.type === 'bone', 'bone trinkets recipe consumes bones');
+
+  // Work a leather job to completion straight from hunted hides
+  const state = makeState();
+  const dwarf = makeDwarf(10, 20, 20, 'Tekkud');
+  state.resources = [{ type: 'hide', amount: 2, x: 20, y: 20 }];
+  const job = {
+    id: 1,
+    recipeId: 'leather_goods',
+    recipe: RECIPES.leather_goods,
+    workshop: { x: 20, y: 20 },
+    progress: 0,
+    status: 'pending',
+    materialsReserved: false,
+  };
+
+  let item = null;
+  let guard = 30;
+  while (guard-- > 0 && !item) {
+    item = withRandom(0.5, () => workOnCrafting(job, dwarf, state));
+  }
+  assert(item?.type === 'craft_goods' && item?.material === 'leather', 'hide crafted into leather goods');
+  assert(state.resources.find(r => r.type === 'hide')?.amount === 1, 'one hide consumed');
+  assert(dwarf.skills.find(s => s.name === 'leatherworking'), 'leatherworking skill earned by crafting');
+
+  // Skill level-ups are now events the narrator can hear
+  let leveled = null;
+  const offLevel = on(EVENTS.SKILL_LEVELED, (payload) => { leveled = payload; });
+  awardSkillXP(dwarf, 'fishing', 500);
+  assert(leveled?.skill === 'fishing' && leveled?.newLevel > 0, 'awardSkillXP emits SKILL_LEVELED on level-up');
+  offLevel();
 }
 
 // ============================================================
