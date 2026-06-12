@@ -24,6 +24,7 @@ import {
   moveToward,
   emitScent,
   findPath,
+  isPassable,
 } from '../sim/movement.js';
 
 import {
@@ -661,7 +662,7 @@ function workExplore(dwarf, state) {
 }
 
 function workEat(dwarf, state) {
-  const food = findNearestFood(dwarf, state);
+  const food = findNearestFood(dwarf, state, { desperate: isCritical(dwarf) });
 
   if (!food) {
     dwarf.currentTask = null;
@@ -669,6 +670,25 @@ function workEat(dwarf, state) {
   }
 
   const dist = distance(dwarf, food);
+
+  // Memory-driven foraging (audit WALK R6): walking a remembered patch,
+  // not visible food. Real food entering sight takes over automatically
+  // (findNearestFood prefers it).
+  if (food.remembered) {
+    if (dist <= 1) {
+      const loc = dwarf.memory?.locations?.[food.memKey];
+      if (loc) {
+        loc.visits = (loc.visits || 0) + 1;
+        // A remembered FOOD spot with nothing here is stale — forget it.
+        // Vegetation is still vegetation; just not edible today.
+        if (loc.type === 'food') delete dwarf.memory.locations[food.memKey];
+      }
+      dwarf.currentTask = null;
+      return { state: AI_STATE.WANDERING, target: null };
+    }
+    executeSmartMovement(dwarf, state, { targetPos: { x: food.x, y: food.y }, followScent: true });
+    return { state: AI_STATE.SEEKING_FOOD, target: { x: food.x, y: food.y } };
+  }
 
   if (dist <= 1) {
     // Eat!
@@ -827,24 +847,66 @@ function findGatheringSpot(dwarf, state) {
 
 // === DECISION HELPERS ===
 
+const EXPLORE_TARGET_TIMEOUT = 120; // ticks before abandoning an unreachable frontier
+
+/**
+ * Sample candidate frontier points, preferring far, unvisited ground
+ * (audit WALK R6)
+ */
+function pickExploreTarget(dwarf, state) {
+  let best = null;
+  let bestScore = -Infinity;
+
+  for (let i = 0; i < 12; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const range = 8 + Math.floor(Math.random() * 14);
+    const x = Math.max(1, Math.min(state.map.width - 2, Math.floor(dwarf.x + Math.cos(angle) * range)));
+    const y = Math.max(1, Math.min(state.map.height - 2, Math.floor(dwarf.y + Math.sin(angle) * range)));
+    if (!isPassable(state, x, y)) continue;
+
+    const tile = getTileAt(x, y, state);
+    const unvisited = tile && !dwarf.memory?.visitedAreas?.has(tile) ? 1 : 0;
+    const dist = Math.abs(x - dwarf.x) + Math.abs(y - dwarf.y);
+    const score = unvisited * 20 + dist;
+    if (score > bestScore) {
+      bestScore = score;
+      best = { x, y };
+    }
+  }
+
+  return best;
+}
+
 function decideExplore(dwarf, state, avoidSocial = false) {
-  // Pick a direction to explore
-  const angle = Math.random() * Math.PI * 2;
-  const range = 8 + Math.floor(Math.random() * 10);
+  // Persistent frontier target (audit WALK R6): keep walking toward the
+  // same unvisited spot across ticks instead of re-rolling a direction
+  // every call (which made "exploring" indistinguishable from drift)
+  let target = dwarf._exploreTarget;
+  const arrived = target && Math.abs(dwarf.x - target.x) + Math.abs(dwarf.y - target.y) <= 1;
+  const expired = target && state.tick - (target.setTick || 0) > EXPLORE_TARGET_TIMEOUT;
 
-  const targetX = Math.floor(dwarf.x + Math.cos(angle) * range);
-  const targetY = Math.floor(dwarf.y + Math.sin(angle) * range);
-
-  const x = Math.max(1, Math.min(state.map.width - 2, targetX));
-  const y = Math.max(1, Math.min(state.map.height - 2, targetY));
+  if (arrived) {
+    satisfyFulfillment(dwarf, 'exploration', 0.5); // frontier reached
+    target = null;
+  }
+  if (!target || expired) {
+    const next = pickExploreTarget(dwarf, state);
+    target = next ? { ...next, setTick: state.tick } : null;
+    dwarf._exploreTarget = target;
+  }
+  if (!target) {
+    // Boxed in: fall back to a drift step
+    executeSmartMovement(dwarf, state, { exploreBias: true, avoidSocial });
+    return { state: AI_STATE.EXPLORING, target: null };
+  }
 
   executeSmartMovement(dwarf, state, {
-    targetPos: { x, y },
+    targetPos: { x: target.x, y: target.y },
     exploreBias: true,
     avoidSocial,
   });
 
-  return { state: AI_STATE.EXPLORING, target: { x, y } };
+  return { state: AI_STATE.EXPLORING, target: { x: target.x, y: target.y } };
 }
 
 function decideIdle(dwarf, state) {
@@ -866,7 +928,8 @@ function decideIdle(dwarf, state) {
 function decideCritical(dwarf, state) {
   dwarf.mood = Math.max(0, dwarf.mood - 1);
 
-  const food = findNearestFood(dwarf, state);
+  // Survival valve: a critical dwarf gets the omniscient scan (WALK R6)
+  const food = findNearestFood(dwarf, state, { desperate: true });
 
   if (!food) {
     executeSmartMovement(dwarf, state, { followScent: true });
@@ -879,21 +942,39 @@ function decideCritical(dwarf, state) {
 
 // === HELPER FUNCTIONS ===
 
-function findNearestFood(dwarf, state) {
+function findNearestFood(dwarf, state, { desperate = false } = {}) {
   const foods = state.foodSources?.filter(f => f.amount > 0) || [];
+  const sightRange = dwarf.perceptionRadius || 10;
 
+  // Sight first (audit WALK R6): no more map-wide mind-reading. A starving
+  // dwarf (desperate) keeps the old omniscient scan as a survival valve.
   let nearest = null;
   let nearestDist = Infinity;
-
   for (const food of foods) {
     const dist = distance(dwarf, food);
-    if (dist < nearestDist) {
+    if (dist < nearestDist && (desperate || dist <= sightRange)) {
       nearestDist = dist;
       nearest = food;
     }
   }
+  if (nearest) return nearest;
 
-  return nearest;
+  // Memory second: head for the freshest remembered food or vegetation
+  // patch instead of wandering blind
+  let memKey = null;
+  let remembered = null;
+  for (const [key, loc] of Object.entries(dwarf.memory?.locations || {})) {
+    if (loc.type !== 'food' && loc.type !== 'vegetation') continue;
+    if (!remembered || (loc.lastSeen || 0) > (remembered.lastSeen || 0)) {
+      remembered = loc;
+      memKey = key;
+    }
+  }
+  if (remembered) {
+    return { x: remembered.x, y: remembered.y, remembered: true, memKey };
+  }
+
+  return null;
 }
 
 function findSocialTarget(dwarf, state) {
