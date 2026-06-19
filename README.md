@@ -28,12 +28,21 @@ The result is a system where **stories emerge from mechanics**, not scripts.
 
 ## Key Systems
 
-- **11-step tick loop** — scent diffusion → hunger → drives → decisions → actions → visitors → combat → social → events → history → cleanup
+- **13-step tick loop** — scent diffusion → hunger → drives → decisions → actions → visitors → combat → social → events → history → cleanup + weather + behavior traces
 - **Rich personality system** — 10 traits (0–1 range) feed into 6 archetypes, 8 skills, mood, drives, and relationship affinity
-- **Entity cognition via LLM** — thoughts on meetings, food, hunger, observations; conversations up to 6 turns with cooldowns
-- **Procedural world gen** — Simplex noise for elevation/moisture/temperature → biome classification, cellular automata caves, scent-based pathfinding
+- **Entity cognition via LLM** — thoughts on meetings, food, hunger, observations; conversations up to 6 turns with cooldowns; layered world context (L0 lore + L1 chronicle)
+- **Procedural world gen** — Simplex noise for elevation/moisture/temperature → biome classification, cellular automata caves, scent-based pathfinding, landmarks
 - **Two chat modes** — talk directly to any entity (shaped by their personality/mood/relationships), or talk to the game engine itself for world analysis
-- **Visitor system** — traders, raiders, wanderers with disposition and satisfaction state machines
+- **Visitor system** — traders, raiders, wanderers with itineraries, A* pathing, disposition and satisfaction state machines
+- **Animal ecosystem** — autonomous animals with AI, intentions, and predator/prey behaviors
+- **Hunting & fishing** — food gathering mechanics integrated into the food web
+- **Crafting system** — workshop jobs and item creation, fueled by hunting loot
+- **Persistent weather** — mud season, snow accumulation, wetness grids, weather-driven shelter-seeking
+- **8-bit sprite engine** — emoji replacement with pixel-art style sprites at half-humanoid scale
+- **Camera system** — pan policy, follow policy, centered view on dwarves
+- **Day/night rhythm** — time-of-day awareness affecting entity behavior and world state
+- **Skill level-up system** — entity skills improve through use, tracked in chronicle
+- **Behavior traces** — per-entity behavioral history for richer LLM context
 
 ---
 
@@ -127,14 +136,23 @@ LLMs are treated as **replaceable components**, not hard dependencies.
 
 ## Features
 
-* **LLM-assisted cognition** (thoughts, speech, interpretation)
-* **Autonomous dwarf agents** with traits, skills, and needs
+* **LLM-assisted cognition** (thoughts, speech, interpretation) with layered context (L0 lore + L1 chronicle)
+* **Autonomous dwarf agents** with traits, skills, needs, and behavioral traces
+* **Autonomous animal agents** with intentions and predator/prey behaviors
 * **Hunger and survival systems** driven by world state
-* **Procedurally generated maps and biomes** (noise-based terrain, cellular automata caves)
-* **Deterministic simulation loop**
-* **Social interactions and conversations**
-* **External visitors** (humans, goblins, elves with trade/raid behaviors)
+* **Hunting and fishing** mechanics for food gathering
+* **Crafting system** — workshop jobs and item creation
+* **Procedurally generated maps and biomes** (noise-based terrain, cellular automata caves, landmarks)
+* **Deterministic simulation loop** (13-step tick)
+* **Social interactions and conversations** with relationship history
+* **External visitors** (humans, goblins, elves with itineraries and A* pathing)
 * **World history generation** with race relations
+* **Persistent weather** — mud season, snow accumulation, wetness grids
+* **Day/night rhythm** affecting entity behavior
+* **8-bit sprite engine** replacing entity emojis
+* **Camera pan and follow** policies
+* **Skill level-up system** with chronicle events
+* **Behavior traces** for richer entity context
 * **Experimental / research-friendly architecture**
 * **Runs entirely in the browser**
 
@@ -145,7 +163,8 @@ LLMs are treated as **replaceable components**, not hard dependencies.
 * **JavaScript (ES Modules)**
 * **Vite** for development and bundling
 * **HTML / CSS Grid** for ASCII rendering
-* **Ollama** for local LLM inference
+* **Rot.js** for weather and flora animation
+* **Ollama** (primary, local) or **Groq** (cloud fallback) for LLM inference
 * No frameworks, no engines, minimal abstraction
 
 ---
@@ -202,24 +221,31 @@ src/
 ├── ai/                    # Agent cognition and LLM integration
 │   ├── dwarfAI.js         # Decision-making, task selection
 │   ├── visitorAI.js       # External visitor behaviors
+│   ├── animalAI.js        # Animal autonomous behaviors
+│   ├── intentions.js      # Agent intention system
+│   ├── itineraries.js     # Visitor travel routes
 │   ├── thoughts.js        # Event-driven thought generation
-│   └── llmClient.js       # Ollama API, request queue
+│   └── llmClient.js       # Groq/Ollama API, request queue
 │
 ├── llm/                   # LLM-specific generators
 │   ├── nameGenerator.js   # Dwarf names and biographies
 │   ├── biomeGenerator.js  # Biome names and color modifiers
 │   ├── entityChat.js      # Player-to-entity conversations
 │   ├── gameAssistant.js   # "Ask the Game" feature
+│   ├── eventNarrator.js   # Live event narration
+│   ├── worldContext.js    # Layered LLM context (L0+L1)
 │   ├── fallbacks.js       # Local fallback responses
 │   └── prompts/           # LLM prompt templates
 │       ├── dwarf.js
 │       ├── narrative.js
-│       └── entityChat.js
+│       ├── entityChat.js
+│       └── scenarios.js
 │
 ├── sim/                   # Core simulation systems
-│   ├── world.js           # Main tick loop (11-step orchestration)
+│   ├── world.js           # Main tick loop (13-step orchestration)
 │   ├── entities.js        # Dwarf/food/visitor creation
-│   ├── movement.js        # Scent-based pathfinding
+│   ├── animals.js         # Animal entity management
+│   ├── movement.js        # A* pathfinding, scent maps
 │   ├── combat.js          # Combat resolution
 │   ├── rules.js           # Hunger, death, food production
 │   ├── tasks.js           # Task types and skill system
@@ -230,8 +256,22 @@ src/
 │   ├── visitorSpawner.js  # External force generation
 │   ├── races.js           # Race definitions (dwarf, human, goblin, elf)
 │   ├── foodProduction.js  # Farms, fishing, food systems
+│   ├── hunting.js         # Hunting mechanics
+│   ├── fishing.js         # Fishing mechanics
 │   ├── history.js         # World history & race relations
-│   └── edges.js           # Map boundary & fortress detection
+│   ├── edges.js           # Map boundary & fortress detection
+│   ├── landmarks.js       # Navigation landmarks
+│   ├── weather.js         # Weather state machine
+│   ├── weatherParticles.js # Weather particle effects
+│   ├── weatherScenarios.js # Weather scenario definitions
+│   ├── weatherCognition.js # Weather-driven behavior
+│   ├── weatherRenderer.js # Weather visual rendering
+│   ├── clock.js           # Day/night rhythm
+│   ├── drives.js          # Entity drive system
+│   ├── perception.js      # Entity perception system
+│   ├── capabilities.js    # Entity capabilities
+│   ├── behaviorTrace.js   # Behavioral history tracking
+│   ├── groundCover.js     # Terrain ground cover
 │
 ├── map/                   # Procedural generation
 │   ├── map.js             # Map creation, tile management
@@ -246,6 +286,7 @@ src/
 │
 ├── ui/                    # Rendering and interface
 │   ├── renderer.js        # CSS Grid ASCII renderer (dirty-checked)
+│   ├── sprites.js         # 8-bit sprite engine
 │   ├── statPanel.js       # Entity inspection panel
 │   ├── speechBubble.js    # Floating thoughts/speech + sidebar
 │   ├── biomeWidgets.js    # Title and event log widgets
@@ -256,7 +297,11 @@ src/
 │   ├── log.js             # Event log management
 │   ├── logDisplay.js      # Event log rendering
 │   ├── conversationToast.js # Toast notifications
-│   └── speech.js          # Speech generation utilities
+│   ├── speech.js          # Speech generation utilities
+│   ├── scenarioScreen.js  # Scenario selection screen
+│   ├── loadingProgress.js # Loading progress indicator
+│   ├── music.js           # Ambient music
+│   └── weatherRenderer.js # Weather visual effects
 │
 ├── state/                 # State management
 │   └── store.js           # World state schema, log management
@@ -289,42 +334,67 @@ The simulation advances through discrete ticks, with each tick executing systems
 │                    TICK EXECUTION                        │
 ├─────────────────────────────────────────────────────────┤
 │                                                          │
-│  1. SCENT UPDATE                                         │
-│     └─ Decay existing scents, emit food scents           │
+│  1. WEATHER UPDATE                                       │
+│     ├─ Advance weather state machine                     │
+│     └─ Update ground cover (snow/wetness persistence)    │
 │                                                          │
-│  2. HUNGER PROCESSING                                    │
-│     └─ Increase hunger, emit threshold events            │
+│  2. SCENT UPDATE                                         │
+│     ├─ Decay existing scents                             │
+│     ├─ Emit food scents                                  │
+│     └─ Emit presence scents (dwarf movement trails)      │
 │                                                          │
-│  3. DECISION PHASE (per dwarf)                          │
+│  3. DRIVE DECAY & HOMEOSTASIS                            │
+│     ├─ Decay all entity drives                           │
+│     ├─ Mood homeostasis (drift toward setpoint)          │
+│     └─ Energy drain during wakefulness                   │
+│                                                          │
+│  4. HUNGER PROCESSING                                    │
+│     ├─ Increase hunger                                   │
+│     └─ Emit threshold events                             │
+│                                                          │
+│  5. PERCEPTION                                           │
+│     ├─ Update entity awareness of local world            │
+│     └─ Update at decision intervals                      │
+│                                                          │
+│  6. DECISION PHASE (per entity)                         │
 │     ├─ Check combat threats → respond if needed          │
 │     ├─ Check critical hunger → seek food                 │
 │     ├─ Evaluate task priorities                          │
 │     └─ Select highest-priority task                      │
 │                                                          │
-│  4. ACTION PHASE (per dwarf)                            │
+│  7. ACTION PHASE (per entity)                           │
 │     └─ Execute movement, eating, working, socializing    │
 │                                                          │
-│  5. VISITOR PROCESSING                                   │
-│     └─ Update trader/raider behaviors                    │
+│  8. BEHAVIOR TRACE SAMPLING                              │
+│     └─ Record recent actions for LLM context             │
 │                                                          │
-│  6. COMBAT RESOLUTION                                    │
-│     └─ Resolve attacks, apply damage                     │
+│  9. ANIMAL ECOSYSTEM                                     │
+│     ├─ Decay drives, age, perceive, decide, act          │
+│     └─ Convert fallen animals to carcasses               │
 │                                                          │
-│  7. DEATH PROCESSING                                     │
-│     └─ Remove dead entities, emit events                 │
+│  10. VISITOR PROCESSING                                   │
+│      └─ Update trader/raider behaviors                    │
 │                                                          │
-│  8. RESOURCE UPDATES                                     │
-│     ├─ Food production at farms                          │
-│     └─ Random food spawning                              │
+│  11. COMBAT RESOLUTION                                    │
+│      └─ Resolve attacks, apply damage                     │
 │                                                          │
-│  9. VISITOR SPAWNING                                     │
-│     └─ Maybe spawn traders/raiders based on relations    │
+│  12. DEATH PROCESSING                                     │
+│       ├─ Remove dead entities                            │
+│       └─ Emit death events                                │
 │                                                          │
-│  10. MOOD DETECTION                                      │
-│      └─ Emit events for significant mood changes         │
+│  13. RESOURCE UPDATES                                     │
+│       ├─ Food production at farms                        │
+│       ├─ Queue crafting jobs                             │
+│       └─ Random food spawning                            │
 │                                                          │
-│  11. EMIT TICK EVENT                                     │
-│      └─ Notify all subscribers                           │
+│  14. VISITOR SPAWNING                                     │
+│       └─ Maybe spawn traders/raiders based on relations  │
+│                                                          │
+│  15. MOOD DETECTION                                       │
+│       └─ Emit events for significant mood changes        │
+│                                                          │
+│  16. EMIT TICK EVENT                                      │
+│       └─ Notify all subscribers                           │
 │                                                          │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -377,7 +447,7 @@ Dwarves use a **priority-based task selection** system, not a behavior tree or s
 
 ### Movement System
 
-Dwarves navigate using **intelligent scent-based pathfinding** with multiple weighted factors:
+Dwarves navigate using **A* pathfinding** with scent-based routing and multiple weighted factors:
 
 ```
 Movement Weight Composition:
@@ -388,6 +458,7 @@ Movement Weight Composition:
 └── Wander noise (15%)  - Random deviation for naturalism
 
 Scent System:
+├── Multi-channel scents (food, presence, danger)
 ├── Emitted from food sources with strength × radius decay
 ├── Spreads outward with exponential decay
 ├── Dwarves sample scent gradient in 8 directions
@@ -396,13 +467,28 @@ Scent System:
 
 **Implementation**: `src/sim/movement.js`
 
+### Animal Decision System
+
+Animals operate on a parallel cognitive loop with faster decision intervals:
+
+```
+Animal Tick:
+├── Every tick: decay drives, age, act
+├── Every N ticks: perceive, update fear, decide
+└── On death: convert to food source, emit danger scent
+```
+
+Animals have predator/prey behaviors, fear responses to dwarves and other animals, and age-based lifecycle management.
+
+**Implementation**: `src/ai/animalAI.js`, `src/sim/animals.js`
+
 ### Dwarf States
 
 ```
 IDLE, WANDERING, SEEKING_FOOD, EATING,
 SEEKING_SOCIAL, SOCIALIZING, EXPLORING,
 WORKING_DIG, WORKING_BUILD, WORKING_CRAFT,
-HAULING, FIGHTING, FLEEING_COMBAT
+HAULING, FIGHTING, FLEEING_COMBAT, SLEEPING, GATHERING
 ```
 
 ### Entity Schema
@@ -421,12 +507,19 @@ Each dwarf contains:
   hunger: 0-95,
   mood: 0-100,
   hp, maxHp,
+  energy: 0-100,         // Drains while awake, recovers during sleep
 
   // Personality (0-1 traits)
   personality: {
     curiosity, friendliness, bravery, humor,
     melancholy, patience, creativity, loyalty,
     stubbornness, optimism
+  },
+
+  // Drives (0-1 intensity)
+  drives: {
+    hunger, social, exploration, safety,
+    curiosity, comfort
   },
 
   // Skills (0-1 proficiency)
@@ -444,8 +537,34 @@ Each dwarf contains:
   // Memory
   memory: { visitedAreas, events, conversations },
 
+  // Behavior traces (ring buffer for LLM context)
+  behaviorTrace: {
+    recentActions: [...],
+    decisions: [...],
+    tick: number
+  },
+
+  // Decision timing
+  decisionTick: number,
+  decisionInterval: number,
+
   // Current state
   currentTask, currentThought, lastThoughtTick
+}
+```
+
+### Animal Entity Schema
+
+Animals have a simplified schema focused on survival behaviors:
+
+```javascript
+{
+  id, type, x, y, hp, state,
+  hunger, energy, age, maxAge,
+  fear: 0-1,
+  decisionInterval: 5-15,
+  skills: { running, strength, stealth },
+  behaviorTrace: { recentActions: [...] }
 }
 ```
 
@@ -455,7 +574,7 @@ Each dwarf contains:
 
 ### Integration Points
 
-The LLM is called in **5 specific places**, all outside the main tick loop:
+The LLM is called in **7 specific places**, all outside the main tick loop:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -486,8 +605,24 @@ The LLM is called in **5 specific places**, all outside the main tick loop:
 │     ├─ Trigger: Player query via UI                     │
 │     └─ Optional feature, not part of simulation         │
 │                                                          │
+│  6. EVENT NARRATION (src/llm/eventNarrator.js)          │
+│     ├─ Trigger: Significant world events                │
+│     ├─ Context: Layered world state (L0+L1)             │
+│     └─ Fallback: Generic event descriptions             │
+│                                                          │
+│  7. SCENARIO GENERATION (src/llm/scenarioGenerator.js)  │
+│     ├─ Trigger: Player requests new scenario            │
+│     ├─ Output: JSON with title, description, params     │
+│     └─ Fallback: Preset scenarios                       │
+│                                                          │
 └─────────────────────────────────────────────────────────┘
 ```
+
+### Layered World Context
+
+LLM prompts use layered context for richer responses:
+- **L0 (Lore)**: Permanent world history, race relations, geography
+- **L1 (Chronicle)**: Recent events, tick history, current situation
 
 ### Hard Constraints
 
@@ -500,7 +635,7 @@ The LLM is called in **5 specific places**, all outside the main tick loop:
 
 ```
 src/ai/llmClient.js
-├─ Server: Ollama API (configurable endpoint)
+├─ Server: Ollama (primary, local) or Groq (cloud fallback)
 ├─ Model: llama3.1-claude or any Ollama-compatible
 ├─ Queue: Async, non-blocking, rate-limited
 └─ Functions:
@@ -547,6 +682,49 @@ emit(EVENTS.FOOD_FOUND, { dwarf, food });
 - `VISITOR_ARRIVED`, `VISITOR_LEAVING`
 - `COMBAT_HIT`, `COMBAT_MISS`, `COMBAT_FLEE`
 - `TICK` - Every simulation tick
+
+---
+
+## Weather System
+
+### Persistent Weather Model
+
+Weather is not cosmetic — it persists across ticks and affects the world state:
+
+```
+Weather State Machine:
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│  CLEAR   │────►│  RAIN    │────►│  SNOW    │
+└──────────┘     └──────────┘     └──────────┘
+     │                │                │
+     └────────────────┴────────────────┘
+              (transitions based on season)
+```
+
+### Mud Season (Ground Cover Persistence)
+
+The ground remembers weather conditions (audit WX 7):
+- Rain soaks into the ground (wetness)
+- Snow accumulates on surfaces
+- Thaw creates mud (wet + cold transition)
+
+This affects entity movement, comfort, and LLM context.
+
+### Weather Cognition
+
+Entities perceive and react to weather:
+- Shelter-seeking during storms
+- Weather-driven mood changes
+- LLM prompts include weather context
+
+### Weather Rendering
+
+Particle-based weather effects rendered on top of the ASCII grid:
+- Rain particles
+- Snow accumulation visualization
+- Storm intensity variation
+
+**Implementation**: `src/sim/weather.js`, `src/sim/weatherParticles.js`, `src/sim/weatherScenarios.js`, `src/sim/weatherCognition.js`, `src/ui/weatherRenderer.js`
 
 ---
 
@@ -617,7 +795,22 @@ src/ui/renderer.js
 └─ scrollToDwarves(dwarves)     # Center view on dwarves
 ```
 
-### Entity Glyphs
+### Camera System
+
+Camera follows dwarves with configurable pan policy:
+- **Follow mode**: Center on active dwarves
+- **Pan policy**: Smooth camera movement, centered view
+
+### Sprite Engine
+
+8-bit pixel-art sprites replace entity emojis:
+- Dwarves, animals, and visitors rendered as sprites
+- Half-humanoid scale for animals
+- State-based sprite selection (healthy, hungry, fighting, etc.)
+
+**Implementation**: `src/ui/sprites.js`
+
+### Entity Glyphs (fallback/emoji mode)
 
 | Entity | Glyph | Color |
 |--------|-------|-------|
@@ -632,12 +825,17 @@ src/ui/renderer.js
 ### UI Widgets
 
 - **Stat Panel** - Entity inspection on click
-- **Speech Bubbles** - Floating above speaking dwarves
+- **Speech Bubbles** - Floating above speaking dwarves, centered tails
 - **Thought Sidebar** - Recent dwarf thoughts
 - **Event Log** - World events
+- **Chronicle** - Skill level-up and significant events
 - **Biome Title** - Map name with color theming
 - **Controls** - Pause, speed, regenerate
 - **Game Assistant** - "Ask the Game" chat panel
+- **Scenario Screen** - Scenario selection interface
+- **Loading Progress** - Initialization progress indicator
+- **Weather Renderer** - Particle-based weather effects
+- **Music** - Ambient audio
 
 ---
 
@@ -653,12 +851,90 @@ Visitor Lifecycle:
 │  ARRIVING  │ ──► │  ACTIVE    │ ──► │  LEAVING   │ ──► │   GONE     │
 │ (map edge) │     │(trade/raid)│     │ (satisfied)│     │            │
 └────────────┘     └────────────┘     └────────────┘     └────────────┘
-                          │
-                          ▼
-                   ┌────────────┐
-                   │  FIGHTING  │ ◄──► FLEEING
-                   └────────────┘
+       │                │
+       │                ▼
+       │         ┌────────────┐
+       └────────►│  FIGHTING  │ ◄──► FLEEING
+                 └────────────┘
 ```
+
+### Visitor Itineraries
+
+Visitors follow planned routes through the world:
+- Pre-computed itineraries based on map landmarks
+- A* pathfinding for navigation
+- Dynamic route adjustment based on threats
+
+**Implementation**: `src/ai/itineraries.js`, `src/sim/movement.js`
+
+
+---
+
+## Animal Ecosystem
+
+### Autonomous Animal Agents
+
+Animals operate as independent agents with their own cognitive loop:
+
+```
+Animal Tick:
+├── Every tick: decay drives, age, act
+├── Every N ticks: perceive, update fear, decide
+└── On death: convert to food source, emit danger scent
+```
+
+### Animal Behaviors
+
+- **Predator/prey dynamics** - animals flee from threats, hunt when hungry
+- **Fear responses** - fear level affects decision-making and movement
+- **Aging lifecycle** - animals grow, mature, and eventually die
+- **Carcass conversion** - fallen animals become food sources for dwarves
+
+### Animal Types
+
+| Type | Behavior | Disposition |
+|------|----------|-------------|
+| Deer | Herd behavior, flee from threats | Passive |
+| Wolf | Pack hunting, aggressive | Predatory |
+| Bird | Roaming, low priority | Neutral |
+
+**Implementation**: `src/ai/animalAI.js`, `src/sim/animals.js`
+
+---
+
+
+---
+
+## Hunting & Crafting
+
+### Hunting Mechanics
+
+Dwarves can hunt animals for food and materials:
+- Track and pursue animal targets
+- Successful hunts yield meat and hides
+- Hunted food sources are tracked like other food
+
+**Implementation**: `src/sim/hunting.js`
+
+### Fishing Mechanics
+
+Dwarves can fish in water sources:
+- Fish from nearby water tiles
+- Fishing provides reliable food source
+- Weather affects fishing success
+
+**Implementation**: `src/sim/fishing.js`
+
+### Crafting System
+
+Workshop-based item creation from gathered materials:
+- Crafting jobs queued when materials + workshops available
+- Loot from hunting fuels the crafting loop
+- Items created can be used, traded, or stored
+
+**Implementation**: `src/sim/crafting.js`
+
+---
 
 ### Races & Roles
 
@@ -752,25 +1028,38 @@ The palette influences biome color modifiers for unique visual themes on every s
 
 ## LLM Configuration
 
-The project supports **Groq** (primary) with **Ollama** as a local fallback. Configure via environment variables:
+The project supports **Ollama** (primary, local) with **Groq** as a cloud fallback. Configure via environment variables:
 
 ```bash
-# Groq (primary — fast, cloud-hosted)
-VITE_GROQ_API_KEY=your_key_here
+# Primary LLM Server (Ollama, OpenAI-compatible chat completions)
+#
+# Ollama chat completions URL (no default - must be supplied)
+# Example: VITE_VLLM_URL=http://localhost:11434/v1/chat/completions
+VITE_VLLM_URL=
 
-# Ollama (fallback — local, self-hosted)
-VITE_OLLAMA_BASE_URL=http://localhost:11434
+# Model name served by your Ollama instance
+# Example: VITE_VLLM_MODEL=incept5-narrator:latest
+VITE_VLLM_MODEL=
+
+# Groq Fallback (optional)
+# If Ollama is unavailable, the game falls back to Groq's API.
+# Get a free API key at https://console.groq.com
+# Put your key in .env.local (not here) so it stays out of git.
+#
+# VITE_GROQ_API_KEY=gsk_...
+# VITE_GROQ_MODEL=llama-3.1-8b-instant   # default
+# VITE_GROQ_MODEL=llama-3.3-70b-versatile # smarter, slower
 ```
 
-If Groq is unavailable or unconfigured, the system falls back to Ollama automatically. If both are offline, local hardcoded fallbacks keep the simulation running.
+If Ollama is unavailable or unconfigured, the system falls back to Groq automatically. If both are offline, local hardcoded fallbacks keep the simulation running.
 
 Or update `src/ai/llmClient.js` to match your setup.
 
 ### Tested models
 
-* Devstral / Mistral variants
+* Llama 3 / 3.1 variants
 * Qwen coder models
-* Llama 3.1 variants
+* Mistral / Devstral variants
 * Any Ollama-compatible text model should work
 
 The system is model-agnostic by design.

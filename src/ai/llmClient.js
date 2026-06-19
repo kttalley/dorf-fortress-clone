@@ -517,7 +517,12 @@ export async function generateConversationSpeech(speaker, listener, speakerThoug
   const speech = await queueGeneration(prompt, {
     maxTokens: 50,
     temperature: 0.85,
-    stop: ['\n', '"', '*', '('],
+    // Only stop on a hard line break. A `"` / `*` / `(` stop truncates at
+    // position 0 whenever the model opens with a quote or *action* (which it
+    // does constantly despite the "no quotes" instruction), yielding an empty
+    // string that falls back to a canned line. cleanResponse already strips
+    // surrounding quotes and *actions*, so let the text through. (Audit P11)
+    stop: ['\n'],
     system: context.worldCtx || undefined,
   });
 
@@ -710,7 +715,8 @@ export async function generateSpeech(speaker, listener, speakerThought, context 
   const speech = await queueGeneration(prompt, {
     maxTokens: 40,
     temperature: 0.85,
-    stop: ['\n', '"', '*'],
+    // See generateConversationSpeech: a leading-quote stop empties the response.
+    stop: ['\n'],
   });
 
   return speech || getDefaultSpeech(speaker);
