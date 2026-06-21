@@ -3,6 +3,12 @@
 
 **An emergent, agent-based simulation inspired by Dwarf Fortress, powered by deterministic systems and self-hosted LLM cognition**
 
+<p align="center">
+  <img src="docs/images/hero.gif" alt="Two dwarves talk it over in the Sage Miresteppes" width="400">
+</p>
+
+<p align="center"><em>Eirabell and Baragor weigh their options in the Sage Miresteppes — every line generated live by a self-hosted LLM reading their traits, mood, and the world around them.</em></p>
+
 ---
 
 ## Overview
@@ -93,6 +99,12 @@ sense → evaluate priorities → select task → execute → reflect
 
 This loop is intentionally imperfect and lossy—agents misunderstand, forget, and behave inconsistently.
 
+<p align="center">
+  <img src="docs/images/entities-conversing.jpeg" alt="Two dwarves exchange greetings in the Gelid Shroud" width="320">
+</p>
+
+<p align="center"><em>Korvus and Balandira trade words unprompted — emergent dialogue between two agents, not scripted NPC barks.</em></p>
+
 ---
 
 ### 3. Emergence Over Authoring
@@ -155,6 +167,19 @@ LLMs are treated as **replaceable components**, not hard dependencies.
 * **Behavior traces** for richer entity context
 * **Experimental / research-friendly architecture**
 * **Runs entirely in the browser**
+
+### Two Ways to Interact
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/images/chat-character.jpeg" alt="Talking directly to a character" width="300"></td>
+    <td width="50%" align="center"><img src="docs/images/chat-engine.jpeg" alt="Talking to the game engine" width="300"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Talk to a character</strong><br>Durgin answers in a voice shaped by his personality, mood, and relationships.</td>
+    <td align="center"><strong>Talk to the game engine</strong><br>Ask the read-only analyst about world state, history, and how the simulation is built.</td>
+  </tr>
+</table>
 
 ---
 

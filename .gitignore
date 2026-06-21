@@ -10,3 +10,7 @@ dist/
 .continue/
 .history/
 .vite/
+
+# Raw social media source assets (large videos / exports).
+# README-referenced images live in docs/images/ instead.
+social-media-assets/
