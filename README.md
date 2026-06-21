@@ -123,6 +123,12 @@ Instead:
 
 This mirrors the design ethos of classic simulation games and agent-based modeling.
 
+<p align="center">
+  <img src="docs/images/intro.gif" alt="The Gelid Shroud simulating in real time" width="360">
+</p>
+
+<p align="center"><em>The Gelid Shroud runs itself — no scripts, no input; entities forage, wander, and react as the world ticks forward.</em></p>
+
 ---
 
 ### 4. Local, Self-Hosted AI
@@ -180,6 +186,12 @@ LLMs are treated as **replaceable components**, not hard dependencies.
     <td align="center"><strong>Talk to the game engine</strong><br>Ask the read-only analyst about world state, history, and how the simulation is built.</td>
   </tr>
 </table>
+
+<p align="center">
+  <img src="docs/images/outro.gif" alt="A live conversation with a character" width="360">
+</p>
+
+<p align="center"><em>Talking to a character in real time — every reply is generated live and shaped by who they are.</em></p>
 
 ---
 
