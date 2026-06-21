@@ -178,11 +178,11 @@ LLMs are treated as **replaceable components**, not hard dependencies.
 
 <table>
   <tr>
-    <td width="50%" align="center"><img src="docs/images/chat-character.jpeg" alt="Talking directly to a character" width="300"></td>
-    <td width="50%" align="center"><img src="docs/images/chat-engine.jpeg" alt="Talking to the game engine" width="300"></td>
+    <td width="50%" align="center"><img src="docs/images/chat-character.jpeg" alt="Chatting with Finnley, a character" width="300"></td>
+    <td width="50%" align="center"><img src="docs/images/chat-engine.jpeg" alt="Asking the game engine how the simulation was built" width="300"></td>
   </tr>
   <tr>
-    <td align="center"><strong>Talk to a character</strong><br>Durgin answers in a voice shaped by his personality, mood, and relationships.</td>
+    <td align="center"><strong>Talk to a character</strong><br>Finnley deflects a pointed question — in a voice shaped by his personality, mood, and relationships.</td>
     <td align="center"><strong>Talk to the game engine</strong><br>Ask the read-only analyst about world state, history, and how the simulation is built.</td>
   </tr>
 </table>
@@ -782,6 +782,12 @@ Particle-based weather effects rendered on top of the ASCII grid:
    - Pure cellular automata (4-5 smoothing rule)
    - Mushroom groves and water pools
 
+<p align="center">
+  <img src="docs/images/biome-embersteppe.jpeg" alt="The Embersteppe biome" width="300">
+</p>
+
+<p align="center"><em>Every world is generated fresh — here the arid <strong>Embersteppe</strong>, a distinct climate, palette, and name from the temperate Gelid Shroud or the Sage Miresteppes.</em></p>
+
 ### Noise System
 
 ```
@@ -894,6 +900,12 @@ Visitor Lifecycle:
        └────────►│  FIGHTING  │ ◄──► FLEEING
                  └────────────┘
 ```
+
+<p align="center">
+  <img src="docs/images/visitor-chat.jpeg" alt="Chatting with Bess the Merchant, a visiting trader" width="300">
+</p>
+
+<p align="center"><em>Visitors are entities too — here Bess, a human trader passing through the Gelid Shroud, explains her business in her own words.</em></p>
 
 ### Visitor Itineraries
 
